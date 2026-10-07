@@ -23,7 +23,9 @@ jobs:
               
       - name: Install Capacitor Android
         run: npm install @capacitor/android --legacy-peer-deps
-        
+
+      - name: Build web app
+        run: npm run build -- --emptyOutDir
 
       - name: Sync Capacitor Android
         run: npx cap sync android
