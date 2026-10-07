@@ -1,0 +1,8 @@
+{
+  "name": "Study Vault Hub",
+  "description": "Premium mobile-first study platform for students featuring curated books, high-yield notes, interactive MCQ practice, and comprehensive NEET preparation.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

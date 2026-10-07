@@ -1,0 +1,186 @@
+{
+  "users": {
+    "usr_acc4805d-709e-4352-891c-4ef2bd21424e": {
+      "userId": "usr_acc4805d-709e-4352-891c-4ef2bd21424e",
+      "username": "ssrr",
+      "passwordSalt": "481926a91c9cad9501cd954059bcf238",
+      "passwordHash": "7d5eebd1176ef734523e1f28c19efbacf7c9b731fd8974230c6c67ee924aa5fbe7ed324124dcb232d6324e441de9c116a67abb055ff9c041200557625725fce1",
+      "tokenHash": "d5230811794178fa505abe041a11ad91e00ae8b22fac4dd0b7875e049921404e",
+      "sessionTokenHashes": [
+        {
+          "tokenHash": "d5230811794178fa505abe041a11ad91e00ae8b22fac4dd0b7875e049921404e",
+          "createdAt": "2026-10-06T20:07:59.406Z",
+          "lastUsedAt": "2026-10-06T20:07:59.406Z"
+        }
+      ],
+      "displayName": "Soumyadip",
+      "profilePhotoUrl": null,
+      "svhAiButtonPosition": {
+        "xRatio": 1,
+        "yRatio": 1
+      },
+      "createdAt": "2026-10-06T20:07:20.654Z",
+      "lastSeenAt": "2026-10-06T20:24:57.195Z",
+      "userStats": {
+        "name": "Soumyadip",
+        "profilePhotoUrl": null,
+        "hasCompletedSetup": true,
+        "themePreference": "system",
+        "examCountdown": null,
+        "selectedGoals": [
+          "NEET"
+        ],
+        "activeGoal": "NEET",
+        "customGoals": [],
+        "targetCollegeOrInstitution": "",
+        "questionsAttempted": 4,
+        "correctAnswers": 2,
+        "incorrectAnswers": 2,
+        "totalStudyMinutes": 0,
+        "streak": {
+          "current": 1,
+          "lastActiveDate": "2026-10-06"
+        },
+        "dailyGoals": {
+          "studyMinutes": 120,
+          "questionCount": 20,
+          "taskCount": 3
+        },
+        "tasks": [],
+        "studySessions": [],
+        "practiceHistory": [],
+        "topicsStudied": [
+          "Mechanics & Rotational Motion"
+        ],
+        "subjectsStudied": {},
+        "bookmarkedItemIds": [],
+        "completedNoteIds": [],
+        "readBookIds": [],
+        "chapterProgress": {},
+        "svhAiButtonPosition": {
+          "xRatio": 1,
+          "yRatio": 1
+        },
+        "userId": "usr_acc4805d-709e-4352-891c-4ef2bd21424e",
+        "username": "ssrr"
+      }
+    },
+    "usr_owner_founder": {
+      "userId": "usr_owner_founder",
+      "username": "soumya@2008",
+      "role": "owner",
+      "accountStatus": "active",
+      "tokenHash": "89ef3c8995bd3f5d663c30d8f9aae16bec5a2f12868a49713aa23fe38f7911a4",
+      "sessionTokenHashes": [
+        {
+          "tokenHash": "89ef3c8995bd3f5d663c30d8f9aae16bec5a2f12868a49713aa23fe38f7911a4",
+          "createdAt": "2026-10-06T21:04:26.910Z",
+          "lastUsedAt": "2026-10-06T21:04:26.910Z"
+        }
+      ],
+      "displayName": "Soumyadip Rana",
+      "profilePhotoUrl": null,
+      "svhAiButtonPosition": null,
+      "createdAt": "2026-10-06T20:26:34.017Z",
+      "lastSeenAt": "2026-10-06T21:04:27.325Z",
+      "userStats": {
+        "userId": "usr_owner_founder",
+        "username": "soumya@2008",
+        "role": "owner",
+        "name": "Soumyadip Rana",
+        "profilePhotoUrl": null,
+        "svhAiButtonPosition": null,
+        "selectedGoals": [
+          "NEET",
+          "JEE Main"
+        ],
+        "activeGoal": "NEET",
+        "hasCompletedSetup": true,
+        "themePreference": "light",
+        "examCountdown": null,
+        "customGoals": [],
+        "targetCollegeOrInstitution": "",
+        "questionsAttempted": 0,
+        "correctAnswers": 0,
+        "incorrectAnswers": 0,
+        "totalStudyMinutes": 0,
+        "streak": {
+          "current": 0,
+          "lastActiveDate": ""
+        },
+        "dailyGoals": {
+          "studyMinutes": 120,
+          "questionCount": 20,
+          "taskCount": 3
+        },
+        "tasks": [],
+        "studySessions": [],
+        "practiceHistory": [],
+        "topicsStudied": [],
+        "subjectsStudied": {},
+        "bookmarkedItemIds": [],
+        "completedNoteIds": [],
+        "readBookIds": []
+      }
+    },
+    "usr_0a09d47f-75cd-4373-8d6c-38527be5b31b": {
+      "userId": "usr_0a09d47f-75cd-4373-8d6c-38527be5b31b",
+      "tokenHash": "5dbc76ebc2e4fb1b716b65fb361db448e452eff161fd85a2893d4ea60cc41b05",
+      "displayName": "Student",
+      "profilePhotoUrl": null,
+      "svhAiButtonPosition": null,
+      "createdAt": "2026-10-06T21:03:56.718Z",
+      "lastSeenAt": "2026-10-06T21:03:56.718Z"
+    },
+    "usr_16ac2747-257b-4985-a59f-9ca12eb9b634": {
+      "userId": "usr_16ac2747-257b-4985-a59f-9ca12eb9b634",
+      "tokenHash": "1f22457a7da89fbbb4c1c8087b3436b11dc63ff6bf666eb707fd87dcb6f56f52",
+      "displayName": "Verification Student",
+      "profilePhotoUrl": null,
+      "svhAiButtonPosition": null,
+      "createdAt": "2026-10-06T21:18:20.610Z",
+      "lastSeenAt": "2026-10-06T21:18:20.610Z"
+    }
+  },
+  "posts": [],
+  "replies": [],
+  "chatMessages": [],
+  "reports": [],
+  "aiConversations": {
+    "usr_16ac2747-257b-4985-a59f-9ca12eb9b634": []
+  },
+  "analyticsSessions": [
+    {
+      "sessionId": "sess_8e53daea-9ef1-4c36-8306-b0221c6b2e3e",
+      "userId": "usr_0a09d47f-75cd-4373-8d6c-38527be5b31b",
+      "deviceIdHash": "61ae61c67631be9ab977d65d7e9d01c2",
+      "openedAt": "2026-10-06T21:03:56.718Z"
+    }
+  ],
+  "registeredDeviceHashes": {
+    "4d2b24a70e810394fa7ddcad5074ec75": {
+      "firstSeenAt": "2026-10-06T20:07:20.654Z",
+      "lastSeenAt": "2026-10-06T20:07:59.406Z",
+      "userIds": [
+        "usr_acc4805d-709e-4352-891c-4ef2bd21424e"
+      ]
+    },
+    "61ae61c67631be9ab977d65d7e9d01c2": {
+      "firstSeenAt": "2026-10-06T21:03:56.718Z",
+      "lastSeenAt": "2026-10-06T21:04:26.910Z",
+      "userIds": [
+        "usr_0a09d47f-75cd-4373-8d6c-38527be5b31b",
+        "usr_owner_founder"
+      ]
+    }
+  },
+  "ownerAuth": {
+    "activeSessionTokenHashes": [
+      {
+        "tokenHash": "89ef3c8995bd3f5d663c30d8f9aae16bec5a2f12868a49713aa23fe38f7911a4",
+        "createdAt": "2026-10-06T21:04:26.910Z",
+        "lastUsedAt": "2026-10-06T21:04:26.910Z"
+      }
+    ]
+  }
+}
