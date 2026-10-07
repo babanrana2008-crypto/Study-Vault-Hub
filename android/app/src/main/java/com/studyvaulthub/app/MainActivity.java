@@ -37,10 +37,12 @@ public class MainActivity extends BridgeActivity {
         //    logos or clip buttons inside the APK WebView.
         if (getBridge() != null && getBridge().getWebView() != null) {
             WebView webView = getBridge().getWebView();
+            webView.setOverScrollMode(View.OVER_SCROLL_NEVER);
             WebSettings settings = webView.getSettings();
             settings.setTextZoom(100);
             settings.setUseWideViewPort(true);
             settings.setLoadWithOverviewMode(true);
+            settings.setDomStorageEnabled(true);
         }
     }
 }

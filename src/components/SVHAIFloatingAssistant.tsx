@@ -232,8 +232,17 @@ export const SVHAIFloatingAssistant: React.FC<SVHAIFloatingAssistantProps> = Rea
     const topNavClearance = isFloatingTopDock ? 78 : 66;
     const minY = topNavClearance;
 
+    const isNativeAndroid =
+      typeof window !== 'undefined' &&
+      Boolean(
+        (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor?.isNativePlatform?.() ||
+          window.navigator.userAgent.includes('Capacitor')
+      );
+
     const bottomNavClearance = isFloatingBottomDock
       ? 88
+      : isNativeAndroid
+      ? 20
       : isMobileWidth
       ? 76
       : 20;
@@ -1299,8 +1308,8 @@ export const SVHAIFloatingAssistant: React.FC<SVHAIFloatingAssistantProps> = Rea
           <div
             className={`w-full h-full sm:rounded-3xl bg-gradient-to-b from-[#0a1224] via-[#080f1e] to-[#060b18] border-0 sm:border-2 sm:border-[#d4af37]/45 shadow-[0_0_50px_rgba(0,0,0,0.85)] flex flex-col overflow-hidden transition-all duration-200 will-change-transform ${
               isExpandedDesktop
-                ? 'sm:w-[92vw] sm:max-w-4xl sm:h-[85vh]'
-                : 'sm:w-[430px] md:w-[480px] sm:h-[660px] sm:max-h-[calc(100vh-2.5rem)]'
+                ? 'sm:w-[92vw] sm:max-w-4xl sm:h-[85vh] sm:max-h-[calc(100dvh-2rem)]'
+                : 'sm:w-[430px] md:w-[480px] sm:h-[660px] sm:max-h-[calc(100vh-2.5rem)] sm:max-h-[calc(100dvh-2rem)]'
             }`}
           >
             {/* Top Header */}

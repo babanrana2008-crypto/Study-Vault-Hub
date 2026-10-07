@@ -33,6 +33,14 @@ export const Header: React.FC<HeaderProps> = React.memo(({
     profile: 'Profile'
   };
 
+  const isNativeAndroid =
+    typeof window !== 'undefined' &&
+    Boolean(
+      (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor?.isNativePlatform?.() ||
+        window.navigator.userAgent.includes('Capacitor')
+    );
+  const showApkDesktopNav = isNativeAndroid && !isFloatingTopDock;
+
   return (
     <header
       aria-label="Top Navigation"
@@ -70,7 +78,11 @@ export const Header: React.FC<HeaderProps> = React.memo(({
             <span className="font-display text-xs sm:text-base font-bold tracking-tight text-[#fbf9f4] group-hover:text-[#d4af37] transition-colors leading-tight truncate">
               Study Vault Hub
             </span>
-            <span className="text-[8px] sm:text-[10px] text-[#cbd5e1]/80 font-mono tracking-tight leading-tight mt-0.5 flex flex-col sm:flex-row sm:items-center sm:gap-1 min-w-0">
+            <span
+              className={`text-[8px] sm:text-[10px] text-[#cbd5e1]/80 font-mono tracking-tight leading-tight mt-0.5 flex flex-col ${
+                showApkDesktopNav ? 'lg:flex-row lg:items-center lg:gap-1' : 'sm:flex-row sm:items-center sm:gap-1'
+              } min-w-0`}
+            >
               <span className="truncate">Founded &amp; Created by</span>
               <span className="text-[#d4af37]/95 font-semibold truncate">Soumyadip Rana</span>
             </span>
@@ -78,55 +90,63 @@ export const Header: React.FC<HeaderProps> = React.memo(({
         </button>
 
         {/* Zone 2: Navigation Links for desktop */}
-        <div className="hidden md:flex items-center gap-4 lg:gap-5 text-xs lg:text-sm font-medium shrink-0">
+        <div
+          className={`${
+            showApkDesktopNav
+              ? 'flex items-center gap-1.5 sm:gap-2.5 md:gap-4 lg:gap-5 text-[11px] sm:text-xs lg:text-sm font-medium overflow-x-auto no-scrollbar min-w-0 max-w-full px-1'
+              : 'hidden md:flex items-center gap-4 lg:gap-5 text-xs lg:text-sm font-medium shrink-0'
+          }`}
+        >
           <button
             onClick={() => onNavigate('home')}
-            className={`transition-colors hover:text-[#d4af37] ${activeSection === 'home' ? 'text-[#d4af37] font-semibold' : 'text-[#cbd5e1]'}`}
+            className={`transition-colors hover:text-[#d4af37] whitespace-nowrap shrink-0 ${activeSection === 'home' ? 'text-[#d4af37] font-semibold' : 'text-[#cbd5e1]'}`}
           >
             Home
           </button>
           <button
             onClick={() => onNavigate('books')}
-            className={`transition-colors hover:text-[#d4af37] ${activeSection === 'books' ? 'text-[#d4af37] font-semibold' : 'text-[#cbd5e1]'}`}
+            className={`transition-colors hover:text-[#d4af37] whitespace-nowrap shrink-0 ${activeSection === 'books' ? 'text-[#d4af37] font-semibold' : 'text-[#cbd5e1]'}`}
           >
             Books
           </button>
           <button
             onClick={() => onNavigate('notes')}
-            className={`transition-colors hover:text-[#d4af37] ${activeSection === 'notes' ? 'text-[#d4af37] font-semibold' : 'text-[#cbd5e1]'}`}
+            className={`transition-colors hover:text-[#d4af37] whitespace-nowrap shrink-0 ${activeSection === 'notes' ? 'text-[#d4af37] font-semibold' : 'text-[#cbd5e1]'}`}
           >
             Notes
           </button>
           <button
             onClick={() => onNavigate('practice')}
-            className={`transition-colors hover:text-[#d4af37] ${activeSection === 'practice' ? 'text-[#d4af37] font-semibold' : 'text-[#cbd5e1]'}`}
+            className={`transition-colors hover:text-[#d4af37] whitespace-nowrap shrink-0 ${activeSection === 'practice' ? 'text-[#d4af37] font-semibold' : 'text-[#cbd5e1]'}`}
           >
             Practice
           </button>
           <button
             onClick={() => onNavigate('tracker')}
-            className={`transition-colors hover:text-[#d4af37] ${activeSection === 'tracker' ? 'text-[#d4af37] font-semibold' : 'text-[#cbd5e1]'}`}
+            className={`transition-colors hover:text-[#d4af37] whitespace-nowrap shrink-0 ${activeSection === 'tracker' ? 'text-[#d4af37] font-semibold' : 'text-[#cbd5e1]'}`}
           >
             Tracker
           </button>
           <button
             onClick={() => onNavigate('community')}
-            className={`transition-colors hover:text-[#d4af37] ${activeSection === 'community' ? 'text-[#d4af37] font-semibold' : 'text-[#cbd5e1]'}`}
+            className={`transition-colors hover:text-[#d4af37] whitespace-nowrap shrink-0 ${activeSection === 'community' ? 'text-[#d4af37] font-semibold' : 'text-[#cbd5e1]'}`}
           >
             Community
           </button>
           <button
             onClick={() => onNavigate('profile')}
-            className={`transition-colors hover:text-[#d4af37] ${activeSection === 'profile' ? 'text-[#d4af37] font-semibold' : 'text-[#cbd5e1]'}`}
+            className={`transition-colors hover:text-[#d4af37] whitespace-nowrap shrink-0 ${activeSection === 'profile' ? 'text-[#d4af37] font-semibold' : 'text-[#cbd5e1]'}`}
           >
             Profile
           </button>
         </div>
 
         {/* Mobile current active label */}
-        <div className="hidden sm:flex md:hidden items-center text-xs tracking-wider uppercase text-[#d4af37] font-medium truncate">
-          {sectionTitles[activeSection]}
-        </div>
+        {!showApkDesktopNav && (
+          <div className="hidden sm:flex md:hidden items-center text-xs tracking-wider uppercase text-[#d4af37] font-medium truncate">
+            {sectionTitles[activeSection]}
+          </div>
+        )}
 
         {/* Zone 3: Actions */}
         <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">

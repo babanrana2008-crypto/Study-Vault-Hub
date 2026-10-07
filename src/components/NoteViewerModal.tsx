@@ -45,8 +45,8 @@ export const NoteViewerModal: React.FC<NoteViewerModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="w-full max-w-2xl h-[90vh] max-h-[780px] bg-[#0c1326] border border-[#d4af37]/35 rounded-2xl sm:rounded-3xl shadow-2xl flex flex-col overflow-hidden text-[#f7f4ee]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200 overscroll-contain">
+      <div className="w-full max-w-2xl h-[90vh] h-[90dvh] max-h-[780px] bg-[#0c1326] border border-[#d4af37]/35 rounded-2xl sm:rounded-3xl shadow-2xl flex flex-col overflow-hidden text-[#f7f4ee]">
         {/* Header bar */}
         <div className="px-4 sm:px-6 py-3.5 bg-[#090e1c] border-b border-[#d4af37]/20 flex items-center justify-between gap-3">
           <div className="flex items-center gap-2.5 min-w-0">

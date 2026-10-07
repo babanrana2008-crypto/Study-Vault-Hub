@@ -122,6 +122,28 @@ export const NotesSection: React.FC<NotesSectionProps> = React.memo(({
         </div>
       </div>
 
+      {/* Subtle Premium Telegram Channel Banner Immediately Before Sample Notes */}
+      <div className="rounded-2xl bg-[#0f172a] border border-[#d4af37]/25 hover:border-[#d4af37]/60 px-4 py-3 sm:px-5 sm:py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-all shadow-md">
+        <div className="flex items-start sm:items-center gap-2.5 min-w-0">
+          <div className="w-7 h-7 rounded-lg bg-[#131b2e] border border-[#d4af37]/25 text-[#d4af37] flex items-center justify-center shrink-0 mt-0.5 sm:mt-0">
+            <Sparkles className="w-3.5 h-3.5" />
+          </div>
+          <p className="text-xs sm:text-sm text-[#fbf9f4] font-medium leading-snug">
+            Join our Telegram channel for premium short notes and handwritten notes
+          </p>
+        </div>
+
+        <a
+          href="https://t.me/svhnotes"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="px-3.5 py-2 sm:py-1.5 rounded-xl bg-[#d4af37] hover:bg-[#e5c158] text-[#080d1a] text-xs font-bold inline-flex items-center justify-center gap-1.5 shrink-0 transition-all shadow-sm w-full sm:w-auto"
+        >
+          <span>Join Channel</span>
+          <ArrowRight className="w-3.5 h-3.5" />
+        </a>
+      </div>
+
       {/* Notes List */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {notesToDisplay.map((note) => {

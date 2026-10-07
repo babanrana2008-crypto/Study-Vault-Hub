@@ -68,6 +68,19 @@ export const BottomNav: React.FC<BottomNavProps> = React.memo(
       );
     }
 
+    const isNativeAndroid =
+      typeof window !== 'undefined' &&
+      Boolean(
+        (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor?.isNativePlatform?.() ||
+          window.navigator.userAgent.includes('Capacitor')
+      );
+
+    // In the Android APK, when not in phone portrait mode (i.e. tablet or landscape/desktop-style mode),
+    // completely hide the bottom navigation so only the top/desktop navigation is shown.
+    if (isNativeAndroid && !isFloatingDock) {
+      return null;
+    }
+
     // Website / Browser, Installed Mobile Landscape, Tablet, Desktop = Unchanged
     return (
       <nav

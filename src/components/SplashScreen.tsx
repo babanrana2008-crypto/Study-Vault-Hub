@@ -35,16 +35,16 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({ onFinish }) => {
   return (
     <div
       onClick={onFinish}
-      className={`fixed inset-0 z-[100] flex flex-col items-center justify-between py-10 sm:py-14 px-4 bg-[#060b18] select-none transition-opacity duration-350 ease-out cursor-pointer will-change-[opacity] ${
+      className={`fixed inset-0 z-[100] flex flex-col items-center justify-between py-6 sm:py-12 px-4 bg-[#060b18] select-none transition-opacity duration-350 ease-out cursor-pointer will-change-[opacity] overflow-hidden ${
         stage === 'exit' ? 'opacity-0 pointer-events-none' : 'opacity-100'
       }`}
       aria-label="Loading Screen"
     >
-      <div className="h-4" />
+      <div className="h-2 shrink-0" />
 
       {/* Center Container: Logo -> App Identity with smooth GPU transform/opacity easing */}
       <div
-        className={`relative z-10 flex flex-col items-center justify-center text-center transition-all duration-700 ease-out will-change-[transform,opacity] ${
+        className={`relative z-10 flex flex-col items-center justify-center text-center transition-all duration-700 ease-out will-change-[transform,opacity] min-h-0 ${
           stage === 'enter'
             ? 'opacity-0 scale-[0.96] translate-y-2'
             : stage === 'identity'
@@ -53,7 +53,7 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({ onFinish }) => {
         }`}
       >
         {/* Clean Perfectly Circular Official Logo (No artificial border or square background) */}
-        <div className="relative w-52 h-52 sm:w-64 sm:h-64 md:w-72 md:h-72 rounded-full overflow-hidden aspect-square flex items-center justify-center shrink-0">
+        <div className="relative w-36 h-36 sm:w-56 sm:h-56 md:w-64 md:h-64 max-h-[38vh] max-w-[38vh] rounded-full overflow-hidden aspect-square flex items-center justify-center shrink-0">
           <img
             src={currentLogoSrc}
             alt="Study Vault Hub"
@@ -68,7 +68,7 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({ onFinish }) => {
         </div>
 
         {/* App Identity */}
-        <h1 className="font-display text-2xl sm:text-3xl md:text-4xl font-bold tracking-tight text-[#fbf9f4] mt-5 whitespace-nowrap">
+        <h1 className="font-display text-xl sm:text-3xl md:text-4xl font-bold tracking-tight text-[#fbf9f4] mt-3 sm:mt-5 whitespace-nowrap">
           Study Vault Hub
         </h1>
       </div>

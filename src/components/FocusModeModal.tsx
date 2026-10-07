@@ -214,8 +214,8 @@ export const FocusModeModal: React.FC<FocusModeModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-5 overflow-y-auto">
-      <div className="w-full max-w-2xl rounded-2xl sm:rounded-3xl bg-gradient-to-b from-[#0b1326] via-[#091020] to-[#060b18] border-2 border-[#d4af37]/45 shadow-2xl overflow-hidden my-auto">
+    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-2.5 sm:p-5 overflow-y-auto overscroll-contain">
+      <div className="w-full max-w-2xl max-h-[94vh] max-h-[94dvh] rounded-2xl sm:rounded-3xl bg-gradient-to-b from-[#0b1326] via-[#091020] to-[#060b18] border-2 border-[#d4af37]/45 shadow-2xl overflow-hidden my-auto flex flex-col">
         {/* Top Bar */}
         <div className="px-5 py-4 bg-[#0d172c] border-b border-[#d4af37]/25 flex items-center justify-between gap-3">
           <div className="flex items-center gap-2.5">

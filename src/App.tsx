@@ -328,7 +328,7 @@ export default function App() {
   }, [resolvedTheme]);
 
   // FINAL NAVIGATION LOGIC FOR BOTTOM NAVIGATION:
-  // A. MOBILE APP (Phone Portrait OR Phone Landscape) -> ALWAYS FLOATING
+  // A. MOBILE APP (Phone Portrait OR Phone Landscape) -> ALWAYS FLOATING (Native APK: Phone Portrait only; Tablet/Landscape uses top navigation)
   // B. WEBSITE IN PORTRAIT (Phone Portrait OR Tablet Portrait) -> FLOATING
   // C. WEBSITE IN DESKTOP-STYLE LANDSCAPE (Tablet Landscape, Laptop, Desktop) -> EXISTING NAVIGATION
   const [isFloatingBottomNav, setIsFloatingBottomNav] = useState<boolean>(() => {
@@ -339,7 +339,6 @@ export default function App() {
           window.navigator.userAgent.includes('Capacitor')
       );
       const isInstalledApp =
-        isNativeAndroid ||
         window.matchMedia('(display-mode: standalone)').matches ||
         window.matchMedia('(display-mode: fullscreen)').matches ||
         window.matchMedia('(display-mode: minimal-ui)').matches ||
@@ -363,12 +362,18 @@ export default function App() {
         window.matchMedia('(hover: none)').matches;
 
       const minDim = Math.min(window.innerWidth, window.innerHeight);
-      const isMobilePhone = isNativeAndroid || isPhoneUA || (!isTabletUA && minDim < 768);
+      const isMobilePhone = isPhoneUA || (!isTabletUA && minDim < 768);
       const isPhoneOrTabletContext =
-        isNativeAndroid || isMobilePhone || isTabletUA || isCoarsePointer || window.innerWidth <= 1024;
+        isMobilePhone || isTabletUA || isCoarsePointer || window.innerWidth <= 1024;
 
-      // A. Native Android APK or Mobile App on a phone -> ALWAYS floating (both portrait and landscape)
-      if (isNativeAndroid || (isInstalledApp && isMobilePhone)) {
+      // Native Android APK: show floating bottom nav ONLY in phone portrait mode;
+      // on tablets or in landscape/desktop-style mode, hide bottom nav so only top navigation appears.
+      if (isNativeAndroid) {
+        return Boolean(isPortrait && !isTabletUA && window.innerWidth < 768);
+      }
+
+      // A. Mobile App on a phone (web PWA) -> ALWAYS floating (both portrait and landscape)
+      if (isInstalledApp && isMobilePhone) {
         return true;
       }
 
@@ -397,7 +402,6 @@ export default function App() {
               window.navigator.userAgent.includes('Capacitor')
           );
           const isInstalledApp =
-            isNativeAndroid ||
             window.matchMedia('(display-mode: standalone)').matches ||
             window.matchMedia('(display-mode: fullscreen)').matches ||
             window.matchMedia('(display-mode: minimal-ui)').matches ||
@@ -420,13 +424,15 @@ export default function App() {
             window.matchMedia('(hover: none)').matches;
 
           const minDim = Math.min(window.innerWidth, window.innerHeight);
-          const isMobilePhone = isNativeAndroid || isPhoneUA || (!isTabletUA && minDim < 768);
+          const isMobilePhone = isPhoneUA || (!isTabletUA && minDim < 768);
           const isPhoneOrTabletContext =
-            isNativeAndroid || isMobilePhone || isTabletUA || isCoarsePointer || window.innerWidth <= 1024;
+            isMobilePhone || isTabletUA || isCoarsePointer || window.innerWidth <= 1024;
 
-          const shouldFloat = Boolean(
-            isNativeAndroid || (isInstalledApp && isMobilePhone) || (isPortrait && isPhoneOrTabletContext)
-          );
+          const shouldFloat = isNativeAndroid
+            ? Boolean(isPortrait && !isTabletUA && window.innerWidth < 768)
+            : Boolean(
+                (isInstalledApp && isMobilePhone) || (isPortrait && isPhoneOrTabletContext)
+              );
 
           setIsFloatingBottomNav((prev) => (prev === shouldFloat ? prev : shouldFloat));
         } catch {
@@ -468,6 +474,10 @@ export default function App() {
           window.navigator.userAgent.includes('Capacitor')
       );
       const ua = window.navigator.userAgent || '';
+      const isTabletUA =
+        /iPad|Tablet|PlayBook|Silk/i.test(ua) ||
+        (/Android/i.test(ua) && !/Mobile/i.test(ua)) ||
+        (window.navigator.platform === 'MacIntel' && window.navigator.maxTouchPoints > 1);
       const isMobileOrTabletUA =
         isNativeAndroid ||
         /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Mobile|Tablet|PlayBook|Silk/i.test(ua) ||
@@ -476,6 +486,10 @@ export default function App() {
         window.matchMedia('(pointer: coarse)').matches ||
         window.matchMedia('(hover: none)').matches;
       const isMobileOrTabletViewport = window.innerWidth <= 1024;
+
+      if (isNativeAndroid) {
+        return Boolean(isPortrait && !isTabletUA && window.innerWidth < 768);
+      }
 
       return isPortrait && (isMobileOrTabletUA || isCoarsePointer || isMobileOrTabletViewport);
     } catch {
@@ -504,6 +518,10 @@ export default function App() {
               window.navigator.userAgent.includes('Capacitor')
           );
           const ua = window.navigator.userAgent || '';
+          const isTabletUA =
+            /iPad|Tablet|PlayBook|Silk/i.test(ua) ||
+            (/Android/i.test(ua) && !/Mobile/i.test(ua)) ||
+            (window.navigator.platform === 'MacIntel' && window.navigator.maxTouchPoints > 1);
           const isMobileOrTabletUA =
             isNativeAndroid ||
             /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Mobile|Tablet|PlayBook|Silk/i.test(ua) ||
@@ -513,9 +531,11 @@ export default function App() {
             window.matchMedia('(hover: none)').matches;
           const isMobileOrTabletViewport = window.innerWidth <= 1024;
 
-          const nextVal = Boolean(
-            isPortrait && (isMobileOrTabletUA || isCoarsePointer || isMobileOrTabletViewport)
-          );
+          const nextVal = isNativeAndroid
+            ? Boolean(isPortrait && !isTabletUA && window.innerWidth < 768)
+            : Boolean(
+                isPortrait && (isMobileOrTabletUA || isCoarsePointer || isMobileOrTabletViewport)
+              );
           setIsMobileOrTabletPortrait((prev) => (prev === nextVal ? prev : nextVal));
         } catch {
           setIsMobileOrTabletPortrait(false);
@@ -925,7 +945,15 @@ export default function App() {
         className={`flex-1 w-full max-w-5xl mx-auto px-3.5 sm:px-6 overflow-x-hidden ${
           isMobileOrTabletPortrait ? 'pt-6' : 'pt-5'
         } ${
-          isFloatingBottomNav ? 'pb-32' : 'pb-24 md:pb-12'
+          isFloatingBottomNav
+            ? 'pb-32'
+            : typeof window !== 'undefined' &&
+              Boolean(
+                (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor?.isNativePlatform?.() ||
+                  window.navigator.userAgent.includes('Capacitor')
+              )
+            ? 'pb-12'
+            : 'pb-24 md:pb-12'
         }`}
       >
         <div key={activeSection} className="svh-section-transition">
