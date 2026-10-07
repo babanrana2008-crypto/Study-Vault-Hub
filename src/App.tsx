@@ -334,7 +334,12 @@ export default function App() {
   const [isFloatingBottomNav, setIsFloatingBottomNav] = useState<boolean>(() => {
     if (typeof window === 'undefined') return false;
     try {
+      const isNativeAndroid = Boolean(
+        (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor?.isNativePlatform?.() ||
+          window.navigator.userAgent.includes('Capacitor')
+      );
       const isInstalledApp =
+        isNativeAndroid ||
         window.matchMedia('(display-mode: standalone)').matches ||
         window.matchMedia('(display-mode: fullscreen)').matches ||
         window.matchMedia('(display-mode: minimal-ui)').matches ||
@@ -358,12 +363,12 @@ export default function App() {
         window.matchMedia('(hover: none)').matches;
 
       const minDim = Math.min(window.innerWidth, window.innerHeight);
-      const isMobilePhone = isPhoneUA || (!isTabletUA && minDim < 768);
+      const isMobilePhone = isNativeAndroid || isPhoneUA || (!isTabletUA && minDim < 768);
       const isPhoneOrTabletContext =
-        isMobilePhone || isTabletUA || isCoarsePointer || window.innerWidth <= 1024;
+        isNativeAndroid || isMobilePhone || isTabletUA || isCoarsePointer || window.innerWidth <= 1024;
 
-      // A. Mobile App on a phone -> ALWAYS floating (both portrait and landscape)
-      if (isInstalledApp && isMobilePhone) {
+      // A. Native Android APK or Mobile App on a phone -> ALWAYS floating (both portrait and landscape)
+      if (isNativeAndroid || (isInstalledApp && isMobilePhone)) {
         return true;
       }
 
@@ -387,7 +392,12 @@ export default function App() {
       if (rafId !== null) cancelAnimationFrame(rafId);
       rafId = requestAnimationFrame(() => {
         try {
+          const isNativeAndroid = Boolean(
+            (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor?.isNativePlatform?.() ||
+              window.navigator.userAgent.includes('Capacitor')
+          );
           const isInstalledApp =
+            isNativeAndroid ||
             window.matchMedia('(display-mode: standalone)').matches ||
             window.matchMedia('(display-mode: fullscreen)').matches ||
             window.matchMedia('(display-mode: minimal-ui)').matches ||
@@ -410,12 +420,12 @@ export default function App() {
             window.matchMedia('(hover: none)').matches;
 
           const minDim = Math.min(window.innerWidth, window.innerHeight);
-          const isMobilePhone = isPhoneUA || (!isTabletUA && minDim < 768);
+          const isMobilePhone = isNativeAndroid || isPhoneUA || (!isTabletUA && minDim < 768);
           const isPhoneOrTabletContext =
-            isMobilePhone || isTabletUA || isCoarsePointer || window.innerWidth <= 1024;
+            isNativeAndroid || isMobilePhone || isTabletUA || isCoarsePointer || window.innerWidth <= 1024;
 
           const shouldFloat = Boolean(
-            (isInstalledApp && isMobilePhone) || (isPortrait && isPhoneOrTabletContext)
+            isNativeAndroid || (isInstalledApp && isMobilePhone) || (isPortrait && isPhoneOrTabletContext)
           );
 
           setIsFloatingBottomNav((prev) => (prev === shouldFloat ? prev : shouldFloat));
@@ -453,8 +463,13 @@ export default function App() {
         window.innerHeight > window.innerWidth;
       if (!isPortrait) return false;
 
+      const isNativeAndroid = Boolean(
+        (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor?.isNativePlatform?.() ||
+          window.navigator.userAgent.includes('Capacitor')
+      );
       const ua = window.navigator.userAgent || '';
       const isMobileOrTabletUA =
+        isNativeAndroid ||
         /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Mobile|Tablet|PlayBook|Silk/i.test(ua) ||
         (window.navigator.platform === 'MacIntel' && window.navigator.maxTouchPoints > 1);
       const isCoarsePointer =
@@ -484,8 +499,13 @@ export default function App() {
             return;
           }
 
+          const isNativeAndroid = Boolean(
+            (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor?.isNativePlatform?.() ||
+              window.navigator.userAgent.includes('Capacitor')
+          );
           const ua = window.navigator.userAgent || '';
           const isMobileOrTabletUA =
+            isNativeAndroid ||
             /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Mobile|Tablet|PlayBook|Silk/i.test(ua) ||
             (window.navigator.platform === 'MacIntel' && window.navigator.maxTouchPoints > 1);
           const isCoarsePointer =
