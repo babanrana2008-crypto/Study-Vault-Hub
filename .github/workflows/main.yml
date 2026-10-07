@@ -20,6 +20,12 @@ jobs:
       - name: Make Gradle executable
         working-directory: android
         run: chmod +x ./gradlew
+              
+      - name: Install Capacitor Android
+        run: npm install @capacitor/android
+
+      - name: Sync Capacitor Android
+        run: npx cap sync android
 
       - name: Build debug APK
         working-directory: android
