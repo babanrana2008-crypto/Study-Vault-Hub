@@ -22,7 +22,8 @@ jobs:
         run: chmod +x ./gradlew
               
       - name: Install Capacitor Android
-        run: npm install @capacitor/android
+        run: npm install @capacitor/android --legacy-peer-deps
+        
 
       - name: Sync Capacitor Android
         run: npx cap sync android
