@@ -21,8 +21,9 @@ jobs:
           java-version: '17'
           cache: gradle
 
-      - name: Make Gradle executable
-        run: chmod +x ./gradlew
+  - name: Make Gradle executable
+  working-directory: android
+  run: chmod +x ./gradlew
 
       - name: Build Debug APK
         run: ./gradlew assembleDebug
