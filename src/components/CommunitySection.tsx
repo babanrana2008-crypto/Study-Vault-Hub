@@ -446,17 +446,28 @@ export const CommunitySection: React.FC<CommunitySectionProps> = React.memo(({
     fetchCommunityState();
   }, [ensureSessionIdentity, fetchCommunityState]);
 
-  // 2. Real-time WebSocket connection with idempotent event handlers & auto-reconnect
+  // 2. Real-time WebSocket connection with idempotent event handlers & exponential backoff
   useEffect(() => {
     let ws: WebSocket | null = null;
     let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
     let isUnmounted = false;
+    let failedAttempts = 0;
 
     const connectWebSocket = () => {
       if (isUnmounted) return;
       const isNativeAndroid =
         typeof window !== 'undefined' &&
-        Boolean((window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor?.isNativePlatform?.());
+        (Boolean(
+          (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor?.isNativePlatform?.()
+        ) ||
+          window.location.origin === 'https://localhost' ||
+          window.location.protocol === 'capacitor:');
+
+      // In standalone Android APK, if WebSocket handshake already failed due to Cloud Run cookie gate, stop spamming reconnects
+      if (isNativeAndroid && failedAttempts >= 1) {
+        return;
+      }
+
       const protocol = isNativeAndroid || window.location.protocol === 'https:' ? 'wss:' : 'ws:';
       const host = isNativeAndroid
         ? 'ais-pre-w3eilfsiu6bgskrqwaueau-208888461367.asia-east1.run.app'
@@ -466,9 +477,17 @@ export const CommunitySection: React.FC<CommunitySectionProps> = React.memo(({
       try {
         ws = new WebSocket(wsUrl);
       } catch {
-        reconnectTimer = setTimeout(connectWebSocket, 3000);
+        failedAttempts += 1;
+        if (!isNativeAndroid) {
+          const delay = Math.min(30000, 3000 * Math.pow(2, failedAttempts - 1));
+          reconnectTimer = setTimeout(connectWebSocket, delay);
+        }
         return;
       }
+
+      ws.onopen = () => {
+        failedAttempts = 0;
+      };
 
       ws.onmessage = (event) => {
         try {
@@ -600,10 +619,15 @@ export const CommunitySection: React.FC<CommunitySectionProps> = React.memo(({
 
       ws.onclose = () => {
         if (!isUnmounted) {
+          failedAttempts += 1;
+          if (isNativeAndroid && failedAttempts >= 1) {
+            return;
+          }
+          const delay = Math.min(30000, 3000 * Math.pow(2, Math.min(failedAttempts - 1, 3)));
           reconnectTimer = setTimeout(() => {
             fetchCommunityState();
             connectWebSocket();
-          }, 3000);
+          }, delay);
         }
       };
     };
@@ -618,6 +642,38 @@ export const CommunitySection: React.FC<CommunitySectionProps> = React.memo(({
       }
     };
   }, [fetchCommunityState]);
+
+  const hasOpenCommunityModal = Boolean(
+    isCreateModalOpen || confirmDelete || reportTarget || zoomedImageUrl
+  );
+
+  useEffect(() => {
+    if (!hasOpenCommunityModal || typeof document === 'undefined') return;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (zoomedImageUrl) setZoomedImageUrl(null);
+        else if (confirmDelete) setConfirmDelete(null);
+        else if (reportTarget && !isSubmittingReport) setReportTarget(null);
+        else if (isCreateModalOpen && !isSubmittingPost) setIsCreateModalOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [
+    hasOpenCommunityModal,
+    zoomedImageUrl,
+    confirmDelete,
+    reportTarget,
+    isSubmittingReport,
+    isCreateModalOpen,
+    isSubmittingPost,
+  ]);
 
   // Auto-scroll chat when new messages arrive and user is on Chat tab
   useEffect(() => {

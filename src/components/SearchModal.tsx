@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { X, Search, BookOpen, FileText, CheckCircle2, ArrowRight, GraduationCap } from 'lucide-react';
 import { SAMPLE_BOOKS, SAMPLE_NOTES, SAMPLE_MCQS } from '../data/sampleData';
 import { NCERT_BOOKS_COLLECTION } from '../data/ncertBooksData';
@@ -20,6 +20,21 @@ export const SearchModal: React.FC<SearchModalProps> = ({
   onNavigate
 }) => {
   const [query, setQuery] = useState('');
+
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [onClose]);
 
   const searchResults = useMemo(() => {
     if (!query.trim()) {

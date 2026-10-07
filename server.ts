@@ -423,6 +423,13 @@ async function startServer() {
   const server = http.createServer(app);
   const PORT = 3000;
 
+  // Standard security headers (iframe-compatible for AI Studio preview)
+  app.use((_req, res, next) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+    next();
+  });
+
   // Enable CORS for native Android APK (https://localhost / capacitor://localhost)
   app.use('/api', (req, res, next) => {
     const reqOrigin = req.headers.origin;
@@ -440,11 +447,16 @@ async function startServer() {
     next();
   });
 
-  // Serve the real signed Android APK file with proper Android package headers once placed in public/StudyVaultHub.apk
+  // Serve the real signed Android APK file with proper Android package headers once placed in public/StudyVaultHub.apk,
+  // or redirect directly to the official external GitHub Release APK asset.
   app.get(['/StudyVaultHub.apk', '/api/apk/download'], (_req, res) => {
     const apkPath = path.join(process.cwd(), 'public', 'StudyVaultHub.apk');
     if (!fs.existsSync(apkPath)) {
-      return res.status(404).json({ error: 'Android APK file is not available.' });
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+      return res.redirect(
+        302,
+        'https://github.com/babanrana2008-crypto/Study-Vault-Hub/releases/download/v1.0.0/Final.app-debug.apk'
+      );
     }
     res.setHeader('Content-Type', 'application/vnd.android.package-archive');
     res.setHeader('Content-Disposition', 'attachment; filename="StudyVaultHub.apk"');
@@ -1711,7 +1723,7 @@ async function startServer() {
   });
 
   // Send a message to SVH AI and receive a real personalized Gemini response (supports both unary and SSE streaming)
-  const SVH_AI_MODELS = ['gemini-3.1-flash-lite', 'gemini-3-flash-preview', 'gemini-3.8-flash'];
+  const SVH_AI_MODELS = ['gemini-3-flash-preview', 'gemini-3.1-flash-lite-preview', 'gemini-2.5-flash'];
 
   const prepareSVHAIConversationTurn = (req: express.Request) => {
     const user = authenticateRequest(req);
@@ -2563,6 +2575,19 @@ ${JSON.stringify(studentContext, null, 2)}`;
         moderationReports,
       },
     });
+  });
+
+  // ============================================================================
+  // APK DOWNLOAD EXTERNAL REDIRECT GUARD
+  // Ensures any stale cached client or service-worker request to /api/download/apk
+  // or /*.apk is immediately redirected (302) to the official external APK URL.
+  // ============================================================================
+  const OFFICIAL_EXTERNAL_APK_URL =
+    'https://github.com/babanrana2008-crypto/Study-Vault-Hub/releases/download/v1.0.0/Final.app-debug.apk';
+
+  app.get(['/api/download/apk', '/Final.app-debug.apk', '/download/apk'], (_req, res) => {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    return res.redirect(302, OFFICIAL_EXTERNAL_APK_URL);
   });
 
   // ============================================================================

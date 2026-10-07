@@ -708,6 +708,43 @@ export const SVHAIFloatingAssistant: React.FC<SVHAIFloatingAssistantProps> = Rea
     }
   }, [isOpen]);
 
+  // Abort any in-flight stream on component unmount and support Escape key + mobile scroll lock when open
+  useEffect(() => {
+    return () => {
+      if (activeAbortControllerRef.current) {
+        activeAbortControllerRef.current.abort();
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isOpen || typeof document === 'undefined') return;
+    const isMobileViewport = window.innerWidth < 640;
+    const prevOverflow = document.body.style.overflow;
+    if (isMobileViewport) {
+      document.body.style.overflow = 'hidden';
+    }
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (confirmClearAll) {
+          setConfirmClearAll(false);
+        } else if (showHistoryView) {
+          setShowHistoryView(false);
+        } else {
+          setIsOpen(false);
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      if (isMobileViewport) {
+        document.body.style.overflow = prevOverflow;
+      }
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isOpen, confirmClearAll, showHistoryView]);
+
   const activeConversation = useMemo(() => {
     if (!activeConversationId) return null;
     return conversations.find((c) => c.id === activeConversationId) || null;

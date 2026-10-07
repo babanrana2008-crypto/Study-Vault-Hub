@@ -151,22 +151,64 @@ export const MCQSection: React.FC<MCQSectionProps> = React.memo(({
   const [testCompleted, setTestCompleted] = useState(false);
   const [testCurrentIndex, setTestCurrentIndex] = useState(0);
 
-  // Timer effect for test mode
-  useEffect(() => {
-    let timer: NodeJS.Timeout;
-    if (testActive && !testCompleted && testTimeLeft > 0) {
-      timer = setInterval(() => {
-        setTestTimeLeft((prev) => {
-          if (prev <= 1) {
-            handleCompleteTest();
-            return 0;
+  const handleCompleteTest = React.useCallback(() => {
+    setTestCompleted((prevCompleted) => {
+      if (prevCompleted) return prevCompleted;
+      let correctCount = 0;
+      let wrongCount = 0;
+
+      questions.forEach((q) => {
+        const ans = testAnswers[q.id];
+        if (ans !== undefined) {
+          if (ans === q.correctIndex) {
+            correctCount++;
+          } else {
+            wrongCount++;
           }
-          return prev - 1;
-        });
-      }, 1000);
-    }
+        }
+      });
+
+      const totalScore = correctCount * 4 - wrongCount * 1;
+      const attempted = correctCount + wrongCount;
+      const accuracy = attempted > 0 ? Math.round((correctCount / attempted) * 100) : 0;
+
+      if (onRecordTestCompleted && attempted > 0) {
+        const historyEntry: PracticeHistoryEntry = {
+          id: `test-${Date.now()}`,
+          date: new Date().toLocaleDateString([], {
+            month: 'short',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+          }),
+          subject: selectedSubject,
+          mode: 'Timed Test',
+          totalQuestions: attempted,
+          correctCount,
+          wrongCount,
+          score: totalScore,
+          accuracy
+        };
+        onRecordTestCompleted(historyEntry);
+      }
+      return true;
+    });
+  }, [questions, testAnswers, onRecordTestCompleted, selectedSubject]);
+
+  // Timer effect for test mode (stable 1-second tick without re-creating interval every second)
+  useEffect(() => {
+    if (!testActive || testCompleted) return;
+    const timer = setInterval(() => {
+      setTestTimeLeft((prev) => (prev <= 1 ? 0 : prev - 1));
+    }, 1000);
     return () => clearInterval(timer);
-  }, [testActive, testCompleted, testTimeLeft]);
+  }, [testActive, testCompleted]);
+
+  useEffect(() => {
+    if (testActive && !testCompleted && testTimeLeft === 0) {
+      handleCompleteTest();
+    }
+  }, [testActive, testCompleted, testTimeLeft, handleCompleteTest]);
 
   // Handle Dynamic Question Generation
   const handleGenerateQuestions = () => {
@@ -241,52 +283,37 @@ export const MCQSection: React.FC<MCQSectionProps> = React.memo(({
     }));
   };
 
+  // Sync incoming navigation props (e.g. from Notes "Quiz Subject" or NCERT "Practice Chapter")
+  useEffect(() => {
+    if (initialClassLevel && availableClasses.includes(initialClassLevel)) {
+      setSelectedClass(initialClassLevel);
+    }
+  }, [initialClassLevel, availableClasses]);
+
+  useEffect(() => {
+    if (initialSubject && initialSubject !== 'All') {
+      setSelectedSubject(initialSubject);
+      setCustomGeneratedQuestions(null);
+      setCurrentPracticeIndex(0);
+    }
+  }, [initialSubject]);
+
+  useEffect(() => {
+    if (initialChapter && availableChapters.length > 0) {
+      const match = availableChapters.find((c) =>
+        c.name.toLowerCase().includes(initialChapter.toLowerCase())
+      );
+      if (match) {
+        setSelectedChapterId(match.id);
+      }
+    }
+  }, [initialChapter, availableChapters]);
+
   const toggleFlagQuestion = (qId: string) => {
     setFlaggedQuestions((prev) => ({
       ...prev,
       [qId]: !prev[qId]
     }));
-  };
-
-  const handleCompleteTest = () => {
-    setTestCompleted(true);
-    let correctCount = 0;
-    let wrongCount = 0;
-
-    questions.forEach((q) => {
-      const ans = testAnswers[q.id];
-      if (ans !== undefined) {
-        if (ans === q.correctIndex) {
-          correctCount++;
-        } else {
-          wrongCount++;
-        }
-      }
-    });
-
-    const totalScore = correctCount * 4 - wrongCount * 1;
-    const attempted = correctCount + wrongCount;
-    const accuracy = attempted > 0 ? Math.round((correctCount / attempted) * 100) : 0;
-
-    if (onRecordTestCompleted && attempted > 0) {
-      const historyEntry: PracticeHistoryEntry = {
-        id: `test-${Date.now()}`,
-        date: new Date().toLocaleDateString([], {
-          month: 'short',
-          day: 'numeric',
-          hour: '2-digit',
-          minute: '2-digit'
-        }),
-        subject: selectedSubject,
-        mode: 'Timed Test',
-        totalQuestions: attempted,
-        correctCount,
-        wrongCount,
-        score: totalScore,
-        accuracy
-      };
-      onRecordTestCompleted(historyEntry);
-    }
   };
 
   const calculateTestScore = () => {
@@ -666,7 +693,7 @@ export const MCQSection: React.FC<MCQSectionProps> = React.memo(({
                 <div className="p-4 rounded-xl bg-[#0b1222] border border-[#d4af37]/25 space-y-2 text-xs text-[#cbd5e1] leading-relaxed animate-in fade-in duration-200">
                   <div className="flex items-center gap-1.5 font-bold text-[#d4af37]">
                     <Sparkles className="w-3.5 h-3.5" />
-                    <span>Official Step-by-Step Explanation</span>
+                    <span>Step-by-Step Academic Explanation</span>
                   </div>
                   <p>{activeQuestion.explanation}</p>
                 </div>

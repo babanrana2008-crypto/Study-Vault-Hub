@@ -158,6 +158,28 @@ html[data-theme="light"] .gold-glow {
   animation: spinSlow 8s linear infinite;
 }
 
+@keyframes svhSectionEnter {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 6px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+.svh-section-transition {
+  animation: svhSectionEnter 180ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  will-change: opacity, transform;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .svh-section-transition {
+    animation: none !important;
+  }
+}
+
 /* ============================================================================
    GLOBAL SHARED PREMIUM LIGHT MODE DESIGN TOKENS & OVERRIDES
    Visual System:

@@ -70,26 +70,37 @@
       "username": "soumya@2008",
       "role": "owner",
       "accountStatus": "active",
-      "tokenHash": "89ef3c8995bd3f5d663c30d8f9aae16bec5a2f12868a49713aa23fe38f7911a4",
+      "tokenHash": "c182e55c75f6a7bdfe39350c54a47ddcdfd2b0cf09ad9b2b2b1a4b973270b5f3",
       "sessionTokenHashes": [
         {
           "tokenHash": "89ef3c8995bd3f5d663c30d8f9aae16bec5a2f12868a49713aa23fe38f7911a4",
           "createdAt": "2026-10-06T21:04:26.910Z",
           "lastUsedAt": "2026-10-06T21:04:26.910Z"
+        },
+        {
+          "tokenHash": "c182e55c75f6a7bdfe39350c54a47ddcdfd2b0cf09ad9b2b2b1a4b973270b5f3",
+          "createdAt": "2026-10-07T13:30:59.942Z",
+          "lastUsedAt": "2026-10-07T13:30:59.942Z"
         }
       ],
       "displayName": "Soumyadip Rana",
       "profilePhotoUrl": null,
-      "svhAiButtonPosition": null,
+      "svhAiButtonPosition": {
+        "xRatio": 0.9826,
+        "yRatio": 0.6396
+      },
       "createdAt": "2026-10-06T20:26:34.017Z",
-      "lastSeenAt": "2026-10-06T21:04:27.325Z",
+      "lastSeenAt": "2026-10-07T13:41:50.998Z",
       "userStats": {
         "userId": "usr_owner_founder",
         "username": "soumya@2008",
         "role": "owner",
         "name": "Soumyadip Rana",
         "profilePhotoUrl": null,
-        "svhAiButtonPosition": null,
+        "svhAiButtonPosition": {
+          "xRatio": 0.9826,
+          "yRatio": 0.6396
+        },
         "selectedGoals": [
           "NEET",
           "JEE Main"
@@ -122,65 +133,16 @@
         "completedNoteIds": [],
         "readBookIds": []
       }
-    },
-    "usr_0a09d47f-75cd-4373-8d6c-38527be5b31b": {
-      "userId": "usr_0a09d47f-75cd-4373-8d6c-38527be5b31b",
-      "tokenHash": "5dbc76ebc2e4fb1b716b65fb361db448e452eff161fd85a2893d4ea60cc41b05",
-      "displayName": "Student",
-      "profilePhotoUrl": null,
-      "svhAiButtonPosition": null,
-      "createdAt": "2026-10-06T21:03:56.718Z",
-      "lastSeenAt": "2026-10-06T21:03:56.718Z"
-    },
-    "usr_16ac2747-257b-4985-a59f-9ca12eb9b634": {
-      "userId": "usr_16ac2747-257b-4985-a59f-9ca12eb9b634",
-      "tokenHash": "1f22457a7da89fbbb4c1c8087b3436b11dc63ff6bf666eb707fd87dcb6f56f52",
-      "displayName": "Verification Student",
-      "profilePhotoUrl": null,
-      "svhAiButtonPosition": null,
-      "createdAt": "2026-10-06T21:18:20.610Z",
-      "lastSeenAt": "2026-10-06T21:18:20.610Z"
     }
   },
   "posts": [],
   "replies": [],
   "chatMessages": [],
   "reports": [],
-  "aiConversations": {
-    "usr_16ac2747-257b-4985-a59f-9ca12eb9b634": []
-  },
-  "analyticsSessions": [
-    {
-      "sessionId": "sess_8e53daea-9ef1-4c36-8306-b0221c6b2e3e",
-      "userId": "usr_0a09d47f-75cd-4373-8d6c-38527be5b31b",
-      "deviceIdHash": "61ae61c67631be9ab977d65d7e9d01c2",
-      "openedAt": "2026-10-06T21:03:56.718Z"
-    }
-  ],
-  "registeredDeviceHashes": {
-    "4d2b24a70e810394fa7ddcad5074ec75": {
-      "firstSeenAt": "2026-10-06T20:07:20.654Z",
-      "lastSeenAt": "2026-10-06T20:07:59.406Z",
-      "userIds": [
-        "usr_acc4805d-709e-4352-891c-4ef2bd21424e"
-      ]
-    },
-    "61ae61c67631be9ab977d65d7e9d01c2": {
-      "firstSeenAt": "2026-10-06T21:03:56.718Z",
-      "lastSeenAt": "2026-10-06T21:04:26.910Z",
-      "userIds": [
-        "usr_0a09d47f-75cd-4373-8d6c-38527be5b31b",
-        "usr_owner_founder"
-      ]
-    }
-  },
+  "aiConversations": {},
+  "analyticsSessions": [],
+  "registeredDeviceHashes": {},
   "ownerAuth": {
-    "activeSessionTokenHashes": [
-      {
-        "tokenHash": "89ef3c8995bd3f5d663c30d8f9aae16bec5a2f12868a49713aa23fe38f7911a4",
-        "createdAt": "2026-10-06T21:04:26.910Z",
-        "lastUsedAt": "2026-10-06T21:04:26.910Z"
-      }
-    ]
+    "activeSessionTokenHashes": []
   }
 }

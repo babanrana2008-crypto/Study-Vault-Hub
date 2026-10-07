@@ -78,6 +78,23 @@ export const FocusModeModal: React.FC<FocusModeModalProps> = ({
     return () => clearInterval(interval);
   }, [isRunning]);
 
+  useEffect(() => {
+    if (!isOpen || typeof document === 'undefined') return;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !isRunning) {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isOpen, isRunning, onClose]);
+
   // Suggest real chapter names from library for the selected subject
   const suggestedChapters = useMemo(() => {
     const effectiveSub = (customSubject.trim() || selectedSubject).toLowerCase();

@@ -8,11 +8,8 @@ import {
   BookMarked,
   DownloadCloud,
   ExternalLink,
-  Sparkles,
   Layers,
-  GraduationCap,
-  Send,
-  Users
+  GraduationCap
 } from 'lucide-react';
 import { Book, NCERTBook } from '../types';
 import { SAMPLE_BOOKS } from '../data/sampleData';
@@ -291,47 +288,6 @@ export const BooksSection: React.FC<BooksSectionProps> = React.memo(({
               );
             })}
           </div>
-
-          {/* Large, Premium Telegram Access Banner for Reference Books */}
-          <div className="mt-8 p-6 sm:p-8 rounded-2xl sm:rounded-3xl bg-gradient-to-br from-[#0a1329] via-[#0f1d3d] to-[#070d1e] border-2 border-[#d4af37]/40 shadow-[0_0_35px_rgba(212,175,55,0.15)] relative overflow-hidden text-center space-y-5">
-            {/* Ambient decorative glow */}
-            <div className="absolute -top-12 -right-12 w-48 h-48 bg-sky-500/10 rounded-full blur-3xl pointer-events-none" />
-            <div className="absolute -bottom-12 -left-12 w-48 h-48 bg-[#d4af37]/10 rounded-full blur-3xl pointer-events-none" />
-
-            <div className="relative z-10 space-y-2">
-              <h3 className="font-display text-xl sm:text-2xl md:text-3xl font-extrabold text-[#fbf9f4] tracking-tight">
-                📚 FOR ANY TYPE OF BOOK PDF
-              </h3>
-              <p className="font-display text-base sm:text-lg md:text-xl font-bold text-[#d4af37] tracking-wide">
-                JOIN OUR TELEGRAM CHANNEL &amp; GROUP
-              </p>
-              <p className="text-xs sm:text-sm text-[#cbd5e1] max-w-xl mx-auto leading-relaxed pt-1">
-                Direct access to complete study archives, reference volumes, question banks, and round-the-clock aspirant discussion.
-              </p>
-            </div>
-
-            <div className="relative z-10 flex flex-col sm:flex-row items-center justify-center gap-3 pt-2 max-w-md mx-auto">
-              <a
-                href="https://t.me/StudyVaultHub"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="w-full sm:w-auto flex-1 flex items-center justify-center gap-2.5 px-6 py-3.5 rounded-xl bg-gradient-to-r from-[#2AABEE] to-[#1E96C8] hover:from-[#1E96C8] hover:to-[#1782ad] text-white font-bold text-xs sm:text-sm tracking-wide shadow-lg shadow-sky-500/25 hover:scale-[1.02] active:scale-[0.98] transition-all"
-              >
-                <Send className="w-4 h-4 shrink-0" />
-                <span>JOIN TELEGRAM CHANNEL</span>
-              </a>
-
-              <a
-                href="https://t.me/thestudyvaulthub"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="w-full sm:w-auto flex-1 flex items-center justify-center gap-2.5 px-6 py-3.5 rounded-xl bg-[#10192e] hover:bg-[#162340] text-[#fbf9f4] hover:text-[#d4af37] border-2 border-[#d4af37]/50 hover:border-[#d4af37] font-bold text-xs sm:text-sm tracking-wide shadow-lg shadow-[#d4af37]/10 hover:scale-[1.02] active:scale-[0.98] transition-all"
-              >
-                <Users className="w-4 h-4 text-[#d4af37] shrink-0" />
-                <span>JOIN TELEGRAM GROUP</span>
-              </a>
-            </div>
-          </div>
         </div>
       )}
 
@@ -599,6 +555,11 @@ export const BooksSection: React.FC<BooksSectionProps> = React.memo(({
           }}
         />
       )}
+
+      {/* Academic Source & Copyright Compliance Notice */}
+      <div className="p-3.5 rounded-2xl bg-[#090e1c] border border-[#1e293b] text-[11px] text-[#9ca3af] leading-relaxed">
+        <strong className="text-[#d4af37]">Academic Content &amp; Attribution Notice:</strong> In-app reference guides and chapter summaries are original educational synopses created by the Study Vault Hub Academic Team. Official NCERT textbook links direct students to the public National Council of Educational Research and Training portal (ncert.nic.in). Study Vault Hub is an independent educational platform and is not affiliated with or endorsed by NCERT or any examination board.
+      </div>
     </div>
   );
 });

@@ -155,6 +155,21 @@ export const OwnerAnalyticsModal: React.FC<OwnerAnalyticsModalProps> = ({
     }
   }, [isOpen, fetchOwnerAnalytics]);
 
+  useEffect(() => {
+    if (!isOpen || typeof document === 'undefined') return;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isOpen, onClose]);
+
   const handleToggleUserStatus = async (
     targetUserId: string,
     currentStatus: 'active' | 'suspended' = 'active'

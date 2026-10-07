@@ -1,10 +1,13 @@
 import { Book, StudyNote, MCQQuestion, HighYieldTopic, MnemonicItem, UserStats } from '../types';
 import officialLogoImg from '../assets/images/official_study_vault_logo_1790953350958.jpg';
+import heroStudyBannerImg from '../assets/images/hero_study_banner_1790948663897.jpg';
+import physicsCoverImg from '../assets/images/cover_physics_vol_1790948689583.jpg';
+import chemCoverImg from '../assets/images/cover_chem_organic_1790948702423.jpg';
 
 export const APP_LOGO = officialLogoImg || '/official_logo.jpg';
-export const HERO_IMAGE = '/src/assets/images/hero_study_banner_1790948663897.jpg';
-export const PHYSICS_COVER = '/src/assets/images/cover_physics_vol_1790948689583.jpg';
-export const CHEM_COVER = '/src/assets/images/cover_chem_organic_1790948702423.jpg';
+export const HERO_IMAGE = heroStudyBannerImg;
+export const PHYSICS_COVER = physicsCoverImg;
+export const CHEM_COVER = chemCoverImg;
 
 export const PRESET_GOALS = [
   'NEET',
@@ -33,27 +36,27 @@ export const GOAL_SUBJECTS_MAP: Record<string, string[]> = {
 };
 
 export const SAMPLE_BOOKS: Book[] = [
-  // Science & Engineering / Medical / Board
+  // Science & Engineering / Medical / Board (Original Study Vault Hub Reference Handbooks)
   {
     id: 'b1',
-    title: 'NCERT Biology Master Edition',
-    author: 'NCERT Expert Board / Dr. K. N. Rao',
+    title: 'SVH Biology Concept & Syllabus Revision Handbook',
+    author: 'Study Vault Hub Academic Team (Biology Division)',
     subject: 'Biology',
     targetStreams: ['NEET', 'Class 12 Board', 'General Study'],
-    edition: '2026 Revised Comprehensive',
+    edition: 'SVH Original Study Guide',
     rating: 4.9,
     totalChapters: 38,
     pages: 642,
-    level: 'Core Curriculum',
+    level: 'Core Curriculum Synopsis',
     accentColor: '#10b981',
-    description: 'Direct line-by-line coverage from Class 11 and 12 NCERT curriculum with annotated diagrams and high-yield concepts.',
-    downloadSize: '42.4 MB',
+    description: 'Original Study Vault Hub chapter-by-chapter study synopsis aligned with Class 11 and 12 biology syllabus concepts, key mechanisms, and revision summaries.',
+    downloadSize: 'In-App Study Guide',
     chapters: [
       {
         id: 'c1',
         number: 1,
         title: 'Cell: The Unit of Life',
-        pageRange: 'p. 1 - 28',
+        pageRange: 'Sec. 1.1 - 1.4',
         summary: 'Prokaryotic and eukaryotic organelles, fluid mosaic model of cell membrane, and endomembrane system transport mechanisms.',
         keyConcepts: ['Fluid mosaic model (Singer & Nicolson 1972)', 'Endomembrane system: ER, Golgi, Lysosomes, Vacuoles', 'Ribosomes (70S vs 80S subunits)', 'Plasmids and inclusion bodies']
       },
@@ -61,7 +64,7 @@ export const SAMPLE_BOOKS: Book[] = [
         id: 'c2',
         number: 2,
         title: 'Principles of Inheritance & Variation',
-        pageRange: 'p. 89 - 130',
+        pageRange: 'Sec. 2.1 - 2.5',
         summary: 'Mendelian ratios, chromosomal theory of inheritance, Morgan Drosophila experiments, sex linkage, and pedigree charts.',
         keyConcepts: ['Incomplete dominance vs Codominance (ABO blood)', 'Linkage vs Recombination frequency', 'Sickle-cell anemia (Glu to Val)', 'Thalassemia vs Hemophilia']
       }
@@ -69,25 +72,25 @@ export const SAMPLE_BOOKS: Book[] = [
   },
   {
     id: 'b2',
-    title: 'Concepts of Physics: Mechanics & Waves',
-    author: 'Prof. H. C. Verma',
+    title: 'SVH Physics: Mechanics, Rotational Dynamics & Optics Guide',
+    author: 'Study Vault Hub Academic Team (Physics Division)',
     subject: 'Physics',
     targetStreams: ['JEE Main', 'JEE Advanced', 'NEET', 'Class 12 Board'],
-    edition: 'Classic Vol. 1 & 2 Refined',
+    edition: 'SVH Original Concept Series',
     rating: 4.95,
     totalChapters: 22,
     pages: 462,
     level: 'Foundational to Advanced',
     coverImage: PHYSICS_COVER,
     accentColor: '#3b82f6',
-    description: 'The definitive conceptual physics treatise for engineering and medical entrance aspirants with rigorous mechanical models.',
-    downloadSize: '36.8 MB',
+    description: 'Original Study Vault Hub conceptual physics reference handbook covering mechanics, rotational motion, and ray optics derivations for entrance and board aspirants.',
+    downloadSize: 'In-App Study Guide',
     chapters: [
       {
         id: 'cp1',
         number: 1,
         title: 'Rotational Dynamics & Moment of Inertia',
-        pageRange: 'p. 142 - 180',
+        pageRange: 'Sec. 1.1 - 1.6',
         summary: 'Torque balance, angular momentum conservation, rolling without slipping on inclined planes, parallel and perpendicular axis theorems.',
         keyConcepts: ['Torque tau = I * alpha', 'Angular momentum conservation L = I * omega', 'Pure rolling: v_cm = R * omega', 'Radius of gyration formulas']
       },
@@ -95,7 +98,7 @@ export const SAMPLE_BOOKS: Book[] = [
         id: 'cp2',
         number: 2,
         title: 'Ray Optics and Optical Instruments',
-        pageRange: 'p. 310 - 355',
+        pageRange: 'Sec. 2.1 - 2.6',
         summary: 'Snell’s law, total internal reflection, lens maker formula, compound microscope and astronomical telescope magnification.',
         keyConcepts: ['Critical angle sin(theta_c) = 1/mu', 'Lens Maker Formula: 1/f = (mu-1)(1/R1 - 1/R2)', 'Compound microscope magnification', 'Prism formula']
       }
@@ -103,25 +106,25 @@ export const SAMPLE_BOOKS: Book[] = [
   },
   {
     id: 'b3',
-    title: 'Advanced Organic Chemistry Principles',
-    author: 'M. S. Chouhan / Himanshu Pandey',
+    title: 'SVH Organic Chemistry: Reaction Mechanisms & Stereochemistry',
+    author: 'Study Vault Hub Academic Team (Chemistry Division)',
     subject: 'Chemistry',
     targetStreams: ['JEE Main', 'JEE Advanced', 'NEET', 'Class 12 Board'],
-    edition: '2026 High-Yield Edition',
+    edition: 'SVH Original Revision Edition',
     rating: 4.88,
     totalChapters: 18,
     pages: 512,
-    level: 'Advanced Reaction Mechanisms',
+    level: 'Reaction Mechanisms & Concepts',
     coverImage: CHEM_COVER,
     accentColor: '#f59e0b',
-    description: 'Systematic reaction mechanisms, electrophilic aromatic substitutions, named reactions, and optical stereochemistry.',
-    downloadSize: '29.5 MB',
+    description: 'Original Study Vault Hub chemistry study guide covering nucleophilic substitution pathways, electrophilic aromatic substitutions, and stereochemistry.',
+    downloadSize: 'In-App Study Guide',
     chapters: [
       {
         id: 'cc1',
         number: 1,
         title: 'Reaction Mechanisms: SN1 vs SN2 Substitution',
-        pageRange: 'p. 45 - 82',
+        pageRange: 'Sec. 1.1 - 1.5',
         summary: 'Nucleophilic aliphatic substitution pathways, stereochemical inversion vs racemization, solvent effects (protic vs aprotic).',
         keyConcepts: ['Carbocation stability order (3° > 2° > 1°)', 'Walden inversion in bimolecular substitution (SN2)', 'Polar aprotic solvents accelerate SN2', 'Leaving group order: I- > Br- > Cl-']
       }
@@ -129,24 +132,24 @@ export const SAMPLE_BOOKS: Book[] = [
   },
   {
     id: 'b4',
-    title: 'Comprehensive Mathematics for JEE & Boards',
-    author: 'S. L. Loney / Amit M. Agarwal',
+    title: 'SVH Analytical Mathematics: Calculus & Vectors Compendium',
+    author: 'Study Vault Hub Academic Team (Mathematics Division)',
     subject: 'Mathematics',
     targetStreams: ['JEE Main', 'JEE Advanced', 'Class 12 Board', 'CUET'],
-    edition: 'Calculus & Vectors Edition',
+    edition: 'SVH Original Calculus Series',
     rating: 4.92,
     totalChapters: 20,
     pages: 580,
-    level: 'Rigorous Analytical Mathematics',
+    level: 'Analytical Mathematics',
     accentColor: '#8b5cf6',
-    description: 'Differential and Integral Calculus, Coordinate Geometry, Matrices, Determinants, and Vector 3D mastery for competitive exams.',
-    downloadSize: '38.2 MB',
+    description: 'Original Study Vault Hub mathematics reference guide for Differential and Integral Calculus, Coordinate Geometry, Matrices, Determinants, and Vector 3D.',
+    downloadSize: 'In-App Study Guide',
     chapters: [
       {
         id: 'cm1',
         number: 1,
         title: 'Application of Derivatives & Extreme Values',
-        pageRange: 'p. 112 - 165',
+        pageRange: 'Sec. 1.1 - 1.5',
         summary: 'Rate of change, tangents and normals, Rolle’s theorem, LMVT, critical points, and optimization problems.',
         keyConcepts: ['First derivative test for maxima/minima', 'Concavity and point of inflection: f"(x) = 0', 'Mean Value Theorem conditions', 'Rate measure modeling']
       },
@@ -154,8 +157,8 @@ export const SAMPLE_BOOKS: Book[] = [
         id: 'cm2',
         number: 2,
         title: 'Definite Integrals & Area Under Curves',
-        pageRange: 'p. 210 - 275',
-        summary: 'Properties of definite integrals, King’s property, Queen’s property, Leibniz integral rule, and enclosed area bounding.',
+        pageRange: 'Sec. 2.1 - 2.6',
+        summary: 'Properties of definite integrals, symmetry properties, Leibniz integral rule, and enclosed area bounding.',
         keyConcepts: ['Property: int_a^b f(x)dx = int_a^b f(a+b-x)dx', 'Even/Odd symmetry simplification', 'Area bounded between intersecting curves', 'Leibniz rule differentiation under integral sign']
       }
     ]
@@ -163,24 +166,24 @@ export const SAMPLE_BOOKS: Book[] = [
   // Commerce & CA
   {
     id: 'b5',
-    title: 'Financial Accounting & Corporate Statements',
-    author: 'T. S. Grewal / Dr. S. C. Gupta',
+    title: 'SVH Financial Accounting & Corporate Statements Guide',
+    author: 'Study Vault Hub Academic Team (Commerce Division)',
     subject: 'Accountancy',
     targetStreams: ['Commerce', 'CA', 'Class 12 Board', 'CUET'],
-    edition: '2026 Corporate Edition',
+    edition: 'SVH Original Commerce Series',
     rating: 4.9,
     totalChapters: 16,
     pages: 490,
-    level: 'Professional Foundations',
+    level: 'Commerce & Accounting Foundations',
     accentColor: '#059669',
-    description: 'Partnership accounts, accounting for share capital, debentures, cash flow statements, and financial ratio analysis.',
-    downloadSize: '32.1 MB',
+    description: 'Original Study Vault Hub study guide covering partnership accounts, share capital accounting, debentures, cash flow statements, and financial ratio analysis.',
+    downloadSize: 'In-App Study Guide',
     chapters: [
       {
         id: 'ca1',
         number: 1,
         title: 'Accounting for Share Capital & Forfeiture',
-        pageRange: 'p. 50 - 105',
+        pageRange: 'Sec. 1.1 - 1.4',
         summary: 'Issue of shares at par/premium, calls in arrears, pro-rata allotment in oversubscription, and forfeiture of shares.',
         keyConcepts: ['Pro-rata allotment calculations', 'Journal entries for forfeiture of shares', 'Re-issue of forfeited shares at discount', 'Transfer to Capital Reserve']
       }
@@ -188,24 +191,24 @@ export const SAMPLE_BOOKS: Book[] = [
   },
   {
     id: 'b6',
-    title: 'Macroeconomics & Indian Economic Development',
-    author: 'Sandeep Garg / V. K. Ohri',
+    title: 'SVH Macroeconomics & Economic Development Synopsis',
+    author: 'Study Vault Hub Academic Team (Economics Division)',
     subject: 'Economics',
     targetStreams: ['Commerce', 'Class 12 Board', 'CUET', 'CA'],
-    edition: 'National Income Edition',
+    edition: 'SVH Original Economics Series',
     rating: 4.86,
     totalChapters: 14,
     pages: 430,
-    level: 'Macro Principles',
+    level: 'Macroeconomic Principles',
     accentColor: '#d97706',
-    description: 'National income aggregates, money and banking, aggregate demand and supply, government budget, and foreign exchange.',
-    downloadSize: '28.4 MB',
+    description: 'Original Study Vault Hub revision guide covering national income aggregates, money and banking, aggregate demand and supply, government budget, and foreign exchange.',
+    downloadSize: 'In-App Study Guide',
     chapters: [
       {
         id: 'ce1',
         number: 1,
         title: 'National Income & Related Aggregates',
-        pageRange: 'p. 22 - 78',
+        pageRange: 'Sec. 1.1 - 1.5',
         summary: 'Value added method, income method, expenditure method, circular flow of income, GDP deflator, and real vs nominal GDP.',
         keyConcepts: ['Circular flow of income (Two-sector model)', 'GDP at MP to NNP at FC conversions', 'Net Indirect Taxes = Indirect Taxes - Subsidies', 'NFIA = Factor Income from Abroad - Factor Income to Abroad']
       }
@@ -214,24 +217,24 @@ export const SAMPLE_BOOKS: Book[] = [
   // Class 10 Board
   {
     id: 'b7',
-    title: 'NCERT Complete Science & Physics/Chem Foundations',
-    author: 'National Curriculum Council',
+    title: 'SVH Class 10 Science Foundations & Board Revision Guide',
+    author: 'Study Vault Hub Academic Team (Secondary Science Division)',
     subject: 'Science',
     targetStreams: ['Class 10 Board', 'General Study'],
-    edition: 'Exemplar 2026',
+    edition: 'SVH Original Secondary Series',
     rating: 4.88,
     totalChapters: 16,
     pages: 380,
-    level: 'Secondary School Board Exam',
+    level: 'Secondary School Foundation',
     accentColor: '#0284c7',
-    description: 'Chemical reactions, acids, bases and salts, life processes, light reflection, human eye, electricity, and magnetic effects.',
-    downloadSize: '26.8 MB',
+    description: 'Original Study Vault Hub revision handbook for chemical reactions, acids, bases and salts, life processes, light reflection, electricity, and magnetic effects.',
+    downloadSize: 'In-App Study Guide',
     chapters: [
       {
         id: 'cs1',
         number: 1,
         title: 'Life Processes & Cellular Respiration',
-        pageRange: 'p. 94 - 130',
+        pageRange: 'Sec. 1.1 - 1.4',
         summary: 'Autotrophic nutrition, human digestive tract, aerobic vs anaerobic breakdown of glucose, nephron structure and filtration.',
         keyConcepts: ['Photosynthesis: light & dark reactions', 'Pathway of glucose breakdown (Pyruvate formation)', 'Double circulation in human heart', 'Nephron ultrafiltration and selective reabsorption']
       }

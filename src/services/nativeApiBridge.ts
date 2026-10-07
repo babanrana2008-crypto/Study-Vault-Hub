@@ -29,7 +29,7 @@ const REMOTE_BACKEND_CANDIDATES: string[] = [
 
 const NATIVE_DB_STORAGE_KEY = 'svh_native_android_server_db_v2';
 
-// Precomputed salted SHA-256 digests for the configured Owner credentials (`soumya@2008`).
+// Precomputed salted SHA-256 digests for the configured Owner credentials.
 // Plaintext Owner credentials are NEVER stored in frontend code.
 const OWNER_SALT = 'svh_owner_v1_salt_9f8e7d6c5b4a3210';
 const OWNER_USER_HASH = '58476e5c7ec1fc78da4a1aef8a7a5c271f90d9f18d7237ac15fe86be3950f7c5';
@@ -153,9 +153,10 @@ interface NativeDatabaseSchema {
 }
 
 /**
- * Pre-seeded accounts from the working web backend (`.data/community_db.json`) so existing
- * web accounts (such as `ssrr` and the Owner account `soumya@2008`) can sign in on the
- * Android APK immediately, even when the Cloud Run preview gateway blocks cross-origin fetch.
+ * Pre-seeded account records synced from the web backend so existing
+ * web accounts can sign in on the Android APK immediately, even when the
+ * Cloud Run preview gateway blocks cross-origin fetch.
+ * Active session tokens and plaintext Owner usernames are never embedded in client code.
  */
 const INITIAL_SEEDED_USERS: Record<string, NativeStoredUser> = {
   'usr_acc4805d-709e-4352-891c-4ef2bd21424e': {
@@ -166,10 +167,8 @@ const INITIAL_SEEDED_USERS: Record<string, NativeStoredUser> = {
     webScryptSalt: '481926a91c9cad9501cd954059bcf238',
     webScryptHash:
       '7d5eebd1176ef734523e1f28c19efbacf7c9b731fd8974230c6c67ee924aa5fbe7ed324124dcb232d6324e441de9c116a67abb055ff9c041200557625725fce1',
-    tokenHash: 'd5230811794178fa505abe041a11ad91e00ae8b22fac4dd0b7875e049921404e',
-    sessionTokenHashes: [
-      'd5230811794178fa505abe041a11ad91e00ae8b22fac4dd0b7875e049921404e',
-    ],
+    tokenHash: '',
+    sessionTokenHashes: [],
     displayName: 'Soumyadip',
     profilePhotoUrl: null,
     svhAiButtonPosition: {
@@ -221,13 +220,10 @@ const INITIAL_SEEDED_USERS: Record<string, NativeStoredUser> = {
   },
   usr_owner_founder: {
     userId: 'usr_owner_founder',
-    username: 'soumya@2008',
     role: 'owner',
     accountStatus: 'active',
-    tokenHash: '89ef3c8995bd3f5d663c30d8f9aae16bec5a2f12868a49713aa23fe38f7911a4',
-    sessionTokenHashes: [
-      '89ef3c8995bd3f5d663c30d8f9aae16bec5a2f12868a49713aa23fe38f7911a4',
-    ],
+    tokenHash: '',
+    sessionTokenHashes: [],
     displayName: 'Soumyadip Rana',
     profilePhotoUrl: null,
     svhAiButtonPosition: null,
@@ -235,7 +231,6 @@ const INITIAL_SEEDED_USERS: Record<string, NativeStoredUser> = {
     lastSeenAt: '2026-10-06T21:04:27.325Z',
     userStats: {
       userId: 'usr_owner_founder',
-      username: 'soumya@2008',
       role: 'owner',
       name: 'Soumyadip Rana',
       profilePhotoUrl: null,
@@ -1530,6 +1525,12 @@ export async function handleNativeAndroidApiRequest(
     const user = await authenticateNativeRequest(db, init);
     if (!user) return jsonResponse({ error: 'Unauthorized' }, 401);
     const postId = postDeleteMatch[1];
+    const targetPost = db.posts.find((p) => p.id === postId);
+    if (!targetPost) return jsonResponse({ error: 'Post not found' }, 404);
+    const isOwner = await authenticateNativeOwnerRequest(db, init);
+    if (targetPost.authorId !== user.userId && !isOwner) {
+      return jsonResponse({ error: 'You can only delete your own posts.' }, 403);
+    }
     db.posts = db.posts.filter((p) => p.id !== postId);
     db.replies = db.replies.filter((r) => r.postId !== postId);
     saveNativeDb(db);
@@ -1542,7 +1543,12 @@ export async function handleNativeAndroidApiRequest(
     if (!user) return jsonResponse({ error: 'Unauthorized' }, 401);
     const replyId = replyDeleteMatch[1];
     const targetReply = db.replies.find((r) => r.id === replyId);
-    const postId = targetReply?.postId;
+    if (!targetReply) return jsonResponse({ error: 'Reply not found' }, 404);
+    const isOwner = await authenticateNativeOwnerRequest(db, init);
+    if (targetReply.authorId !== user.userId && !isOwner) {
+      return jsonResponse({ error: 'You can only delete your own replies.' }, 403);
+    }
+    const postId = targetReply.postId;
     db.replies = db.replies.filter((r) => r.id !== replyId);
     let replyCount = 0;
     if (postId) {
@@ -1559,6 +1565,12 @@ export async function handleNativeAndroidApiRequest(
     const user = await authenticateNativeRequest(db, init);
     if (!user) return jsonResponse({ error: 'Unauthorized' }, 401);
     const messageId = chatDeleteMatch[1];
+    const targetMsg = db.chatMessages.find((m) => m.id === messageId);
+    if (!targetMsg) return jsonResponse({ error: 'Message not found' }, 404);
+    const isOwner = await authenticateNativeOwnerRequest(db, init);
+    if (targetMsg.authorId !== user.userId && !isOwner) {
+      return jsonResponse({ error: 'You can only delete your own messages.' }, 403);
+    }
     db.chatMessages = db.chatMessages.filter((m) => m.id !== messageId);
     saveNativeDb(db);
     return jsonResponse({ ok: true, messageId });
@@ -1661,6 +1673,10 @@ const nativeOriginalFetch: typeof fetch | null =
     ? window.fetch.bind(window)
     : null;
 
+let workingRemoteOrigin: string | null = null;
+let remoteCandidatesBlockedUntil = 0;
+const REMOTE_BLOCK_COOLDOWN_MS = 60_000;
+
 /**
  * Resilient API fetch that works identically in web browsers, AI Studio preview iframes,
  * and standalone Capacitor Android APKs without ever mutating `window.fetch`.
@@ -1705,30 +1721,45 @@ export async function apiFetch(
     }
   }
 
-  // 2. Inside the Android APK, try each live backend candidate (`VITE_BACKEND_URL`, `ais-pre`, `ais-dev`)
-  for (const baseOrigin of REMOTE_BACKEND_CANDIDATES) {
-    const controller = new AbortController();
-    const timeoutId =
-      typeof window !== 'undefined'
-        ? window.setTimeout(() => controller.abort(), 3200)
-        : null;
-    try {
-      const candidateRes = await baseFetch(`${baseOrigin}${rawUrl}`, {
-        ...init,
-        signal: init?.signal || controller.signal,
-      });
-      if (timeoutId !== null) window.clearTimeout(timeoutId);
+  // 2. Inside the Android APK, try live backend candidates if online and not in cooldown
+  const isOnline = typeof navigator === 'undefined' || navigator.onLine !== false;
+  if (isOnline && Date.now() >= remoteCandidatesBlockedUntil) {
+    const candidatesToTry = workingRemoteOrigin
+      ? [
+          workingRemoteOrigin,
+          ...REMOTE_BACKEND_CANDIDATES.filter((c) => c !== workingRemoteOrigin),
+        ]
+      : REMOTE_BACKEND_CANDIDATES;
 
-      const contentType = candidateRes.headers.get('content-type') || '';
-      if (
-        contentType.includes('application/json') ||
-        contentType.includes('text/event-stream')
-      ) {
-        return candidateRes;
+    for (const baseOrigin of candidatesToTry) {
+      const controller = new AbortController();
+      const timeoutId =
+        typeof window !== 'undefined'
+          ? window.setTimeout(() => controller.abort(), 1800)
+          : null;
+      try {
+        const candidateRes = await baseFetch(`${baseOrigin}${rawUrl}`, {
+          ...init,
+          signal: init?.signal || controller.signal,
+        });
+        if (timeoutId !== null) window.clearTimeout(timeoutId);
+
+        const contentType = candidateRes.headers.get('content-type') || '';
+        if (
+          contentType.includes('application/json') ||
+          contentType.includes('text/event-stream')
+        ) {
+          workingRemoteOrigin = baseOrigin;
+          return candidateRes;
+        }
+      } catch {
+        if (timeoutId !== null) window.clearTimeout(timeoutId);
       }
-    } catch {
-      if (timeoutId !== null) window.clearTimeout(timeoutId);
     }
+
+    // All remote candidates were blocked by gateway cookie check or unreachable; cache cooldown
+    workingRemoteOrigin = null;
+    remoteCandidatesBlockedUntil = Date.now() + REMOTE_BLOCK_COOLDOWN_MS;
   }
 
   // 3. Fallback to the on-device Native Android API Bridge so login, registration,

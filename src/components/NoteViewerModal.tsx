@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, Bookmark, CheckCircle2, Copy, FileText, Check, AlertTriangle, ArrowRight } from 'lucide-react';
 import { StudyNote } from '../types';
 
@@ -22,6 +22,21 @@ export const NoteViewerModal: React.FC<NoteViewerModalProps> = ({
   onOpenMCQWithSubject
 }) => {
   const [copiedFormula, setCopiedFormula] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [onClose]);
 
   const handleCopyFormula = (formula: string, label: string) => {
     navigator.clipboard?.writeText?.(`${label}: ${formula}`);

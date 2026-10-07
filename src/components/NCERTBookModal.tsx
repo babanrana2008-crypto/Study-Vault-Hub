@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   X,
   BookOpen,
@@ -32,6 +32,22 @@ export const NCERTBookModal: React.FC<NCERTBookModalProps> = ({
   const [expandedChapterIndex, setExpandedChapterIndex] = useState<number | null>(0);
   const [copyFeedback, setCopyFeedback] = useState(false);
 
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [onClose]);
+
   const handleShare = () => {
     navigator.clipboard?.writeText(
       `Check out ${book.title} on Study Vault Hub - Official NCERT Portal: ${book.officialPortalUrl}`
@@ -45,8 +61,14 @@ export const NCERTBookModal: React.FC<NCERTBookModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="w-full max-w-3xl max-h-[90vh] bg-[#090e1c] border border-[#d4af37]/30 rounded-2xl sm:rounded-3xl shadow-2xl flex flex-col overflow-hidden">
+    <div
+      onClick={onClose}
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/80 backdrop-blur-md animate-in fade-in duration-150 overscroll-contain"
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-3xl max-h-[90vh] max-h-[90dvh] bg-[#090e1c] border border-[#d4af37]/30 rounded-2xl sm:rounded-3xl shadow-2xl flex flex-col overflow-hidden"
+      >
         {/* Modal Top Header */}
         <div className="p-4 sm:p-5 bg-[#0f172a] border-b border-[#d4af37]/20 flex items-center justify-between gap-3 shrink-0">
           <div className="flex items-center gap-2.5 min-w-0">
@@ -247,7 +269,7 @@ export const NCERTBookModal: React.FC<NCERTBookModalProps> = ({
 
         {/* Modal Bottom Bar */}
         <div className="p-3.5 sm:p-4 bg-[#0f172a] border-t border-[#d4af37]/20 flex items-center justify-between gap-3 shrink-0 text-xs text-[#9ca3af]">
-          <span>Official portal data from National Council of Educational Research & Training</span>
+          <span>Independent study synopses · Official textbook links open the public NCERT portal (ncert.nic.in)</span>
           <button
             onClick={onClose}
             className="px-4 py-1.5 rounded-xl bg-[#131b2e] hover:bg-[#1c2742] text-[#fbf9f4] border border-[#d4af37]/25 font-semibold transition-colors"

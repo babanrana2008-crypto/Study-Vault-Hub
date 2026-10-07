@@ -255,6 +255,36 @@ export const ProfileSection: React.FC<ProfileSectionProps> = React.memo(({
     }
   }, [rawSelectedDataUrl, drawCropPreview]);
 
+  const hasOpenProfileModal = Boolean(rawSelectedDataUrl || showDeleteAccountConfirm);
+
+  useEffect(() => {
+    if (!hasOpenProfileModal || typeof document === 'undefined') return;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (rawSelectedDataUrl && !isSavingPhoto) {
+          setRawSelectedDataUrl(null);
+        } else if (showDeleteAccountConfirm && !isDeletingAccount) {
+          setShowDeleteAccountConfirm(false);
+          setDeleteAccountError(null);
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [
+    hasOpenProfileModal,
+    rawSelectedDataUrl,
+    isSavingPhoto,
+    showDeleteAccountConfirm,
+    isDeletingAccount,
+  ]);
+
   // Handle user selecting an image file from device
   const handleSelectPhotoFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -1522,6 +1552,52 @@ Active Streak: ${userStats.streak?.current || 0} Days
               </p>
             </div>
           </button>
+        </div>
+      </section>
+
+      {/* Legal, Privacy, Copyright & Platform Transparency */}
+      <section className="p-4 sm:p-5 rounded-2xl bg-[#090e1c] border border-[#d4af37]/25 space-y-3">
+        <div className="flex items-center gap-2 text-xs font-semibold text-[#d4af37] uppercase tracking-wider">
+          <ShieldCheck className="w-4 h-4 shrink-0" />
+          <span>Legal, Privacy &amp; Intellectual Property Notice</span>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs text-[#cbd5e1] leading-relaxed">
+          <div className="p-3.5 rounded-xl bg-[#0f172a] border border-[#1e293b] space-y-1">
+            <h4 className="font-display font-bold text-[#fbf9f4] text-xs">
+              1. Independent Platform &amp; Non-Affiliation
+            </h4>
+            <p className="text-[11px] text-[#9ca3af]">
+              Study Vault Hub is an independent educational study platform founded and created by Soumyadip Rana. It is not affiliated with, endorsed by, or officially connected to NCERT, NTA (NEET / JEE), CBSE, CISCE, WBCHSE, WBJEEB, UPSC, SSC, IBPS, ICAI, or any government or examination authority. All exam names and institutional marks belong to their respective owners and are referenced strictly for syllabus identification.
+            </p>
+          </div>
+
+          <div className="p-3.5 rounded-xl bg-[#0f172a] border border-[#1e293b] space-y-1">
+            <h4 className="font-display font-bold text-[#fbf9f4] text-xs">
+              2. Copyright &amp; Study Materials Policy
+            </h4>
+            <p className="text-[11px] text-[#9ca3af]">
+              All in-app reference handbooks, chapter synopses, formula sheets, mnemonics, and practice questions are original educational materials created for Study Vault Hub. Official NCERT textbook links direct students to the official public NCERT portal (ncert.nic.in) for legitimate academic reference and are never re-hosted or claimed as Study Vault Hub property.
+            </p>
+          </div>
+
+          <div className="p-3.5 rounded-xl bg-[#0f172a] border border-[#1e293b] space-y-1">
+            <h4 className="font-display font-bold text-[#fbf9f4] text-xs">
+              3. Privacy &amp; Data Protection
+            </h4>
+            <p className="text-[11px] text-[#9ca3af]">
+              Study Vault Hub stores only the data necessary to power your study experience (display name, optional account username and cryptographically hashed password, selected study goals, practice/timer progress, and user-submitted community or SVH AI messages). We never sell personal data, collect GPS location, or run third-party advertising trackers. You can log out or permanently delete your account and all associated data above at any time.
+            </p>
+          </div>
+
+          <div className="p-3.5 rounded-xl bg-[#0f172a] border border-[#1e293b] space-y-1">
+            <h4 className="font-display font-bold text-[#fbf9f4] text-xs">
+              4. Community Safety &amp; Content Moderation
+            </h4>
+            <p className="text-[11px] text-[#9ca3af]">
+              Students may only share legitimate academic doubts and study discussions that they have the right to share. Uploading copyrighted third-party textbooks, pirated PDFs, spam, or abusive content is strictly prohibited. Use the in-app Report button on any post, reply, or chat message to flag and hide inappropriate content for administrator moderation.
+            </p>
+          </div>
         </div>
       </section>
 

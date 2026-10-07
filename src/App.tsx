@@ -557,74 +557,77 @@ export default function App() {
     }));
   }, []);
 
-  // Record a single question answer
-  const handleRecordSingleQuestion = (
-    isCorrect: boolean,
-    question: MCQQuestion,
-    chapterId?: string
-  ) => {
-    setUserStats((prev) => {
-      const newAttempted = prev.questionsAttempted + 1;
-      const newCorrect = prev.correctAnswers + (isCorrect ? 1 : 0);
-      const newIncorrect = prev.incorrectAnswers + (isCorrect ? 0 : 1);
+  const handleRecordSingleQuestion = useCallback(
+    (isCorrect: boolean, question: MCQQuestion, chapterId?: string) => {
+      setUserStats((prev) => {
+        const newAttempted = prev.questionsAttempted + 1;
+        const newCorrect = prev.correctAnswers + (isCorrect ? 1 : 0);
+        const newIncorrect = prev.incorrectAnswers + (isCorrect ? 0 : 1);
 
-      const topicList = prev.topicsStudied.includes(question.topic)
-        ? prev.topicsStudied
-        : [question.topic, ...prev.topicsStudied];
+        const topicList = prev.topicsStudied.includes(question.topic)
+          ? prev.topicsStudied
+          : [question.topic, ...prev.topicsStudied];
 
-      // Update real chapter progress if chapterId is present
-      const currentChapterProgress = prev.chapterProgress || {};
-      const prevChap = currentChapterProgress[chapterId || ''] || {
-        completed: false,
-        questionsSolved: 0,
-        accuracy: 0
-      };
-      const updatedSolved = prevChap.questionsSolved + 1;
-      const updatedAccuracy = Math.round(
-        (((prevChap.accuracy * prevChap.questionsSolved) / 100 + (isCorrect ? 1 : 0)) / updatedSolved) * 100
-      );
+        // Update real chapter progress if chapterId is present
+        const currentChapterProgress = prev.chapterProgress || {};
+        const prevChap = currentChapterProgress[chapterId || ''] || {
+          completed: false,
+          questionsSolved: 0,
+          accuracy: 0,
+        };
+        const updatedSolved = prevChap.questionsSolved + 1;
+        const updatedAccuracy = Math.round(
+          (((prevChap.accuracy * prevChap.questionsSolved) / 100 + (isCorrect ? 1 : 0)) /
+            updatedSolved) *
+            100
+        );
 
-      const updatedProgress = chapterId
-        ? {
-            ...currentChapterProgress,
-            [chapterId]: {
-              completed: updatedSolved >= 3,
-              questionsSolved: updatedSolved,
-              accuracy: updatedAccuracy
+        const updatedProgress = chapterId
+          ? {
+              ...currentChapterProgress,
+              [chapterId]: {
+                completed: updatedSolved >= 3,
+                questionsSolved: updatedSolved,
+                accuracy: updatedAccuracy,
+              },
             }
-          }
-        : currentChapterProgress;
+          : currentChapterProgress;
 
-      const today = new Date().toISOString().split('T')[0];
-      const prevStreak = prev.streak?.current || 0;
-      const prevLastDate = prev.streak?.lastActiveDate || '';
-      let nextStreak = prevStreak;
-      if (prevLastDate !== today) {
-        const diff = prevLastDate
-          ? Math.round((new Date(today).getTime() - new Date(prevLastDate).getTime()) / (1000 * 60 * 60 * 24))
-          : 0;
-        nextStreak = diff === 1 ? prevStreak + 1 : 1;
-      } else if (nextStreak === 0) {
-        nextStreak = 1;
-      }
-
-      return {
-        ...prev,
-        questionsAttempted: newAttempted,
-        correctAnswers: newCorrect,
-        incorrectAnswers: newIncorrect,
-        topicsStudied: topicList,
-        chapterProgress: updatedProgress,
-        streak: {
-          current: nextStreak,
-          lastActiveDate: today
+        const today = new Date().toISOString().split('T')[0];
+        const prevStreak = prev.streak?.current || 0;
+        const prevLastDate = prev.streak?.lastActiveDate || '';
+        let nextStreak = prevStreak;
+        if (prevLastDate !== today) {
+          const diff = prevLastDate
+            ? Math.round(
+                (new Date(today).getTime() - new Date(prevLastDate).getTime()) /
+                  (1000 * 60 * 60 * 24)
+              )
+            : 0;
+          nextStreak = diff === 1 ? prevStreak + 1 : 1;
+        } else if (nextStreak === 0) {
+          nextStreak = 1;
         }
-      };
-    });
-  };
+
+        return {
+          ...prev,
+          questionsAttempted: newAttempted,
+          correctAnswers: newCorrect,
+          incorrectAnswers: newIncorrect,
+          topicsStudied: topicList,
+          chapterProgress: updatedProgress,
+          streak: {
+            current: nextStreak,
+            lastActiveDate: today,
+          },
+        };
+      });
+    },
+    []
+  );
 
   // Record a completed timed test sprint
-  const handleRecordTestCompleted = (entry: PracticeHistoryEntry) => {
+  const handleRecordTestCompleted = useCallback((entry: PracticeHistoryEntry) => {
     const today = new Date().toISOString().split('T')[0];
     setUserStats((prev) => ({
       ...prev,
@@ -634,59 +637,60 @@ export default function App() {
       practiceHistory: [entry, ...prev.practiceHistory],
       streak: {
         current: Math.max(1, prev.streak?.current || 0),
-        lastActiveDate: today
-      }
+        lastActiveDate: today,
+      },
     }));
-  };
+  }, []);
 
   // Save a real study focus session from FocusModeModal
-  const handleSaveRealFocusSession = (
-    session: StudySession,
-    completedTaskId?: string
-  ) => {
-    const today = new Date().toISOString().split('T')[0];
-    setUserStats((prev) => {
-      const updatedTotalMin = prev.totalStudyMinutes + session.durationMinutes;
-      const currentSubjectMin = prev.subjectsStudied[session.subject] || 0;
-      const updatedSubjectsStudied = {
-        ...prev.subjectsStudied,
-        [session.subject]: currentSubjectMin + session.durationMinutes
-      };
-      const updatedTopics = prev.topicsStudied.includes(session.topic)
-        ? prev.topicsStudied
-        : [session.topic, ...prev.topicsStudied];
-      const updatedTasks = completedTaskId
-        ? prev.tasks.map((t) =>
-            t.id === completedTaskId ? { ...t, completed: true } : t
-          )
-        : prev.tasks;
+  const handleSaveRealFocusSession = useCallback(
+    (session: StudySession, completedTaskId?: string) => {
+      const today = new Date().toISOString().split('T')[0];
+      setUserStats((prev) => {
+        const updatedTotalMin = prev.totalStudyMinutes + session.durationMinutes;
+        const currentSubjectMin = prev.subjectsStudied[session.subject] || 0;
+        const updatedSubjectsStudied = {
+          ...prev.subjectsStudied,
+          [session.subject]: currentSubjectMin + session.durationMinutes,
+        };
+        const updatedTopics = prev.topicsStudied.includes(session.topic)
+          ? prev.topicsStudied
+          : [session.topic, ...prev.topicsStudied];
+        const updatedTasks = completedTaskId
+          ? prev.tasks.map((t) => (t.id === completedTaskId ? { ...t, completed: true } : t))
+          : prev.tasks;
 
-      const prevStreak = prev.streak?.current || 0;
-      const prevLastDate = prev.streak?.lastActiveDate || '';
-      let nextStreak = prevStreak;
-      if (prevLastDate !== today) {
-        const diff = prevLastDate
-          ? Math.round((new Date(today).getTime() - new Date(prevLastDate).getTime()) / (1000 * 60 * 60 * 24))
-          : 0;
-        nextStreak = diff === 1 ? prevStreak + 1 : 1;
-      } else if (nextStreak === 0) {
-        nextStreak = 1;
-      }
-
-      return {
-        ...prev,
-        totalStudyMinutes: updatedTotalMin,
-        subjectsStudied: updatedSubjectsStudied,
-        topicsStudied: updatedTopics,
-        studySessions: [session, ...prev.studySessions],
-        tasks: updatedTasks,
-        streak: {
-          current: nextStreak,
-          lastActiveDate: today
+        const prevStreak = prev.streak?.current || 0;
+        const prevLastDate = prev.streak?.lastActiveDate || '';
+        let nextStreak = prevStreak;
+        if (prevLastDate !== today) {
+          const diff = prevLastDate
+            ? Math.round(
+                (new Date(today).getTime() - new Date(prevLastDate).getTime()) /
+                  (1000 * 60 * 60 * 24)
+              )
+            : 0;
+          nextStreak = diff === 1 ? prevStreak + 1 : 1;
+        } else if (nextStreak === 0) {
+          nextStreak = 1;
         }
-      };
-    });
-  };
+
+        return {
+          ...prev,
+          totalStudyMinutes: updatedTotalMin,
+          subjectsStudied: updatedSubjectsStudied,
+          topicsStudied: updatedTopics,
+          studySessions: [session, ...prev.studySessions],
+          tasks: updatedTasks,
+          streak: {
+            current: nextStreak,
+            lastActiveDate: today,
+          },
+        };
+      });
+    },
+    []
+  );
 
   const isItemBookmarked = useCallback(
     (id: string) => {
@@ -865,7 +869,7 @@ export default function App() {
   }, []);
 
   return (
-    <div className="min-h-screen w-full max-w-[100vw] overflow-x-clip bg-[#060b18] text-[#f7f4ee] flex flex-col selection:bg-[#d4af37]/30 selection:text-white">
+    <div className="min-h-screen min-h-[100dvh] w-full max-w-[100vw] overflow-x-clip bg-[#060b18] text-[#f7f4ee] flex flex-col selection:bg-[#d4af37]/30 selection:text-white">
       {/* Official Opening Splash Animation (1.8s) */}
       {showSplash && (
         <SplashScreen onFinish={() => setShowSplash(false)} />
@@ -904,108 +908,110 @@ export default function App() {
           isFloatingBottomNav ? 'pb-32' : 'pb-24 md:pb-12'
         }`}
       >
-        {activeSection === 'home' && (
-          <HomeSection
-            userStats={userStats}
-            onUpdateStats={handleUpdateStats}
-            onNavigate={handleNavigate}
-            onSelectBook={(book) => setReadingBook(book)}
-            onSelectNote={(note) => setViewingNote(note)}
-            isBookmarked={isItemBookmarked}
-            onToggleBookmark={handleToggleBookmark}
-            onRecordMCQAnswer={handleRecordSingleQuestion}
-            onSelectActiveGoal={handleSelectActiveGoal}
-            onOpenGoalsManager={() => handleNavigate('profile')}
-            onOpenFocusMode={() => setIsFocusModeOpen(true)}
-          />
-        )}
+        <div key={activeSection} className="svh-section-transition">
+          {activeSection === 'home' && (
+            <HomeSection
+              userStats={userStats}
+              onUpdateStats={handleUpdateStats}
+              onNavigate={handleNavigate}
+              onSelectBook={(book) => setReadingBook(book)}
+              onSelectNote={(note) => setViewingNote(note)}
+              isBookmarked={isItemBookmarked}
+              onToggleBookmark={handleToggleBookmark}
+              onRecordMCQAnswer={handleRecordSingleQuestion}
+              onSelectActiveGoal={handleSelectActiveGoal}
+              onOpenGoalsManager={() => handleNavigate('profile')}
+              onOpenFocusMode={() => setIsFocusModeOpen(true)}
+            />
+          )}
 
-        {activeSection === 'books' && (
-          <BooksSection
-            activeGoal={activeGoal}
-            activeSubjects={activeSubjects}
-            onSelectBook={(book) => setReadingBook(book)}
-            isBookmarked={isItemBookmarked}
-            onToggleBookmark={handleToggleBookmark}
-            onPracticeNCERTChapter={handleOpenPracticeWithChapter}
-          />
-        )}
+          {activeSection === 'books' && (
+            <BooksSection
+              activeGoal={activeGoal}
+              activeSubjects={activeSubjects}
+              onSelectBook={(book) => setReadingBook(book)}
+              isBookmarked={isItemBookmarked}
+              onToggleBookmark={handleToggleBookmark}
+              onPracticeNCERTChapter={handleOpenPracticeWithChapter}
+            />
+          )}
 
-        {activeSection === 'notes' && (
-          <NotesSection
-            activeGoal={activeGoal}
-            activeSubjects={activeSubjects}
-            onSelectNote={(note) => setViewingNote(note)}
-            isBookmarked={isItemBookmarked}
-            onToggleBookmark={handleToggleBookmark}
-            isCompleted={isNoteCompleted}
-            onToggleComplete={handleToggleNoteComplete}
-            onOpenMCQWithSubject={handleOpenPracticeWithSubject}
-          />
-        )}
+          {activeSection === 'notes' && (
+            <NotesSection
+              activeGoal={activeGoal}
+              activeSubjects={activeSubjects}
+              onSelectNote={(note) => setViewingNote(note)}
+              isBookmarked={isItemBookmarked}
+              onToggleBookmark={handleToggleBookmark}
+              isCompleted={isNoteCompleted}
+              onToggleComplete={handleToggleNoteComplete}
+              onOpenMCQWithSubject={handleOpenPracticeWithSubject}
+            />
+          )}
 
-        {activeSection === 'practice' && (
-          <MCQSection
-            activeGoal={activeGoal}
-            activeSubjects={activeSubjects}
-            initialSubject={practiceInitialSubject}
-            initialChapter={practiceInitialChapter}
-            initialClassLevel={practiceInitialClassLevel}
-            isBookmarked={isItemBookmarked}
-            onToggleBookmark={handleToggleBookmark}
-            onRecordResult={handleRecordSingleQuestion}
-            onRecordTestCompleted={handleRecordTestCompleted}
-          />
-        )}
+          {activeSection === 'practice' && (
+            <MCQSection
+              activeGoal={activeGoal}
+              activeSubjects={activeSubjects}
+              initialSubject={practiceInitialSubject}
+              initialChapter={practiceInitialChapter}
+              initialClassLevel={practiceInitialClassLevel}
+              isBookmarked={isItemBookmarked}
+              onToggleBookmark={handleToggleBookmark}
+              onRecordResult={handleRecordSingleQuestion}
+              onRecordTestCompleted={handleRecordTestCompleted}
+            />
+          )}
 
-        {activeSection === 'tracker' && (
-          <TrackerSection
-            activeGoal={activeGoal}
-            activeSubjects={activeSubjects}
-            userStats={userStats}
-            onUpdateStats={handleUpdateStats}
-            onNavigateToPractice={() => handleNavigate('practice')}
-            onOpenFocusMode={() => setIsFocusModeOpen(true)}
-          />
-        )}
+          {activeSection === 'tracker' && (
+            <TrackerSection
+              activeGoal={activeGoal}
+              activeSubjects={activeSubjects}
+              userStats={userStats}
+              onUpdateStats={handleUpdateStats}
+              onNavigateToPractice={() => handleNavigate('practice')}
+              onOpenFocusMode={() => setIsFocusModeOpen(true)}
+            />
+          )}
 
-        {activeSection === 'community' && (
-          <CommunitySection
-            userName={userStats.name || 'Student'}
-            userProfilePhotoUrl={userStats.profilePhotoUrl}
-            activeGoal={activeGoal}
-            activeSubjects={activeSubjects}
-            isOwnerAuthenticated={isOwnerAuthenticated}
-          />
-        )}
+          {activeSection === 'community' && (
+            <CommunitySection
+              userName={userStats.name || 'Student'}
+              userProfilePhotoUrl={userStats.profilePhotoUrl}
+              activeGoal={activeGoal}
+              activeSubjects={activeSubjects}
+              isOwnerAuthenticated={isOwnerAuthenticated}
+            />
+          )}
 
-        {activeSection === 'prep' && (
-          <ExamPrepSection
-            activeGoal={activeGoal}
-            activeSubjects={activeSubjects}
-            onNavigateToPracticeWithSubject={handleOpenPracticeWithSubject}
-            onNavigateToNotes={() => handleNavigate('notes')}
-          />
-        )}
+          {activeSection === 'prep' && (
+            <ExamPrepSection
+              activeGoal={activeGoal}
+              activeSubjects={activeSubjects}
+              onNavigateToPracticeWithSubject={handleOpenPracticeWithSubject}
+              onNavigateToNotes={() => handleNavigate('notes')}
+            />
+          )}
 
-        {activeSection === 'profile' && (
-          <ProfileSection
-            userStats={userStats}
-            onUpdateStats={handleUpdateStats}
-            onSelectBook={(book) => setReadingBook(book)}
-            onSelectNote={(note) => setViewingNote(note)}
-            onNavigateToPractice={() => handleNavigate('practice')}
-            onNavigate={handleNavigate}
-            themePreference={themePreference}
-            resolvedTheme={resolvedTheme}
-            onChangeTheme={handleChangeTheme}
-            isOwnerAuthenticated={isOwnerAuthenticated}
-            onOpenOwnerAnalytics={() => setIsOwnerModalOpen(true)}
-            onOpenAuthModal={(mode) => setAuthModalConfig({ isOpen: true, mode })}
-            onLogoutAccount={handleLogoutAccount}
-            onAccountDeleted={handleAccountDeleted}
-          />
-        )}
+          {activeSection === 'profile' && (
+            <ProfileSection
+              userStats={userStats}
+              onUpdateStats={handleUpdateStats}
+              onSelectBook={(book) => setReadingBook(book)}
+              onSelectNote={(note) => setViewingNote(note)}
+              onNavigateToPractice={() => handleNavigate('practice')}
+              onNavigate={handleNavigate}
+              themePreference={themePreference}
+              resolvedTheme={resolvedTheme}
+              onChangeTheme={handleChangeTheme}
+              isOwnerAuthenticated={isOwnerAuthenticated}
+              onOpenOwnerAnalytics={() => setIsOwnerModalOpen(true)}
+              onOpenAuthModal={(mode) => setAuthModalConfig({ isOpen: true, mode })}
+              onLogoutAccount={handleLogoutAccount}
+              onAccountDeleted={handleAccountDeleted}
+            />
+          )}
+        </div>
       </main>
 
       {/* Secure Owner Verification & Analytics Modal (Hidden from normal users) */}

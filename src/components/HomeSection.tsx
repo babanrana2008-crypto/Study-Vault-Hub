@@ -1520,6 +1520,11 @@ export const HomeSection: React.FC<HomeSectionProps> = React.memo(({
           )}
         </div>
       </section>
+
+      {/* Independent Platform & Academic Attribution Notice */}
+      <footer className="px-4 py-3 rounded-2xl bg-[#090e1c] border border-[#1e293b] text-[11px] text-[#9ca3af] text-center leading-relaxed">
+        Study Vault Hub is an independent educational study platform created by Soumyadip Rana and is not affiliated with or endorsed by NCERT, NTA, CBSE, or any examination authority. In-app guides and practice questions are original study resources; official NCERT textbook links open the public NCERT portal (ncert.nic.in).
+      </footer>
     </div>
   );
 });
