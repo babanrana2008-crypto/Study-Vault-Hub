@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { APP_LOGO, PRESET_GOALS } from '../data/sampleData';
 import { UserStats } from '../types';
+import { apiFetch } from '../services/nativeApiBridge';
 
 const IDENTITY_STORAGE_KEY = 'study_vault_community_identity_v1';
 const ANON_DEVICE_STORAGE_KEY = 'study_vault_anon_device_id_v1';
@@ -147,7 +148,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
 
     setIsSubmitting(true);
     try {
-      const res = await fetch('/api/auth/register', {
+      const res = await apiFetch('/api/auth/register', {
         method: 'POST',
         headers: getStoredAuthHeader(),
         body: JSON.stringify({
@@ -208,7 +209,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
 
     setIsSubmitting(true);
     try {
-      const res = await fetch('/api/auth/login', {
+      const res = await apiFetch('/api/auth/login', {
         method: 'POST',
         headers: getStoredAuthHeader(),
         body: JSON.stringify({

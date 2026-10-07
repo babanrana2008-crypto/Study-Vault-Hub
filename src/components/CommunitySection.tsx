@@ -22,6 +22,7 @@ import {
   CommunityReply,
   CommunityChatMessage,
 } from '../types';
+import { apiFetch } from '../services/nativeApiBridge';
 
 interface CommunitySectionProps {
   userName: string;
@@ -371,7 +372,7 @@ export const CommunitySection: React.FC<CommunitySectionProps> = React.memo(({
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       if (!isMountedRef.current) return currentIdentity;
       try {
-        const res = await fetch('/api/community/auth/session', {
+        const res = await apiFetch('/api/community/auth/session', {
           method: 'POST',
           headers,
           body: JSON.stringify({
@@ -418,7 +419,7 @@ export const CommunitySection: React.FC<CommunitySectionProps> = React.memo(({
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       if (!isMountedRef.current) return;
       try {
-        const res = await fetch('/api/community/state');
+        const res = await apiFetch('/api/community/state');
         if (!res.ok) throw new Error('Failed to load community data');
         const data = await res.json();
         if (!isMountedRef.current) return;
@@ -713,7 +714,7 @@ export const CommunitySection: React.FC<CommunitySectionProps> = React.memo(({
         throw new Error('Could not verify your session identity. Please try again.');
       }
 
-      const res = await fetch('/api/community/posts', {
+      const res = await apiFetch('/api/community/posts', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -767,7 +768,7 @@ export const CommunitySection: React.FC<CommunitySectionProps> = React.memo(({
         throw new Error('Could not verify your session identity.');
       }
 
-      const res = await fetch(`/api/community/posts/${selectedPost.id}/replies`, {
+      const res = await apiFetch(`/api/community/posts/${selectedPost.id}/replies`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -824,7 +825,7 @@ export const CommunitySection: React.FC<CommunitySectionProps> = React.memo(({
         throw new Error('Could not verify your session identity.');
       }
 
-      const res = await fetch('/api/community/chat', {
+      const res = await apiFetch('/api/community/chat', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -874,7 +875,7 @@ export const CommunitySection: React.FC<CommunitySectionProps> = React.memo(({
           ? `/api/community/replies/${id}`
           : `/api/community/chat/${id}`;
 
-      const res = await fetch(endpoint, {
+      const res = await apiFetch(endpoint, {
         method: 'DELETE',
         headers: {
           Authorization: `Bearer ${activeIdentity.authToken}`,
@@ -925,7 +926,7 @@ export const CommunitySection: React.FC<CommunitySectionProps> = React.memo(({
         throw new Error('Session required to submit report.');
       }
 
-      const res = await fetch('/api/community/report', {
+      const res = await apiFetch('/api/community/report', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

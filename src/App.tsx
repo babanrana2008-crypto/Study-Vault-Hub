@@ -20,6 +20,7 @@ import { SVHAIFloatingAssistant } from './components/SVHAIFloatingAssistant';
 import { FocusModeModal } from './components/FocusModeModal';
 import { OwnerAnalyticsModal } from './components/OwnerAnalyticsModal';
 import { StudySession } from './types';
+import { apiFetch } from './services/nativeApiBridge';
 
 const STORAGE_KEY = 'study_vault_hub_data_v3';
 const THEME_STORAGE_KEY = 'study_vault_theme_preference_v1';
@@ -112,7 +113,7 @@ export default function App() {
         if (rawId) {
           const parsedId = JSON.parse(rawId);
           if (parsedId?.authToken && userStats.hasCompletedSetup) {
-            fetch('/api/auth/sync', {
+            apiFetch('/api/auth/sync', {
               method: 'PUT',
               headers: {
                 'Content-Type': 'application/json',
@@ -178,7 +179,7 @@ export default function App() {
         // 1. If user has a saved authToken, restore their authoritative cross-device account data & server-verified role
         if (storedIdentity?.authToken) {
           try {
-            const meRes = await fetch('/api/auth/me', {
+            const meRes = await apiFetch('/api/auth/me', {
               headers: {
                 Authorization: `Bearer ${storedIdentity.authToken}`,
               },
@@ -246,7 +247,7 @@ export default function App() {
           setIsOwnerAuthenticated(false);
         }
 
-        const res = await fetch('/api/telemetry/session', {
+        const res = await apiFetch('/api/telemetry/session', {
           method: 'POST',
           headers,
           body: JSON.stringify({
@@ -275,7 +276,7 @@ export default function App() {
       try {
         const savedOwnerToken = localStorage.getItem(OWNER_TOKEN_STORAGE_KEY);
         if (savedOwnerToken) {
-          const ownerRes = await fetch('/api/owner/auth/status', {
+          const ownerRes = await apiFetch('/api/owner/auth/status', {
             headers: {
               'X-Owner-Authorization': `Bearer ${savedOwnerToken}`,
             },
@@ -821,7 +822,7 @@ export default function App() {
       if (rawId) {
         const parsed = JSON.parse(rawId);
         if (parsed?.authToken) {
-          await fetch('/api/auth/logout', {
+          await apiFetch('/api/auth/logout', {
             method: 'POST',
             headers: {
               Authorization: `Bearer ${parsed.authToken}`,

@@ -35,6 +35,7 @@ import {
 } from 'lucide-react';
 import { UserStats, Book, StudyNote, ActiveSection, ThemePreference } from '../types';
 import { SAMPLE_BOOKS, SAMPLE_NOTES, SAMPLE_MCQS, PRESET_GOALS } from '../data/sampleData';
+import { apiFetch } from '../services/nativeApiBridge';
 
 const IDENTITY_STORAGE_KEY = 'study_vault_community_identity_v1';
 
@@ -132,7 +133,7 @@ export const ProfileSection: React.FC<ProfileSectionProps> = React.memo(({
 
       // Ensure session identity exists first if user hasn't opened Community yet
       if (!storedIdentity?.authToken) {
-        const sessionRes = await fetch('/api/community/auth/session', {
+        const sessionRes = await apiFetch('/api/community/auth/session', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -161,7 +162,7 @@ export const ProfileSection: React.FC<ProfileSectionProps> = React.memo(({
         return;
       }
 
-      const res = await fetch('/api/community/auth/profile', {
+      const res = await apiFetch('/api/community/auth/profile', {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -177,7 +178,7 @@ export const ProfileSection: React.FC<ProfileSectionProps> = React.memo(({
 
       if (res.status === 401) {
         // Re-initialize session if token expired or server restarted
-        const reinitRes = await fetch('/api/community/auth/session', {
+        const reinitRes = await apiFetch('/api/community/auth/session', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -1231,7 +1232,7 @@ Active Streak: ${userStats.streak?.current || 0} Days
                     }
 
                     if (storedIdentity?.authToken) {
-                      const res = await fetch('/api/auth/account', {
+                      const res = await apiFetch('/api/auth/account', {
                         method: 'DELETE',
                         headers: {
                           'Content-Type': 'application/json',

@@ -17,6 +17,7 @@ import {
   CheckCircle2,
   Flag,
 } from 'lucide-react';
+import { apiFetch } from '../services/nativeApiBridge';
 
 const IDENTITY_STORAGE_KEY = 'study_vault_community_identity_v1';
 const OWNER_TOKEN_STORAGE_KEY = 'study_vault_owner_session_token_v1';
@@ -117,7 +118,7 @@ export const OwnerAnalyticsModal: React.FC<OwnerAnalyticsModalProps> = ({
     setIsLoadingAnalytics(true);
     setAnalyticsError(null);
     try {
-      const res = await fetch('/api/owner/analytics', {
+      const res = await apiFetch('/api/owner/analytics', {
         headers: {
           Authorization: `Bearer ${token}`,
           'X-Owner-Authorization': `Bearer ${token}`,
@@ -164,7 +165,7 @@ export const OwnerAnalyticsModal: React.FC<OwnerAnalyticsModalProps> = ({
     setActionBusyId(targetUserId);
     setAnalyticsError(null);
     try {
-      const res = await fetch(`/api/owner/users/${encodeURIComponent(targetUserId)}/status`, {
+      const res = await apiFetch(`/api/owner/users/${encodeURIComponent(targetUserId)}/status`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -191,7 +192,7 @@ export const OwnerAnalyticsModal: React.FC<OwnerAnalyticsModalProps> = ({
     setActionBusyId(targetUserId);
     setAnalyticsError(null);
     try {
-      const res = await fetch(`/api/owner/users/${encodeURIComponent(targetUserId)}`, {
+      const res = await apiFetch(`/api/owner/users/${encodeURIComponent(targetUserId)}`, {
         method: 'DELETE',
         headers: {
           Authorization: `Bearer ${token}`,
@@ -220,7 +221,7 @@ export const OwnerAnalyticsModal: React.FC<OwnerAnalyticsModalProps> = ({
     setActionBusyId(targetId);
     setAnalyticsError(null);
     try {
-      const res = await fetch(
+      const res = await apiFetch(
         `/api/owner/moderation/${encodeURIComponent(targetType)}/${encodeURIComponent(targetId)}`,
         {
           method: 'DELETE',

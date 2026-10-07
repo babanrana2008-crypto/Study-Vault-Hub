@@ -20,6 +20,7 @@ import {
 import { UserStats, SVHAIButtonPosition } from '../types';
 import { APP_LOGO, SAMPLE_BOOKS, SAMPLE_NOTES } from '../data/sampleData';
 import { NCERT_BOOKS_COLLECTION } from '../data/ncertBooksData';
+import { apiFetch } from '../services/nativeApiBridge';
 
 interface SVHAIMessage {
   id: string;
@@ -469,7 +470,7 @@ export const SVHAIFloatingAssistant: React.FC<SVHAIFloatingAssistantProps> = Rea
         if (latestId?.authToken) {
           headers.Authorization = `Bearer ${latestId.authToken}`;
         }
-        const res = await fetch('/api/community/auth/session', {
+        const res = await apiFetch('/api/community/auth/session', {
           method: 'POST',
           headers,
           body: JSON.stringify({ displayName: displayUserName || 'Student' }),
@@ -532,7 +533,7 @@ export const SVHAIFloatingAssistant: React.FC<SVHAIFloatingAssistantProps> = Rea
       const activeId = identity || (await ensureIdentity());
       if (activeId?.authToken) {
         try {
-          await fetch('/api/community/auth/profile', {
+          await apiFetch('/api/community/auth/profile', {
             method: 'PUT',
             headers: {
               'Content-Type': 'application/json',
@@ -677,7 +678,7 @@ export const SVHAIFloatingAssistant: React.FC<SVHAIFloatingAssistantProps> = Rea
     let activeId = getLatestIdentity() || (await ensureIdentity());
     if (!activeId?.authToken) return;
     try {
-      let res = await fetch('/api/svh-ai/conversations', {
+      let res = await apiFetch('/api/svh-ai/conversations', {
         headers: {
           Authorization: `Bearer ${activeId.authToken}`,
         },
@@ -685,7 +686,7 @@ export const SVHAIFloatingAssistant: React.FC<SVHAIFloatingAssistantProps> = Rea
       if (res.status === 401) {
         activeId = await ensureIdentity(true);
         if (!activeId?.authToken) return;
-        res = await fetch('/api/svh-ai/conversations', {
+        res = await apiFetch('/api/svh-ai/conversations', {
           headers: {
             Authorization: `Bearer ${activeId.authToken}`,
           },
@@ -935,7 +936,7 @@ export const SVHAIFloatingAssistant: React.FC<SVHAIFloatingAssistantProps> = Rea
       }
 
       const executeStreamRequest = async (token: string) =>
-        fetch('/api/svh-ai/chat/stream', {
+        apiFetch('/api/svh-ai/chat/stream', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -1147,7 +1148,7 @@ export const SVHAIFloatingAssistant: React.FC<SVHAIFloatingAssistantProps> = Rea
     const activeId = identity || (await ensureIdentity());
     if (!activeId?.authToken) return;
     try {
-      await fetch(`/api/svh-ai/conversations/${convId}`, {
+      await apiFetch(`/api/svh-ai/conversations/${convId}`, {
         method: 'DELETE',
         headers: {
           Authorization: `Bearer ${activeId.authToken}`,
@@ -1166,7 +1167,7 @@ export const SVHAIFloatingAssistant: React.FC<SVHAIFloatingAssistantProps> = Rea
     const activeId = identity || (await ensureIdentity());
     if (!activeId?.authToken) return;
     try {
-      await fetch('/api/svh-ai/conversations', {
+      await apiFetch('/api/svh-ai/conversations', {
         method: 'DELETE',
         headers: {
           Authorization: `Bearer ${activeId.authToken}`,

@@ -425,11 +425,14 @@ async function startServer() {
 
   // Enable CORS for native Android APK (https://localhost / capacitor://localhost)
   app.use('/api', (req, res, next) => {
-    res.setHeader('Access-Control-Allow-Origin', '*');
+    const reqOrigin = req.headers.origin;
+    res.setHeader('Access-Control-Allow-Origin', reqOrigin || '*');
+    res.setHeader('Vary', 'Origin');
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
     res.setHeader(
       'Access-Control-Allow-Headers',
-      'Content-Type, Authorization, X-Owner-Authorization'
+      'Content-Type, Authorization, X-Owner-Authorization, Accept'
     );
     if (req.method === 'OPTIONS') {
       return res.sendStatus(204);
