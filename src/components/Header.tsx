@@ -52,7 +52,7 @@ export const Header: React.FC<HeaderProps> = React.memo(({
         {/* Zone 1: Main App Logo & Title using the official Study Vault Hub logo */}
         <button
           onClick={() => onNavigate('home')}
-          className="flex items-center gap-2 sm:gap-2.5 text-left group focus:outline-none min-w-0 shrink"
+          className="flex items-center gap-2 sm:gap-2.5 text-left group focus:outline-none min-w-0 shrink overflow-hidden"
         >
           <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full overflow-hidden flex items-center justify-center shrink-0 aspect-square">
             <img
@@ -66,13 +66,13 @@ export const Header: React.FC<HeaderProps> = React.memo(({
               }}
             />
           </div>
-          <div className="flex flex-col min-w-0">
-            <span className="font-display text-xs sm:text-base font-bold tracking-tight text-[#fbf9f4] group-hover:text-[#d4af37] transition-colors leading-tight whitespace-nowrap">
+          <div className="flex flex-col min-w-0 overflow-hidden">
+            <span className="font-display text-xs sm:text-base font-bold tracking-tight text-[#fbf9f4] group-hover:text-[#d4af37] transition-colors leading-tight truncate">
               Study Vault Hub
             </span>
-            <span className="text-[8px] sm:text-[10px] text-[#cbd5e1]/80 font-mono tracking-tight leading-tight mt-0.5 flex flex-col sm:flex-row sm:items-center sm:gap-1">
-              <span className="whitespace-nowrap">Founded &amp; Created by</span>
-              <span className="text-[#d4af37]/95 font-semibold whitespace-nowrap">Soumyadip Rana</span>
+            <span className="text-[8px] sm:text-[10px] text-[#cbd5e1]/80 font-mono tracking-tight leading-tight mt-0.5 flex flex-col sm:flex-row sm:items-center sm:gap-1 min-w-0">
+              <span className="truncate">Founded &amp; Created by</span>
+              <span className="text-[#d4af37]/95 font-semibold truncate">Soumyadip Rana</span>
             </span>
           </div>
         </button>

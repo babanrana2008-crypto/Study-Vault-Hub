@@ -47,6 +47,8 @@
     max-width: 100vw;
     overflow-x: clip;
     -webkit-overflow-scrolling: touch;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
   }
 
   nav[aria-label="Bottom Navigation"] > div.rounded-2xl,

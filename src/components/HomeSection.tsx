@@ -355,9 +355,9 @@ export const HomeSection: React.FC<HomeSectionProps> = React.memo(({
 
         <div className="relative z-10 p-4 sm:p-7 space-y-5">
           {/* Top Brand & Real Streak */}
-          <div className="flex items-start sm:items-center justify-between gap-2 min-w-0">
-            <div className="flex items-center gap-3 sm:gap-4 min-w-0">
-              <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full overflow-hidden shrink-0 aspect-square flex items-center justify-center">
+          <div className="flex flex-wrap items-center justify-between gap-2.5 min-w-0">
+            <div className="flex items-center gap-2.5 sm:gap-4 min-w-0 flex-1">
+              <div className="w-11 h-11 sm:w-14 sm:h-14 rounded-full overflow-hidden shrink-0 aspect-square flex items-center justify-center">
                 <img
                   src={APP_LOGO}
                   alt="Study Vault Hub Logo"
@@ -365,15 +365,15 @@ export const HomeSection: React.FC<HomeSectionProps> = React.memo(({
                   referrerPolicy="no-referrer"
                 />
               </div>
-              <div className="flex flex-col items-center text-center min-w-0">
-                <h1 className="font-display text-base sm:text-xl font-bold tracking-tight text-[#fbf9f4] leading-tight whitespace-nowrap">
+              <div className="flex flex-col items-start text-left min-w-0">
+                <h1 className="font-display text-base sm:text-xl font-bold tracking-tight text-[#fbf9f4] leading-tight truncate max-w-full">
                   Study Vault Hub
                 </h1>
-                <div className="flex flex-col items-center justify-center text-center mt-1 leading-snug">
-                  <span className="text-[11px] sm:text-xs text-[#cbd5e1] font-mono tracking-wide whitespace-nowrap">
+                <div className="flex flex-col items-start justify-center text-left mt-0.5 leading-snug min-w-0 max-w-full">
+                  <span className="text-[10px] sm:text-xs text-[#cbd5e1] font-mono tracking-wide truncate max-w-full">
                     Founded &amp; Created by
                   </span>
-                  <span className="text-sm sm:text-base font-display font-bold text-[#d4af37] tracking-wide whitespace-nowrap">
+                  <span className="text-xs sm:text-base font-display font-bold text-[#d4af37] tracking-wide truncate max-w-full">
                     Soumyadip Rana
                   </span>
                 </div>
