@@ -503,8 +503,7 @@ function registerAnonymousDevice(deviceIdRaw: unknown, userId: string, nowIso: s
 async function startServer() {
   const app = express();
   const server = http.createServer(app);
-  const parsedPort = Number.parseInt(process.env.PORT || '', 10);
-  const PORT = Number.isFinite(parsedPort) && parsedPort > 0 ? parsedPort : 3000;
+  const PORT = Number(process.env.PORT) || 3000;
   const HOST = '0.0.0.0';
 
   // Cloud Run / container readiness & health check endpoint
@@ -3991,7 +3990,17 @@ ${JSON.stringify(studentContext, null, 2)}`;
   // ============================================================================
   // VITE MIDDLEWARE (DEV) OR STATIC ASSETS (PROD)
   // ============================================================================
-  if (process.env.NODE_ENV !== 'production') {
+  const distPath = path.join(process.cwd(), 'dist');
+  const distIndexHtml = path.join(distPath, 'index.html');
+  const isDevMode =
+    process.env.NODE_ENV === 'development' ||
+    process.env.npm_lifecycle_event === 'dev';
+  const isProduction =
+    process.env.NODE_ENV === 'production' ||
+    process.env.npm_lifecycle_event === 'start' ||
+    (!isDevMode && fs.existsSync(distIndexHtml));
+
+  if (!isProduction) {
     const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
       server: { middlewareMode: true },
@@ -3999,19 +4008,17 @@ ${JSON.stringify(studentContext, null, 2)}`;
     });
     app.use(vite.middlewares);
   } else {
-    const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));
     app.get('*', (_req, res) => {
-      const indexPath = path.join(distPath, 'index.html');
-      if (fs.existsSync(indexPath)) {
-        return res.sendFile(indexPath);
+      if (fs.existsSync(distIndexHtml)) {
+        return res.sendFile(distIndexHtml);
       }
       return res.status(200).send('Study Vault Hub is running.');
     });
   }
 
-  server.listen(PORT, HOST, () => {
-    console.log(`Study Vault Hub Server listening on http://${HOST}:${PORT}`);
+  server.listen(PORT, '0.0.0.0', () => {
+    console.log(`Study Vault Hub Server listening on http://0.0.0.0:${PORT}`);
   });
 }
 
