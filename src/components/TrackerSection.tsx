@@ -15,6 +15,7 @@ import {
   TrendingUp,
 } from 'lucide-react';
 import { UserStats, StudyTask, StudySession } from '../types';
+import { computeSmartRevisionSchedule, advanceRevisionItemStage } from '../utils/securityAndVp';
 
 interface TrackerSectionProps {
   activeGoal: string;
@@ -23,6 +24,7 @@ interface TrackerSectionProps {
   onUpdateStats: (newStats: Partial<UserStats>) => void;
   onNavigateToPractice: () => void;
   onOpenFocusMode?: () => void;
+  onSaveRealSession?: (session: StudySession, completedTaskId?: string) => void;
 }
 
 interface ActiveStopwatchCardProps {
@@ -239,6 +241,7 @@ export const TrackerSection: React.FC<TrackerSectionProps> = React.memo(({
   onUpdateStats,
   onNavigateToPractice,
   onOpenFocusMode,
+  onSaveRealSession,
 }) => {
   const [logToast, setLogToast] = useState<string | null>(null);
 
@@ -293,35 +296,49 @@ export const TrackerSection: React.FC<TrackerSectionProps> = React.memo(({
         }),
         date: today,
         studyGoal,
+        vpEarned:
+          durationMinutes +
+          (durationMinutes >= 60 ? Math.floor(durationMinutes / 60) * 20 : 0),
+        bonusVpEarned:
+          durationMinutes >= 60 ? Math.floor(durationMinutes / 60) * 20 : 0,
       };
 
-      const updatedTotalMin = userStats.totalStudyMinutes + durationMinutes;
-      const currentSubjectMin = userStats.subjectsStudied[subject] || 0;
-      const updatedSubjectsStudied = {
-        ...userStats.subjectsStudied,
-        [subject]: currentSubjectMin + durationMinutes,
-      };
+      if (onSaveRealSession) {
+        onSaveRealSession(newSession);
+      } else {
+        const updatedTotalMin = userStats.totalStudyMinutes + durationMinutes;
+        const currentSubjectMin = userStats.subjectsStudied[subject] || 0;
+        const updatedSubjectsStudied = {
+          ...userStats.subjectsStudied,
+          [subject]: currentSubjectMin + durationMinutes,
+        };
 
-      const updatedTopics = userStats.topicsStudied.includes(topic)
-        ? userStats.topicsStudied
-        : [topic, ...userStats.topicsStudied];
+        const updatedTopics = userStats.topicsStudied.includes(topic)
+          ? userStats.topicsStudied
+          : [topic, ...userStats.topicsStudied];
 
-      onUpdateStats({
-        totalStudyMinutes: updatedTotalMin,
-        subjectsStudied: updatedSubjectsStudied,
-        topicsStudied: updatedTopics,
-        studySessions: [newSession, ...userStats.studySessions],
-        streak: {
-          current: Math.max(1, userStats.streak?.current || 0),
-          lastActiveDate: today,
-        },
-      });
+        onUpdateStats({
+          totalStudyMinutes: updatedTotalMin,
+          subjectsStudied: updatedSubjectsStudied,
+          topicsStudied: updatedTopics,
+          studySessions: [newSession, ...userStats.studySessions],
+          streak: {
+            current: Math.max(1, userStats.streak?.current || 0),
+            lastActiveDate: today,
+          },
+        });
+      }
+
+      const bonusNote =
+        durationMinutes >= 60
+          ? ` (+${durationMinutes} VP & +${Math.floor(durationMinutes / 60) * 20} VP 60m Bonus!)`
+          : ` (+${durationMinutes} VP)`;
 
       showToastMessage(
-        `Logged ${durationMinutes} min of real study for ${subject} (${topic})!`
+        `Logged ${durationMinutes} min of real study for ${subject} (${topic})${bonusNote}!`
       );
     },
-    [userStats, onUpdateStats, showToastMessage]
+    [userStats, onUpdateStats, onSaveRealSession, showToastMessage]
   );
 
   const handleToggleTask = (taskId: string) => {
@@ -980,6 +997,115 @@ export const TrackerSection: React.FC<TrackerSectionProps> = React.memo(({
             ))}
           </div>
         )}
+      </section>
+
+      {/* 6. Smart Revision + Spaced Repetition Schedule (Real Studied Topics & Mistakes Only) */}
+      <section className="p-4 sm:p-5 rounded-2xl bg-[#0f172a] border border-[#d4af37]/25 space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div>
+            <div className="flex items-center gap-2 text-xs font-semibold text-[#d4af37] uppercase tracking-wider">
+              <RotateCcw className="w-4 h-4" />
+              <span>Smart Revision + Spaced Repetition</span>
+            </div>
+            <p className="text-xs text-[#9ca3af] mt-0.5">
+              Spaced-repetition schedule (1d → 3d → 7d → 14d → 30d) built strictly from your real studied topics and mistakes
+            </p>
+          </div>
+          {(() => {
+            const schedule =
+              Array.isArray(userStats.revisionSchedule) && userStats.revisionSchedule.length > 0
+                ? userStats.revisionSchedule
+                : computeSmartRevisionSchedule(userStats);
+            const dueCount = schedule.filter((item) => item.status === 'Due Now').length;
+            return (
+              <span className="px-2.5 py-1 rounded-lg bg-[#131b2e] border border-[#d4af37]/25 text-[11px] font-mono text-[#d4af37] self-start sm:self-auto">
+                {dueCount} Due Now · {schedule.length} Tracked
+              </span>
+            );
+          })()}
+        </div>
+
+        {(() => {
+          const schedule =
+            Array.isArray(userStats.revisionSchedule) && userStats.revisionSchedule.length > 0
+              ? userStats.revisionSchedule
+              : computeSmartRevisionSchedule(userStats);
+
+          if (schedule.length === 0) {
+            return (
+              <div className="p-5 rounded-xl bg-[#090e1c] border border-[#d4af37]/20 text-center space-y-2">
+                <p className="text-xs sm:text-sm font-semibold text-[#fbf9f4]">
+                  No revision items scheduled yet
+                </p>
+                <p className="text-xs text-[#9ca3af]">
+                  Solve practice questions or complete a Focus Mode study session on any topic to automatically generate your spaced-repetition revision queue.
+                </p>
+              </div>
+            );
+          }
+
+          return (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              {schedule.slice(0, 8).map((item) => {
+                const isDue = item.status === 'Due Now';
+                const nextDateLabel = item.nextReviewAt
+                  ? item.nextReviewAt.split('T')[0]
+                  : '';
+                return (
+                  <div
+                    key={item.id}
+                    className={`p-3 rounded-xl border flex flex-col justify-between gap-2.5 text-xs ${
+                      isDue
+                        ? 'bg-[#131b2e] border-[#d4af37]/40'
+                        : 'bg-[#090e1c] border-[#1e293b]'
+                    }`}
+                  >
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-semibold text-[#fbf9f4] truncate">
+                          {item.topic}
+                        </span>
+                        <span
+                          className={`px-2 py-0.5 rounded font-mono text-[10px] font-bold shrink-0 ${
+                            isDue
+                              ? 'bg-rose-950/80 text-rose-300 border border-rose-500/30'
+                              : item.status === 'Scheduled'
+                                ? 'bg-amber-950/80 text-amber-300 border border-amber-500/30'
+                                : 'bg-emerald-950/80 text-emerald-300 border border-emerald-500/30'
+                          }`}
+                        >
+                          Stage {item.repetitionStage} ({item.intervalDays}d) ·{' '}
+                          {isDue ? 'Due Now' : `Next: ${nextDateLabel}`}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-[#9ca3af]">
+                        {item.subject} · {item.reason}
+                      </p>
+                    </div>
+
+                    <div className="flex items-center justify-between pt-1.5 border-t border-[#1e293b]/70">
+                      <span className="text-[10px] font-mono text-[#9ca3af]">
+                        {item.lastRevisedAt
+                          ? `Last revised ${item.lastRevisedAt.split('T')[0]}`
+                          : 'Awaiting first revision'}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const updated = advanceRevisionItemStage(schedule, item.id);
+                          onUpdateStats({ revisionSchedule: updated });
+                        }}
+                        className="px-2.5 py-1 rounded-lg bg-gradient-to-r from-[#d4af37] to-[#aa7c11] text-[#080d1a] font-bold text-[11px] hover:brightness-110 cursor-pointer"
+                      >
+                        ✓ Mark Revised
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })()}
       </section>
     </div>
   );

@@ -137,6 +137,8 @@ export interface StudySession {
   date?: string;
   studyGoal?: string;
   targetDurationMinutes?: number;
+  vpEarned?: number;
+  bonusVpEarned?: number;
 }
 
 export interface ExamCountdownConfig {
@@ -150,12 +152,115 @@ export interface PracticeHistoryEntry {
   id: string;
   date: string;
   subject: string;
-  mode: 'Practice' | 'Timed Test';
+  topic?: string;
+  mode: 'Practice' | 'Timed Test' | 'Quick 10' | 'Timed Sprint' | 'Topic Practice' | 'PYQ Practice' | 'Custom Quiz' | 'Daily Question';
   totalQuestions: number;
   correctCount: number;
   wrongCount: number;
   score: number;
   accuracy: number;
+  vpEarned?: number;
+}
+
+export interface VPTransaction {
+  id: string; // Deterministic idempotency grantKey
+  userId: string;
+  timestamp: string;
+  amount: number;
+  reason: string;
+  category:
+    | 'question'
+    | 'focus_minutes'
+    | 'focus_bonus_60m'
+    | 'exam_bonus_5q'
+    | 'exam_bonus_20q'
+    | 'exam_milestone_5'
+    | 'exam_milestone_20'
+    | 'daily_usage';
+  relatedId: string; // questionId / attemptKey or sessionId
+  subject?: string;
+  topic?: string;
+}
+
+export interface LoginSessionRecord {
+  sessionId: string;
+  loginAt: string;
+  logoutAt?: string | null;
+  devicePlatform: string;
+  deviceId?: string;
+}
+
+export interface RevisionItem {
+  id: string; // deterministic e.g. rev_physics_rotational_motion
+  subject: string;
+  topic: string;
+  reason: string;
+  accuracy?: number | null;
+  questionsSolved?: number;
+  mistakesCount?: number;
+  repetitionStage: number; // 0 = initial, 1 = 1d, 2 = 3d, 3 = 7d, 4 = 14d, 5 = 30d
+  intervalDays: number;
+  lastStudiedAt: string;
+  lastRevisedAt?: string | null;
+  nextReviewAt: string;
+  status: 'Due Now' | 'Scheduled' | 'Mastered';
+}
+
+export interface AchievementRecord {
+  id: string;
+  title: string;
+  description: string;
+  category: 'practice' | 'focus' | 'streak' | 'vp';
+  unlocked: boolean;
+  unlockedAt?: string | null;
+  progressCurrent: number;
+  progressTarget: number;
+}
+
+export interface StudyPlanItem {
+  id: string;
+  dayLabel: string;
+  subject: string;
+  topic: string;
+  focusMinutes: number;
+  practiceQuestions: number;
+  priority: 'High' | 'Medium' | 'Normal';
+  completed: boolean;
+}
+
+export interface StudyPlanRecord {
+  id: string;
+  createdAt: string;
+  goal: string;
+  summary: string;
+  insufficientDataNotice?: string | null;
+  items: StudyPlanItem[];
+}
+
+export interface SmartStudySessionPlan {
+  id: string;
+  createdAt: string;
+  subject: string;
+  topic: string;
+  durationMinutes: number;
+  objectives: string[];
+  conceptSummary: string;
+  keyFormulasOrPoints: string[];
+  practicePrompts: string[];
+}
+
+export interface LeaderboardEntry {
+  rank: number;
+  userId: string;
+  username: string | null;
+  displayName: string;
+  profilePhotoUrl?: string | null;
+  activeGoal?: string | null;
+  vaultPoints: number;
+  questionsSolved: number;
+  studyMinutes: number;
+  streakDays: number;
+  isCurrentUser?: boolean;
 }
 
 export interface SyllabusTopic {
@@ -246,6 +351,23 @@ export interface UserStats {
   correctAnswers: number;
   incorrectAnswers: number;
   totalStudyMinutes: number;
+  // Vault Points (VP) System
+  vaultPoints?: number;
+  questionVp?: number;
+  focusMinuteVp?: number;
+  focusBonusVp?: number;
+  sixtyMinBonusCount?: number;
+  vpTransactions?: VPTransaction[];
+  seenQuestionIds?: string[];
+  // Telemetry & Session Metadata
+  svhAiUsageCount?: number;
+  loginCount?: number;
+  logoutCount?: number;
+  lastLoginAt?: string | null;
+  lastLogoutAt?: string | null;
+  loginHistory?: LoginSessionRecord[];
+  lastDevicePlatform?: string;
+  devicesUsed?: string[];
   streak: {
     current: number;
     lastActiveDate: string;
@@ -264,6 +386,13 @@ export interface UserStats {
   subjectsStudied: Record<string, number>;
   // Chapter progress tracking
   chapterProgress?: Record<string, { completed: boolean; questionsSolved: number; accuracy: number }>;
+  subjectPerformance?: Record<string, { attempted: number; correct: number; accuracy: number }>;
+  topicPerformance?: Record<string, { attempted: number; correct: number; accuracy: number }>;
+  dailyActivity?: Record<string, { questionsSolved: number; studyMinutes: number; vpEarned?: number }>;
+  recentMistakes?: Array<{ id: string; question: string; subject: string; topic: string; date: string }>;
+  revisionSchedule?: RevisionItem[];
+  unlockedAchievements?: Record<string, string>; // achievementId -> unlockedAt ISO timestamp
+  activeStudyPlan?: StudyPlanRecord | null;
   // Bookmarks
   bookmarkedItemIds: string[];
   completedNoteIds: string[];

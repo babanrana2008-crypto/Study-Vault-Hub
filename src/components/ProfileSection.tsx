@@ -31,11 +31,17 @@ import {
   LogOut,
   LogIn,
   AtSign,
-  Lock
+  Lock,
+  Award,
+  Trophy,
+  Sparkles,
+  TrendingUp,
+  RefreshCw
 } from 'lucide-react';
 import { UserStats, Book, StudyNote, ActiveSection, ThemePreference } from '../types';
 import { SAMPLE_BOOKS, SAMPLE_NOTES, SAMPLE_MCQS, PRESET_GOALS } from '../data/sampleData';
 import { apiFetch } from '../services/nativeApiBridge';
+import { evaluateVerifiedAchievements } from '../utils/securityAndVp';
 
 const IDENTITY_STORAGE_KEY = 'study_vault_community_identity_v1';
 
@@ -495,17 +501,21 @@ export const ProfileSection: React.FC<ProfileSectionProps> = React.memo(({
   };
 
   const handleShareReport = () => {
+    const vpTotal =
+      typeof userStats.vaultPoints === 'number'
+        ? userStats.vaultPoints
+        : (userStats.questionsAttempted || 0);
     const report = `Study Vault Hub - Student Summary
 Name: ${userStats.name || 'Student'}
 Preparing for: ${userStats.selectedGoals.join(', ') || 'General Study'}
 Active Goal: ${userStats.activeGoal || 'None'}
+Vault Points (VP): ${vpTotal} VP
 Total Questions Solved: ${userStats.questionsAttempted}
 Correct Answers: ${userStats.correctAnswers}
 Incorrect Answers: ${userStats.incorrectAnswers}
 Overall Accuracy: ${overallAccuracy}%
 Total Study Time: ${formatTotalTime(userStats.totalStudyMinutes)}
-Active Streak: ${userStats.streak?.current || 0} Days
-(Data saved locally on device)`;
+Active Streak: ${userStats.streak?.current || 0} Days`;
 
     navigator.clipboard?.writeText?.(report);
     setCopiedReport(true);
@@ -1035,15 +1045,25 @@ Active Streak: ${userStats.streak?.current || 0} Days
           )}
         </div>
 
-        {/* 4 Quantitative Real Metrics */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2 border-t border-[#d4af37]/20">
+        {/* 5 Quantitative Real Metrics (Including Vault Points VP) */}
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 pt-2 border-t border-[#d4af37]/20">
+          <div className="p-3.5 rounded-xl bg-[#131b2e]/80 border border-[#d4af37]/20 text-center">
+            <span className="text-[11px] text-[#9ca3af] block">Vault Points (VP)</span>
+            <span className="font-display text-2xl font-bold text-[#d4af37] tabular-nums mt-1 block">
+              {(userStats.vaultPoints ?? 0).toLocaleString()}
+            </span>
+            <span className="text-[10px] text-[#9ca3af]">
+              +1 VP/Q · +20 VP/60m · Exam Bonuses
+            </span>
+          </div>
+
           <div className="p-3.5 rounded-xl bg-[#131b2e]/80 border border-[#d4af37]/20 text-center">
             <span className="text-[11px] text-[#9ca3af] block">Questions Solved</span>
             <span className="font-display text-2xl font-bold text-[#d4af37] tabular-nums mt-1 block">
               {userStats.questionsAttempted}
             </span>
             <span className="text-[10px] text-[#9ca3af]">
-              +{userStats.correctAnswers} / -{userStats.incorrectAnswers}
+              +{userStats.correctAnswers} / -{userStats.incorrectAnswers} (+1 VP/Q)
             </span>
           </div>
 
@@ -1052,7 +1072,7 @@ Active Streak: ${userStats.streak?.current || 0} Days
             <span className="font-display text-2xl font-bold text-[#fbf9f4] tabular-nums mt-1 block">
               {formatTotalTime(userStats.totalStudyMinutes)}
             </span>
-            <span className="text-[10px] text-[#9ca3af]">Real session timer</span>
+            <span className="text-[10px] text-[#9ca3af]">+20 VP per 60m Focus Study</span>
           </div>
 
           <div className="p-3.5 rounded-xl bg-[#131b2e]/80 border border-[#d4af37]/20 text-center">
@@ -1063,7 +1083,7 @@ Active Streak: ${userStats.streak?.current || 0} Days
             <span className="text-[10px] text-[#9ca3af]">Accuracy ratio</span>
           </div>
 
-          <div className="p-3.5 rounded-xl bg-[#131b2e]/80 border border-[#d4af37]/20 text-center">
+          <div className="p-3.5 rounded-xl bg-[#131b2e]/80 border border-[#d4af37]/20 text-center col-span-2 sm:col-span-1">
             <span className="text-[11px] text-[#9ca3af] block">Current Streak</span>
             <div className="flex items-center justify-center gap-1.5 mt-1">
               <Flame className="w-5 h-5 text-amber-400 fill-amber-400" />
@@ -1074,6 +1094,402 @@ Active Streak: ${userStats.streak?.current || 0} Days
             <span className="text-[10px] text-[#9ca3af]">Active days</span>
           </div>
         </div>
+      </section>
+
+      {/* 1B. PERSONAL PERFORMANCE DASHBOARD (100% Real Activity Only) */}
+      <section className="p-5 sm:p-6 rounded-2xl bg-gradient-to-br from-[#0c1428] via-[#0a1122] to-[#060b18] border border-[#d4af37]/30 shadow-lg space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div className="space-y-0.5">
+            <div className="flex items-center gap-2 text-xs font-semibold text-[#d4af37] uppercase tracking-wider">
+              <TrendingUp className="w-4 h-4" />
+              <span>Personal Performance Dashboard</span>
+            </div>
+            <p className="text-xs text-[#9ca3af]">
+              Real-time analytics from your verified question practice, focus sessions, and study consistency
+            </p>
+          </div>
+          <span className="px-2.5 py-1 rounded-lg bg-[#131b2e] border border-[#d4af37]/25 text-[11px] font-mono text-[#d4af37] self-start sm:self-auto">
+            {(userStats.vaultPoints ?? 0).toLocaleString()} VP Total
+          </span>
+        </div>
+
+        {(userStats.questionsAttempted || 0) === 0 &&
+        (userStats.totalStudyMinutes || 0) === 0 &&
+        (userStats.studySessions?.length || 0) === 0 &&
+        (userStats.practiceHistory?.length || 0) === 0 ? (
+          <div className="p-6 rounded-2xl bg-[#090e1c] border border-[#d4af37]/20 text-center space-y-3">
+            <BarChart3 className="w-8 h-8 text-[#d4af37] mx-auto opacity-80" />
+            <div className="space-y-1">
+              <h3 className="font-display text-sm sm:text-base font-bold text-[#fbf9f4]">
+                No data yet
+              </h3>
+              <p className="text-xs text-[#9ca3af] max-w-md mx-auto leading-relaxed">
+                Start studying to build your statistics. Solve practice questions or complete a Focus Mode study session to see your real accuracy, subject mastery, and recent activity here.
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center justify-center gap-2.5 pt-1">
+              <button
+                type="button"
+                onClick={() => onNavigate('practice')}
+                className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-[#d4af37] to-[#aa7c11] text-[#080d1a] font-bold text-xs cursor-pointer"
+              >
+                Solve Practice Questions
+              </button>
+              <button
+                type="button"
+                onClick={() => onNavigate('tracker')}
+                className="px-3.5 py-2 rounded-xl bg-[#131b2e] border border-[#d4af37]/30 text-[#fbf9f4] hover:border-[#d4af37] font-semibold text-xs cursor-pointer"
+              >
+                Open Study Tracker
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {/* Subject Performance Breakdown */}
+            <div className="p-4 rounded-xl bg-[#090e1c] border border-[#d4af37]/20 space-y-3">
+              <div className="flex items-center justify-between">
+                <h4 className="text-xs font-bold text-[#d4af37] uppercase tracking-wider">
+                  Subject Performance
+                </h4>
+                <span className="text-[11px] text-[#9ca3af] font-mono">
+                  Real Accuracy &amp; Time
+                </span>
+              </div>
+
+              {(() => {
+                const subjKeys = Array.from(
+                  new Set([
+                    ...Object.keys(userStats.subjectPerformance || {}),
+                    ...Object.keys(userStats.subjectsStudied || {}),
+                  ])
+                ).filter((subj) => {
+                  const perf = userStats.subjectPerformance?.[subj];
+                  const mins = userStats.subjectsStudied?.[subj] || 0;
+                  return (perf && perf.attempted > 0) || mins > 0;
+                });
+
+                if (subjKeys.length === 0) {
+                  return (
+                    <p className="text-xs text-[#9ca3af] py-4 text-center">
+                      No subject-specific activity recorded yet.
+                    </p>
+                  );
+                }
+
+                return (
+                  <div className="space-y-2.5 max-h-56 overflow-y-auto pr-1">
+                    {subjKeys.map((subj) => {
+                      const perf = userStats.subjectPerformance?.[subj];
+                      const attempted = perf?.attempted || 0;
+                      const correct = perf?.correct || 0;
+                      const acc =
+                        attempted > 0
+                          ? perf?.accuracy ?? Math.round((correct / attempted) * 100)
+                          : null;
+                      const mins = userStats.subjectsStudied?.[subj] || 0;
+
+                      return (
+                        <div
+                          key={subj}
+                          className="p-2.5 rounded-xl bg-[#0f172a] border border-[#1e293b] space-y-1.5"
+                        >
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="font-semibold text-[#fbf9f4]">{subj}</span>
+                            <span className="font-mono text-[11px] text-[#cbd5e1]">
+                              {attempted > 0 ? `${correct}/${attempted} (${acc}%)` : '0 Q'}{' '}
+                              · {mins}m
+                            </span>
+                          </div>
+                          {acc !== null && (
+                            <div className="w-full h-1.5 rounded-full bg-[#131b2e] overflow-hidden">
+                              <div
+                                style={{ width: `${Math.max(4, Math.min(100, acc))}%` }}
+                                className={`h-full rounded-full ${
+                                  acc >= 75
+                                    ? 'bg-emerald-400'
+                                    : acc >= 50
+                                      ? 'bg-[#d4af37]'
+                                      : 'bg-rose-400'
+                                }`}
+                              />
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
+            </div>
+
+            {/* Recent Real Activity Feed */}
+            <div className="p-4 rounded-xl bg-[#090e1c] border border-[#d4af37]/20 space-y-3">
+              <div className="flex items-center justify-between">
+                <h4 className="text-xs font-bold text-[#d4af37] uppercase tracking-wider">
+                  Recent Activity
+                </h4>
+                <span className="text-[11px] text-[#9ca3af] font-mono">
+                  Verified Sessions &amp; Sprints
+                </span>
+              </div>
+
+              {(() => {
+                const recentSessions = (userStats.studySessions || []).slice(0, 4);
+                const recentTests = (userStats.practiceHistory || []).slice(0, 4);
+                const dailyDates = Object.entries(userStats.dailyActivity || {})
+                  .sort((a, b) => b[0].localeCompare(a[0]))
+                  .slice(0, 4);
+
+                if (
+                  recentSessions.length === 0 &&
+                  recentTests.length === 0 &&
+                  dailyDates.length === 0
+                ) {
+                  return (
+                    <p className="text-xs text-[#9ca3af] py-4 text-center">
+                      Solve questions or complete a focus session to see your recent activity log.
+                    </p>
+                  );
+                }
+
+                return (
+                  <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+                    {recentSessions.map((sess) => (
+                      <div
+                        key={sess.id}
+                        className="p-2.5 rounded-xl bg-[#0f172a] border border-[#1e293b] flex items-center justify-between gap-2 text-xs"
+                      >
+                        <div className="min-w-0">
+                          <span className="font-semibold text-[#fbf9f4] block truncate">
+                            Focus: {sess.subject} — {sess.topic}
+                          </span>
+                          <span className="text-[10px] text-[#9ca3af]">
+                            {sess.date} · {sess.timestamp}
+                          </span>
+                        </div>
+                        <span className="font-mono text-[#d4af37] font-bold shrink-0">
+                          {sess.durationMinutes}m
+                        </span>
+                      </div>
+                    ))}
+                    {recentTests.map((test) => (
+                      <div
+                        key={test.id}
+                        className="p-2.5 rounded-xl bg-[#0f172a] border border-[#1e293b] flex items-center justify-between gap-2 text-xs"
+                      >
+                        <div className="min-w-0">
+                          <span className="font-semibold text-[#fbf9f4] block truncate">
+                            {test.mode}: {test.subject}
+                          </span>
+                          <span className="text-[10px] text-[#9ca3af]">{test.date}</span>
+                        </div>
+                        <span className="font-mono text-emerald-400 font-bold shrink-0">
+                          {test.correctCount}/{test.totalQuestions} ({test.accuracy}%)
+                        </span>
+                      </div>
+                    ))}
+                    {recentSessions.length === 0 &&
+                      recentTests.length === 0 &&
+                      dailyDates.map(([dateStr, act]) => (
+                        <div
+                          key={dateStr}
+                          className="p-2.5 rounded-xl bg-[#0f172a] border border-[#1e293b] flex items-center justify-between gap-2 text-xs"
+                        >
+                          <span className="font-mono text-[#fbf9f4]">{dateStr}</span>
+                          <span className="font-mono text-[#d4af37]">
+                            {act.questionsSolved}Q · {act.studyMinutes}m
+                          </span>
+                        </div>
+                      ))}
+                  </div>
+                );
+              })()}
+            </div>
+          </div>
+        )}
+      </section>
+
+      {/* 1B.2 VAULT POINTS (VP) & VERIFIED REWARDS SECTION */}
+      <section className="p-5 sm:p-6 rounded-2xl bg-gradient-to-br from-[#0c1428] via-[#0a1122] to-[#060b18] border border-[#d4af37]/30 shadow-lg space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div className="space-y-0.5">
+            <div className="flex items-center gap-2 text-xs font-semibold text-[#d4af37] uppercase tracking-wider">
+              <Award className="w-4 h-4" />
+              <span>Vault Points (VP) &amp; Verified Rewards</span>
+            </div>
+            <p className="text-xs text-[#9ca3af]">
+              Real Vault Points earned from your verified study sessions, questions, and daily usage
+            </p>
+          </div>
+          <span className="px-3 py-1 rounded-lg bg-[#131b2e] border border-[#d4af37]/35 text-xs font-mono font-bold text-[#d4af37] self-start sm:self-auto">
+            {(userStats.vaultPoints ?? 0).toLocaleString()} VP
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+          <div className="p-3.5 rounded-xl bg-[#090e1c] border border-[#d4af37]/20 space-y-1.5">
+            <span className="text-[11px] font-bold text-[#d4af37] uppercase tracking-wider block">
+              Official VP Earning Rules
+            </span>
+            <ul className="space-y-1 text-[#cbd5e1]">
+              <li className="flex items-center justify-between">
+                <span>Valid completed question</span>
+                <span className="font-mono font-bold text-[#d4af37]">+1 VP</span>
+              </li>
+              <li className="flex items-center justify-between">
+                <span>Completed 60-minute Focus Study</span>
+                <span className="font-mono font-bold text-[#d4af37]">+20 VP</span>
+              </li>
+              <li className="flex items-center justify-between">
+                <span>After 5 valid Exam/Exam-Oriented questions</span>
+                <span className="font-mono font-bold text-[#d4af37]">+10 VP</span>
+              </li>
+              <li className="flex items-center justify-between">
+                <span>After 20 valid Exam/Exam-Oriented questions</span>
+                <span className="font-mono font-bold text-[#d4af37]">+40 VP</span>
+              </li>
+              <li className="flex items-center justify-between">
+                <span>Qualifying daily usage</span>
+                <span className="font-mono font-bold text-[#d4af37]">+2 VP</span>
+              </li>
+            </ul>
+          </div>
+
+          <div className="p-3.5 rounded-xl bg-[#090e1c] border border-[#d4af37]/20 space-y-2">
+            <span className="text-[11px] font-bold text-[#d4af37] uppercase tracking-wider block">
+              Real Progress &amp; Milestones
+            </span>
+            {(userStats.vaultPoints || 0) === 0 && (userStats.questionsAttempted || 0) === 0 ? (
+              <p className="text-xs text-[#9ca3af] py-2">0 VP · No data yet</p>
+            ) : (
+              <div className="space-y-1.5 text-[#cbd5e1]">
+                <div className="flex items-center justify-between">
+                  <span>Questions Completed (+1 VP each):</span>
+                  <span className="font-mono font-bold text-[#fbf9f4]">
+                    {userStats.questionsAttempted || 0} Qs
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span>5 Exam Questions Milestone (+10 VP):</span>
+                  <span className="font-mono font-bold text-[#d4af37]">
+                    {Math.min(5, userStats.questionsAttempted || 0)} / 5
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span>20 Exam Questions Milestone (+40 VP):</span>
+                  <span className="font-mono font-bold text-[#d4af37]">
+                    {Math.min(20, userStats.questionsAttempted || 0)} / 20
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span>60-Minute Focus Sessions (+20 VP):</span>
+                  <span className="font-mono font-bold text-[#fbf9f4]">
+                    {userStats.sixtyMinBonusCount ??
+                      (userStats.studySessions || []).filter(
+                        (s) => (Number(s?.durationMinutes) || 0) >= 60
+                      ).length}{' '}
+                    completed
+                  </span>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </section>
+
+      {/* 1C. ACHIEVEMENTS & BADGES (Backend-Verified Real Conditions Only) */}
+      <section className="p-5 sm:p-6 rounded-2xl bg-gradient-to-br from-[#0c1428] via-[#0a1122] to-[#060b18] border border-[#d4af37]/30 shadow-lg space-y-4">
+        {(() => {
+          const { achievements } = evaluateVerifiedAchievements(userStats);
+          const verifiedUnlockedMap = userStats.unlockedAchievements || {};
+          const unlockedCount = achievements.filter((a) =>
+            Boolean(verifiedUnlockedMap[a.id] && a.unlocked)
+          ).length;
+
+          return (
+            <>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div className="space-y-0.5">
+                  <div className="flex items-center gap-2 text-xs font-semibold text-[#d4af37] uppercase tracking-wider">
+                    <Trophy className="w-4 h-4" />
+                    <span>Achievements &amp; Badges</span>
+                  </div>
+                  <p className="text-xs text-[#9ca3af]">
+                    Badges unlock strictly when real study milestones are completed and verified by the backend
+                  </p>
+                </div>
+                <span className="px-2.5 py-1 rounded-lg bg-[#131b2e] border border-[#d4af37]/25 text-[11px] font-mono text-[#d4af37] self-start sm:self-auto">
+                  {unlockedCount} / {achievements.length} Unlocked
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {achievements.map((ach) => {
+                  const unlockedTimestamp = verifiedUnlockedMap[ach.id];
+                  const isVerifiedUnlocked = Boolean(unlockedTimestamp && ach.unlocked);
+
+                  return (
+                    <div
+                      key={ach.id}
+                      className={`p-3.5 rounded-xl border transition-all flex flex-col justify-between gap-2.5 ${
+                        isVerifiedUnlocked
+                          ? 'bg-[#131f3a] border-[#d4af37] shadow-md'
+                          : 'bg-[#090e1c]/80 border-[#1e293b] opacity-80'
+                      }`}
+                    >
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between gap-2">
+                          <div
+                            className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
+                              isVerifiedUnlocked
+                                ? 'bg-gradient-to-br from-[#d4af37] to-[#aa7c11] text-[#080d1a]'
+                                : 'bg-[#131b2e] text-[#6b7280] border border-[#1e293b]'
+                            }`}
+                          >
+                            <Award className="w-4 h-4" />
+                          </div>
+                          {isVerifiedUnlocked ? (
+                            <span className="px-2 py-0.5 rounded-full bg-emerald-950/90 border border-emerald-500/40 text-[10px] font-mono font-bold text-emerald-300">
+                              Unlocked
+                            </span>
+                          ) : (
+                            <span className="px-2 py-0.5 rounded-full bg-[#131b2e] border border-[#1e293b] text-[10px] font-mono text-[#9ca3af]">
+                              {ach.progressCurrent}/{ach.progressTarget}
+                            </span>
+                          )}
+                        </div>
+
+                        <h4
+                          className={`font-display text-xs sm:text-sm font-bold ${
+                            isVerifiedUnlocked ? 'text-[#fbf9f4]' : 'text-[#cbd5e1]'
+                          }`}
+                        >
+                          {ach.title}
+                        </h4>
+                        <p className="text-[11px] text-[#9ca3af] leading-snug">
+                          {ach.description}
+                        </p>
+                      </div>
+
+                      <div className="pt-2 border-t border-[#1e293b]/80 flex items-center justify-between text-[10px] font-mono">
+                        {isVerifiedUnlocked && unlockedTimestamp ? (
+                          <span className="text-[#d4af37]">
+                            Verified · {new Date(unlockedTimestamp).toLocaleDateString()}
+                          </span>
+                        ) : (
+                          <span className="text-[#6b7280]">
+                            Progress: {ach.progressCurrent} / {ach.progressTarget}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          );
+        })()}
       </section>
 
       {/* 2. Account & Settings Section (Cross-Device Sync, Logout & Permanent Account Deletion) */}
@@ -1568,7 +1984,7 @@ Active Streak: ${userStats.streak?.current || 0} Days
               1. Independent Platform &amp; Non-Affiliation
             </h4>
             <p className="text-[11px] text-[#9ca3af]">
-              Study Vault Hub is an independent educational study platform founded and created by Soumyadip Rana. It is not affiliated with, endorsed by, or officially connected to NCERT, NTA (NEET / JEE), CBSE, CISCE, WBCHSE, WBJEEB, UPSC, SSC, IBPS, ICAI, or any government or examination authority. All exam names and institutional marks belong to their respective owners and are referenced strictly for syllabus identification.
+              Study Vault Hub is an independent educational study platform developed by Soumyadip Rana. It is not affiliated with, endorsed by, or officially connected to NCERT, NTA (NEET / JEE), CBSE, CISCE, WBCHSE, WBJEEB, UPSC, SSC, IBPS, ICAI, or any government or examination authority. All exam names and institutional marks belong to their respective owners and are referenced strictly for syllabus identification.
             </p>
           </div>
 
@@ -1605,11 +2021,8 @@ Active Streak: ${userStats.streak?.current || 0} Days
       <section className="p-5 sm:p-6 rounded-2xl bg-gradient-to-br from-[#0c1428] to-[#060b18] border border-[#d4af37]/30 shadow-lg select-none">
         <div className="flex flex-col items-center justify-center text-center space-y-2">
           <div className="space-y-1 flex flex-col items-center justify-center text-center">
-            <span className="text-xs sm:text-sm uppercase tracking-widest text-[#d4af37] font-mono font-semibold block whitespace-nowrap">
-              Founded &amp; Created by
-            </span>
-            <h3 className="font-display text-xl sm:text-2xl font-bold text-[#fbf9f4] whitespace-nowrap">
-              Soumyadip Rana
+            <h3 className="font-display text-lg sm:text-2xl font-bold text-[#fbf9f4] whitespace-nowrap">
+              Developed by Soumyadip Rana (RYO)
             </h3>
           </div>
           <div className="px-3.5 py-1 rounded-full bg-[#131b2e] border border-[#d4af37]/30 text-[11px] font-mono text-[#d4af37] shrink-0">

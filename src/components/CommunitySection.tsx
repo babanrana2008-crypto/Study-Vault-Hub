@@ -16,11 +16,16 @@ import {
   AlertTriangle,
   ZoomIn,
   HelpCircle,
+  Trophy,
+  Flame,
+  Coins,
+  RefreshCw,
 } from 'lucide-react';
 import {
   CommunityPost,
   CommunityReply,
   CommunityChatMessage,
+  LeaderboardEntry,
 } from '../types';
 import { apiFetch } from '../services/nativeApiBridge';
 
@@ -139,13 +144,17 @@ export const CommunitySection: React.FC<CommunitySectionProps> = React.memo(({
 }) => {
   const displayUserName = (userName || 'Student').trim() || 'Student';
 
-  // Sub-navigation: 'feed' (Doubts & Discussions) vs 'chat' (Community Chat)
-  const [activeTab, setActiveTab] = useState<'feed' | 'chat'>(() => {
+  // Sub-navigation: 'feed' (Doubts & Discussions) vs 'chat' (Community Chat) vs 'leaderboard' (Real Student Leaderboard)
+  const [activeTab, setActiveTab] = useState<'feed' | 'chat' | 'leaderboard'>(() => {
     try {
       const savedUi = localStorage.getItem(COMMUNITY_UI_STATE_KEY);
       if (savedUi) {
         const parsed = JSON.parse(savedUi);
-        if (parsed?.activeTab === 'chat' || parsed?.activeTab === 'feed') {
+        if (
+          parsed?.activeTab === 'chat' ||
+          parsed?.activeTab === 'feed' ||
+          parsed?.activeTab === 'leaderboard'
+        ) {
           return parsed.activeTab;
         }
       }
@@ -154,6 +163,11 @@ export const CommunitySection: React.FC<CommunitySectionProps> = React.memo(({
       return 'feed';
     }
   });
+
+  // Real-time Student Leaderboard state (strictly verified users only, zero fake users)
+  const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
+  const [isLoadingLeaderboard, setIsLoadingLeaderboard] = useState<boolean>(false);
+  const [leaderboardSortBy, setLeaderboardSortBy] = useState<'vp' | 'streak' | 'questions' | 'minutes'>('vp');
 
   // Authenticated User Identity (cryptographic token stored locally, never exposed to others)
   const [identity, setIdentity] = useState<StoredIdentity | null>(() => {
@@ -440,11 +454,38 @@ export const CommunitySection: React.FC<CommunitySectionProps> = React.memo(({
     }
   }, []);
 
+  // Fetch real verified leaderboard from backend / Firestore
+  const fetchRealLeaderboard = useCallback(async () => {
+    setIsLoadingLeaderboard(true);
+    try {
+      const res = await apiFetch('/api/community/leaderboard');
+      if (res.ok) {
+        const data = await res.json();
+        if (isMountedRef.current && Array.isArray(data.leaderboard)) {
+          setLeaderboard(data.leaderboard);
+        }
+      }
+    } catch {
+      // ignore network error
+    } finally {
+      if (isMountedRef.current) {
+        setIsLoadingLeaderboard(false);
+      }
+    }
+  }, []);
+
   // Run session initialization and initial state fetch
   useEffect(() => {
     ensureSessionIdentity();
     fetchCommunityState();
-  }, [ensureSessionIdentity, fetchCommunityState]);
+    fetchRealLeaderboard();
+  }, [ensureSessionIdentity, fetchCommunityState, fetchRealLeaderboard]);
+
+  useEffect(() => {
+    if (activeTab === 'leaderboard') {
+      fetchRealLeaderboard();
+    }
+  }, [activeTab, fetchRealLeaderboard]);
 
   // 2. Real-time WebSocket connection with idempotent event handlers & exponential backoff
   useEffect(() => {
@@ -1111,15 +1152,33 @@ export const CommunitySection: React.FC<CommunitySectionProps> = React.memo(({
             setActiveTab('chat');
             setSelectedPostId(null);
           }}
-          className={`flex-1 py-2.5 px-4 rounded-xl text-xs sm:text-sm font-semibold transition-all flex items-center justify-center gap-2 ${
+          className={`flex-1 py-2.5 px-3 sm:px-4 rounded-xl text-xs sm:text-sm font-semibold transition-all flex items-center justify-center gap-1.5 sm:gap-2 ${
             activeTab === 'chat'
               ? 'bg-[#d4af37] text-[#080d1a] shadow-sm font-bold'
               : 'text-[#cbd5e1] hover:text-[#fbf9f4] hover:bg-[#131b2e]'
           }`}
         >
-          <MessageCircle className="w-4 h-4" />
-          <span>Community Chat</span>
+          <MessageCircle className="w-4 h-4 shrink-0" />
+          <span className="truncate">Community Chat</span>
           <span className="text-[10px] font-mono opacity-80">({visibleChatMessages.length})</span>
+        </button>
+
+        <button
+          onClick={() => {
+            setActiveTab('leaderboard');
+            setSelectedPostId(null);
+          }}
+          className={`flex-1 py-2.5 px-3 sm:px-4 rounded-xl text-xs sm:text-sm font-semibold transition-all flex items-center justify-center gap-1.5 sm:gap-2 ${
+            activeTab === 'leaderboard'
+              ? 'bg-[#d4af37] text-[#080d1a] shadow-sm font-bold'
+              : 'text-[#cbd5e1] hover:text-[#fbf9f4] hover:bg-[#131b2e]'
+          }`}
+        >
+          <Trophy className="w-4 h-4 shrink-0" />
+          <span className="truncate">Leaderboard</span>
+          {leaderboard.length > 0 && (
+            <span className="text-[10px] font-mono opacity-80">({leaderboard.length})</span>
+          )}
         </button>
       </div>
 
@@ -1767,12 +1826,181 @@ export const CommunitySection: React.FC<CommunitySectionProps> = React.memo(({
       )}
 
       {/* ========================================================================= */}
+      {/* VIEW 3: REAL STUDENT LEADERBOARD (VERIFIED USERS ONLY)                    */}
+      {/* ========================================================================= */}
+      {activeTab === 'leaderboard' && (
+        <div className="rounded-2xl sm:rounded-3xl bg-gradient-to-b from-[#0c1428] to-[#080d1a] border border-[#d4af37]/30 shadow-2xl overflow-hidden p-4 sm:p-6 space-y-5">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#d4af37]/20 pb-4">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <Trophy className="w-4 h-4 text-[#d4af37]" />
+                <h2 className="font-display text-base sm:text-lg font-bold text-[#fbf9f4]">
+                  Verified Student Leaderboard
+                </h2>
+              </div>
+              <p className="text-xs text-[#9ca3af]">
+                Ranked strictly by real authenticated student activity (Vault Points, Streak, Questions Solved, and Study Time).
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2 flex-wrap">
+              {(
+                [
+                  { id: 'vp', label: 'Vault Points' },
+                  { id: 'streak', label: 'Streak' },
+                  { id: 'questions', label: 'Solved Qs' },
+                  { id: 'minutes', label: 'Study Time' },
+                ] as const
+              ).map((tab) => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setLeaderboardSortBy(tab.id)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors cursor-pointer ${
+                    leaderboardSortBy === tab.id
+                      ? 'bg-[#d4af37] text-[#080d1a] font-bold'
+                      : 'bg-[#131b2e] text-[#cbd5e1] hover:text-[#d4af37] border border-[#d4af37]/20'
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+
+              <button
+                type="button"
+                onClick={fetchRealLeaderboard}
+                disabled={isLoadingLeaderboard}
+                title="Refresh Leaderboard"
+                className="p-2 rounded-xl bg-[#131b2e] hover:bg-[#19243d] border border-[#d4af37]/25 text-[#d4af37] cursor-pointer"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isLoadingLeaderboard ? 'animate-spin' : ''}`} />
+              </button>
+            </div>
+          </div>
+
+          {isLoadingLeaderboard && leaderboard.length === 0 ? (
+            <div className="py-12 text-center space-y-2">
+              <RefreshCw className="w-6 h-6 text-[#d4af37] animate-spin mx-auto" />
+              <p className="text-xs text-[#cbd5e1]">Loading verified student rankings...</p>
+            </div>
+          ) : leaderboard.length === 0 ? (
+            <div className="py-12 px-4 text-center space-y-2 bg-[#131b2e] rounded-2xl border border-[#d4af37]/25">
+              <Trophy className="w-8 h-8 text-[#d4af37] mx-auto opacity-80" />
+              <h3 className="font-display text-sm sm:text-base font-bold text-[#fbf9f4]">
+                No verified student rankings yet
+              </h3>
+              <p className="text-xs text-[#9ca3af] max-w-md mx-auto">
+                Complete practice questions or focus sessions to earn Vault Points and appear on the real Study Vault Hub leaderboard.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-2.5">
+              {[...leaderboard]
+                .sort((a, b) => {
+                  if (leaderboardSortBy === 'streak') {
+                    return b.streakDays - a.streakDays || b.vaultPoints - a.vaultPoints;
+                  }
+                  if (leaderboardSortBy === 'questions') {
+                    return b.questionsSolved - a.questionsSolved || b.vaultPoints - a.vaultPoints;
+                  }
+                  if (leaderboardSortBy === 'minutes') {
+                    return b.studyMinutes - a.studyMinutes || b.vaultPoints - a.vaultPoints;
+                  }
+                  return b.vaultPoints - a.vaultPoints || b.questionsSolved - a.questionsSolved;
+                })
+                .map((entry, idx) => {
+                  const rank = idx + 1;
+                  const isCurrentUser =
+                    Boolean(entry.isCurrentUser) ||
+                    (identity?.userId && entry.userId === identity.userId) ||
+                    entry.displayName.toLowerCase() === displayUserName.toLowerCase();
+
+                  return (
+                    <div
+                      key={entry.userId}
+                      className={`p-3.5 sm:p-4 rounded-2xl border flex items-center justify-between gap-3 transition-all ${
+                        isCurrentUser
+                          ? 'bg-[#131f3a] border-[#d4af37] shadow-md'
+                          : 'bg-[#131b2e] border-[#d4af37]/25 hover:border-[#d4af37]/50'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div
+                          className={`w-8 h-8 rounded-xl font-mono text-xs font-bold flex items-center justify-center shrink-0 ${
+                            rank === 1
+                              ? 'bg-gradient-to-br from-[#d4af37] to-amber-600 text-[#080d1a]'
+                              : rank === 2
+                              ? 'bg-[#1a2745] text-[#fbf9f4] border border-[#d4af37]/45'
+                              : rank === 3
+                              ? 'bg-[#162340] text-[#fbf9f4] border border-[#d4af37]/35'
+                              : 'bg-[#0f172a] text-[#cbd5e1] border border-[#d4af37]/25'
+                          }`}
+                        >
+                          #{rank}
+                        </div>
+
+                        <div className="w-9 h-9 rounded-full bg-[#131b2e] border border-[#d4af37]/35 overflow-hidden flex items-center justify-center shrink-0 aspect-square">
+                          {entry.profilePhotoUrl ? (
+                            <img
+                              src={entry.profilePhotoUrl}
+                              alt={entry.displayName}
+                              className="w-full h-full object-cover rounded-full aspect-square"
+                            />
+                          ) : (
+                            <User className="w-4 h-4 text-[#d4af37]" />
+                          )}
+                        </div>
+
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="font-display text-xs sm:text-sm font-bold text-[#fbf9f4] truncate">
+                              {entry.displayName}
+                            </span>
+                            {isCurrentUser && (
+                              <span className="px-2 py-0.5 rounded-full bg-[#d4af37]/20 text-[#d4af37] border border-[#d4af37]/40 text-[10px] font-mono">
+                                You
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2.5 text-[11px] text-[#9ca3af] flex-wrap">
+                            <span>{entry.questionsSolved} Qs solved</span>
+                            <span>·</span>
+                            <span>{entry.studyMinutes}m studied</span>
+                            {entry.activeGoal && (
+                              <>
+                                <span>·</span>
+                                <span>{entry.activeGoal}</span>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+                        <div className="px-2.5 py-1 rounded-xl bg-[#131b2e] border border-amber-500/30 flex items-center gap-1 text-xs font-mono text-amber-300">
+                          <Flame className="w-3.5 h-3.5 text-amber-400" />
+                          <span>{entry.streakDays}d</span>
+                        </div>
+                        <div className="px-3 py-1 rounded-xl bg-[#131b2e] border border-[#d4af37]/40 flex items-center gap-1.5 text-xs font-mono font-bold text-[#d4af37]">
+                          <Coins className="w-3.5 h-3.5 text-[#d4af37]" />
+                          <span>{entry.vaultPoints.toLocaleString()} VP</span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ========================================================================= */}
       {/* MODAL: ASK A DOUBT / CREATE POST                                          */}
       {/* ========================================================================= */}
       {isCreateModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="w-full max-w-lg rounded-2xl sm:rounded-3xl bg-[#0b1324] border border-[#d4af37]/40 shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-            <div className="px-5 py-4 bg-[#0f1930] border-b border-[#d4af37]/25 flex items-center justify-between">
+        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+          <div className="w-full max-w-lg max-h-[88vh] rounded-2xl sm:rounded-3xl bg-[#0b1324] border border-[#d4af37]/40 shadow-2xl overflow-hidden flex flex-col my-auto animate-in fade-in zoom-in-95 duration-150">
+            <div className="px-5 py-4 bg-[#0f1930] border-b border-[#d4af37]/25 flex items-center justify-between shrink-0">
               <div>
                 <h2 className="font-display text-base sm:text-lg font-bold text-[#fbf9f4]">
                   Ask a Doubt / Create Post
@@ -1789,7 +2017,7 @@ export const CommunitySection: React.FC<CommunitySectionProps> = React.memo(({
               </button>
             </div>
 
-            <form onSubmit={handleCreatePost} className="p-5 space-y-4">
+            <form onSubmit={handleCreatePost} className="p-5 space-y-4 overflow-y-auto overscroll-contain touch-pan-y">
               {/* Subject Selection */}
               <div className="space-y-1.5">
                 <label className="text-xs font-semibold text-[#d4af37] uppercase tracking-wider block">
@@ -1894,8 +2122,8 @@ export const CommunitySection: React.FC<CommunitySectionProps> = React.memo(({
       {/* MODAL: DELETE CONFIRMATION                                                */}
       {/* ========================================================================= */}
       {confirmDelete && (
-        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="w-full max-w-sm rounded-2xl bg-[#0b1324] border border-rose-500/40 p-5 space-y-4 shadow-2xl">
+        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+          <div className="w-full max-w-sm max-h-[85vh] overflow-y-auto overscroll-contain touch-pan-y rounded-2xl bg-[#0b1324] border border-rose-500/40 p-5 space-y-4 shadow-2xl my-auto">
             <div className="flex items-center gap-2.5 text-rose-300">
               <Trash2 className="w-5 h-5 shrink-0" />
               <h3 className="font-display text-base font-bold text-[#fbf9f4]">
@@ -1933,8 +2161,8 @@ export const CommunitySection: React.FC<CommunitySectionProps> = React.memo(({
       {/* MODAL: REPORT CONTENT                                                     */}
       {/* ========================================================================= */}
       {reportTarget && (
-        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="w-full max-w-md rounded-2xl bg-[#0b1324] border border-[#d4af37]/40 p-5 space-y-4 shadow-2xl">
+        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+          <div className="w-full max-w-md max-h-[85vh] overflow-y-auto overscroll-contain touch-pan-y rounded-2xl bg-[#0b1324] border border-[#d4af37]/40 p-5 space-y-4 shadow-2xl my-auto">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2 text-amber-300">
                 <Flag className="w-4 h-4" />

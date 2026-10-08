@@ -27,7 +27,10 @@ import {
   getSubjectsForExamAndClass,
   getChaptersForSubjectAndClass
 } from '../data/syllabusData';
-import { generateDynamicQuestions } from '../data/questionGenerator';
+import {
+   generateDynamicQuestions,
+  validateAndSanitizeQuestions,
+} from '../data/questionGenerator';
 
 interface MCQSectionProps {
   activeGoal: string;
@@ -120,22 +123,24 @@ export const MCQSection: React.FC<MCQSectionProps> = React.memo(({
   const [customGeneratedQuestions, setCustomGeneratedQuestions] = useState<MCQQuestion[] | null>(null);
   const [generationFeedback, setGenerationFeedback] = useState<string | null>(null);
 
-  // Build current questions array
+  // Build current validated & de-duplicated questions array
   const questions: MCQQuestion[] = useMemo(() => {
     if (customGeneratedQuestions && customGeneratedQuestions.length > 0) {
-      return customGeneratedQuestions;
+      const validatedCustom = validateAndSanitizeQuestions(customGeneratedQuestions);
+      if (validatedCustom.length > 0) return validatedCustom;
     }
 
-    // Fallback to sample MCQs filtered by selectedSubject or goal
-    const matched = SAMPLE_MCQS.filter((q) => {
+    // Fallback to sample MCQs filtered by selectedSubject or goal, strictly validated
+    const validatedSamples = validateAndSanitizeQuestions(SAMPLE_MCQS);
+    const matched = validatedSamples.filter((q) => {
       const matchesSub = selectedSubject === 'All' ? true : q.subject.toLowerCase() === selectedSubject.toLowerCase();
       const matchesGoal = q.targetStreams.includes(selectedExam) || activeSubjects.includes(q.subject);
       return matchesSub && matchesGoal;
     });
 
     if (matched.length > 0) return matched;
-    const subMatch = SAMPLE_MCQS.filter((q) => q.subject.toLowerCase() === selectedSubject.toLowerCase());
-    return subMatch.length > 0 ? subMatch : SAMPLE_MCQS;
+    const subMatch = validatedSamples.filter((q) => q.subject.toLowerCase() === selectedSubject.toLowerCase());
+    return subMatch.length > 0 ? subMatch : validatedSamples;
   }, [customGeneratedQuestions, selectedSubject, selectedExam, activeSubjects]);
 
   // Practice Mode State
@@ -672,12 +677,15 @@ export const MCQSection: React.FC<MCQSectionProps> = React.memo(({
                 </button>
 
                 {practiceAnswers[activeQuestion.id] !== undefined && (
-                  <span className="text-xs font-mono text-[#d4af37]">
+                  <span className="text-xs font-mono text-[#d4af37] inline-flex items-center gap-2">
                     {practiceAnswers[activeQuestion.id] === activeQuestion.correctIndex ? (
-                      <span className="text-emerald-400 font-bold">Correct (+4)</span>
+                      <span className="text-emerald-400 font-bold">Correct (+4 Marks)</span>
                     ) : (
-                      <span className="text-rose-400 font-bold">Incorrect (-1)</span>
+                      <span className="text-rose-400 font-bold">Incorrect (-1 Mark)</span>
                     )}
+                    <span className="px-2 py-0.5 rounded-full bg-[#d4af37]/15 border border-[#d4af37]/40 text-[#d4af37] font-bold text-[10px]">
+                      +4 VP
+                    </span>
                   </span>
                 )}
               </div>

@@ -39,6 +39,7 @@ import {
   PRESET_GOALS,
 } from '../data/sampleData';
 import { PWAInstallButton } from './PWAInstallButton';
+import { VaultPointsPopup } from './VaultPointsPopup';
 
 interface HomeSectionProps {
   userStats: UserStats;
@@ -52,6 +53,7 @@ interface HomeSectionProps {
   onSelectActiveGoal: (goal: string) => void;
   onOpenGoalsManager: () => void;
   onOpenFocusMode: () => void;
+  vpRewardToast?: { id: string; text: string } | null;
 }
 
 export const HomeSection: React.FC<HomeSectionProps> = React.memo(({
@@ -65,8 +67,10 @@ export const HomeSection: React.FC<HomeSectionProps> = React.memo(({
   onSelectActiveGoal,
   onOpenGoalsManager,
   onOpenFocusMode,
+  vpRewardToast = null,
 }) => {
   const [goalDropdownOpen, setGoalDropdownOpen] = useState(false);
+  const [isVpPopupOpen, setIsVpPopupOpen] = useState(false);
 
   // Exam Countdown Editor State
   const [isEditingCountdown, setIsEditingCountdown] = useState(false);
@@ -338,6 +342,13 @@ export const HomeSection: React.FC<HomeSectionProps> = React.memo(({
     userStats.completedNoteIds.length + userStats.bookmarkedItemIds.length;
   const realStreakDays = userStats.streak?.current || 0;
 
+  const isNativeAndroid =
+    typeof window !== 'undefined' &&
+    Boolean(
+      (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor?.isNativePlatform?.() ||
+        window.navigator.userAgent.includes('Capacitor')
+    );
+
   const hasAnyRealActivity =
     userStats.totalStudyMinutes > 0 ||
     userStats.questionsAttempted > 0 ||
@@ -350,12 +361,14 @@ export const HomeSection: React.FC<HomeSectionProps> = React.memo(({
       {/* ===================================================================== */}
       {/* 1. HERO BRANDING & WELCOME SECTION                                    */}
       {/* ===================================================================== */}
-      <section className="relative overflow-hidden rounded-2xl sm:rounded-3xl border border-[#d4af37]/35 bg-gradient-to-br from-[#0c1428] via-[#090f20] to-[#060b18] shadow-xl">
-        <div className="absolute top-0 right-0 w-72 h-72 bg-[#d4af37]/10 rounded-full blur-3xl pointer-events-none" />
+      <section className="relative rounded-2xl sm:rounded-3xl border border-[#d4af37]/35 bg-gradient-to-br from-[#0c1428] via-[#090f20] to-[#060b18] shadow-xl">
+        <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-2xl sm:rounded-3xl">
+          <div className="absolute top-0 right-0 w-72 h-72 bg-[#d4af37]/10 rounded-full blur-3xl pointer-events-none" />
+        </div>
 
         <div className="relative z-10 p-4 sm:p-7 space-y-5">
           {/* Top Brand & Real Streak */}
-          <div className="flex flex-wrap items-center justify-between gap-2.5 min-w-0">
+          <div className="flex flex-wrap items-start justify-between gap-2.5 sm:gap-3 min-w-0">
             <div className="flex items-center gap-2.5 sm:gap-4 min-w-0 flex-1">
               <div className="w-11 h-11 sm:w-14 sm:h-14 rounded-full overflow-hidden shrink-0 aspect-square flex items-center justify-center">
                 <img
@@ -370,21 +383,62 @@ export const HomeSection: React.FC<HomeSectionProps> = React.memo(({
                   Study Vault Hub
                 </h1>
                 <div className="flex flex-col items-start justify-center text-left mt-0.5 leading-snug min-w-0 max-w-full">
-                  <span className="text-[10px] sm:text-xs text-[#cbd5e1] font-mono tracking-wide truncate max-w-full">
-                    Founded &amp; Created by
-                  </span>
-                  <span className="text-xs sm:text-base font-display font-bold text-[#d4af37] tracking-wide truncate max-w-full">
-                    Soumyadip Rana
+                  <span className="text-xs sm:text-sm font-display font-bold text-[#d4af37] tracking-wide truncate max-w-full">
+                    Developed by Soumyadip Rana
                   </span>
                 </div>
               </div>
             </div>
 
-            <div className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full bg-[#131b2e] border border-[#d4af37]/30 text-[11px] sm:text-xs font-semibold text-[#fbf9f4] shrink-0">
-              <Flame className="w-3.5 h-3.5 text-amber-400 fill-amber-400 shrink-0" />
-              <span className="text-amber-300 tabular-nums whitespace-nowrap">
-                {realStreakDays > 0 ? `${realStreakDays}d Streak` : 'No streak yet'}
-              </span>
+            <div
+              className={
+                isNativeAndroid
+                  ? 'flex flex-col-reverse items-end justify-start gap-2 shrink-0 ml-auto'
+                  : 'flex flex-wrap items-center gap-1.5 sm:gap-2 shrink-0'
+              }
+            >
+              {/* Home Screen Vault Points (VP) Balance Indicator + Small Anchored Popup */}
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setIsVpPopupOpen((prev) => !prev);
+                  }}
+                  aria-expanded={isVpPopupOpen}
+                  aria-haspopup="dialog"
+                  className="relative flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full bg-[#131b2e] border border-[#d4af37]/30 hover:border-[#d4af37] text-[11px] sm:text-xs font-semibold text-[#fbf9f4] transition-all shrink-0 cursor-pointer"
+                  title="Vault Points (VP) — Click to view balance & earning rules"
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-[#d4af37] shrink-0" />
+                  <span className="font-mono font-bold text-[#d4af37] tabular-nums whitespace-nowrap">
+                    {(userStats.vaultPoints ?? 0).toLocaleString()} VP
+                  </span>
+                  {vpRewardToast && (
+                    <span
+                      key={vpRewardToast.id}
+                      className={`pointer-events-none absolute ${
+                        isNativeAndroid ? '-bottom-7' : '-top-7'
+                      } right-0 z-30 px-2.5 py-0.5 rounded-full bg-gradient-to-r from-[#d4af37] to-[#aa7c11] text-[#080d1a] font-mono text-[10px] font-extrabold whitespace-nowrap shadow-md animate-bounce`}
+                    >
+                      {vpRewardToast.text}
+                    </span>
+                  )}
+                </button>
+
+                <VaultPointsPopup
+                  isOpen={isVpPopupOpen}
+                  onClose={() => setIsVpPopupOpen(false)}
+                  userStats={userStats}
+                />
+              </div>
+
+              <div className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full bg-[#131b2e] border border-[#d4af37]/30 text-[11px] sm:text-xs font-semibold text-[#fbf9f4] shrink-0">
+                <Flame className="w-3.5 h-3.5 text-amber-400 fill-amber-400 shrink-0" />
+                <span className="text-amber-300 tabular-nums whitespace-nowrap">
+                  {realStreakDays > 0 ? `${realStreakDays}d Streak` : 'No streak yet'}
+                </span>
+              </div>
             </div>
           </div>
 

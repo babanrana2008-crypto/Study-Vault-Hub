@@ -170,7 +170,7 @@ export const PWAInstallButton: React.FC = React.memo(() => {
   if (isAndroidDevice) {
     modalTitle = 'Install Study Vault Hub';
     modalDescription =
-      'Download the official Android app (Final.app-debug.apk) for your device.';
+      'Download the official Android app (Best.app-debug.apk) for your device.';
   } else if (isIOSDevice) {
     modalTitle = 'Add to Home Screen';
     modalDescription =
@@ -291,12 +291,12 @@ export const PWAInstallButton: React.FC = React.memo(() => {
                 </button>
 
                 {isAndroidDevice ? (
-                  /* ANDROID: Direct external <a> download of Final.app-debug.apk */
+                  /* ANDROID: Direct external <a> download of Best.app-debug.apk */
                   <a
                     href={ANDROID_APK_DOWNLOAD_URL}
                     target="_blank"
                     rel="noopener noreferrer external"
-                    download="Final.app-debug.apk"
+                    download="Best.app-debug.apk"
                     onClick={(e) =>
                       handleDirectDownloadClick(e, 'Study Vault Hub APK download started.')
                     }

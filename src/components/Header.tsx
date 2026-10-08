@@ -1,5 +1,5 @@
 import React from 'react';
-import { Search, Flame, User, BookOpen } from 'lucide-react';
+import { Search, Flame, User, Sparkles } from 'lucide-react';
 import { ActiveSection } from '../types';
 import { APP_LOGO } from '../data/sampleData';
 
@@ -8,6 +8,8 @@ interface HeaderProps {
   onNavigate: (section: ActiveSection) => void;
   onOpenSearch: () => void;
   streakDays: number;
+  vaultPoints?: number;
+  vpRewardToast?: { id: string; text: string } | null;
   userName: string;
   userProfilePhotoUrl?: string | null;
   isFloatingTopDock?: boolean;
@@ -18,6 +20,8 @@ export const Header: React.FC<HeaderProps> = React.memo(({
   onNavigate,
   onOpenSearch,
   streakDays,
+  vaultPoints = 0,
+  vpRewardToast = null,
   userName,
   userProfilePhotoUrl,
   isFloatingTopDock = false,
@@ -83,8 +87,7 @@ export const Header: React.FC<HeaderProps> = React.memo(({
                 showApkDesktopNav ? 'lg:flex-row lg:items-center lg:gap-1' : 'sm:flex-row sm:items-center sm:gap-1'
               } min-w-0`}
             >
-              <span className="truncate">Founded &amp; Created by</span>
-              <span className="text-[#d4af37]/95 font-semibold truncate">Soumyadip Rana</span>
+              <span className="text-[#d4af37]/95 font-semibold truncate">Developed by Soumyadip Rana</span>
             </span>
           </div>
         </button>
@@ -158,6 +161,30 @@ export const Header: React.FC<HeaderProps> = React.memo(({
           >
             <Search className="w-3.5 h-3.5" />
           </button>
+
+          {/* Vault Points (VP) Balance Indicator (Web only; Android APK displays it stacked cleanly below Streak on the Home screen) */}
+          {!isNativeAndroid && (
+            <button
+              type="button"
+              onClick={() => onNavigate('profile')}
+              className="relative flex items-center gap-1 px-1.5 sm:px-2.5 py-0.5 sm:py-1 rounded-lg border border-[#d4af37]/25 bg-[#0f172a] text-[10px] sm:text-xs font-medium text-[#fbf9f4] hover:border-[#d4af37] transition-all shrink-0 cursor-pointer"
+              title={`${vaultPoints} Vault Points (VP) — +1 VP per question, +20 VP per 60-min Focus Study, +10/+40 VP Exam Bonuses, +2 VP Daily Usage`}
+            >
+              <Sparkles className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-[#d4af37] shrink-0" />
+              <span className="tabular-nums font-semibold text-[#d4af37]">{vaultPoints}</span>
+              <span className="text-[9px] sm:text-[10px] font-mono uppercase tracking-wider text-[#cbd5e1]">
+                VP
+              </span>
+              {vpRewardToast && (
+                <span
+                  key={vpRewardToast.id}
+                  className="pointer-events-none absolute -bottom-7 right-0 z-50 px-2 py-0.5 rounded-full bg-gradient-to-r from-[#d4af37] to-[#aa7c11] text-[#080d1a] font-mono text-[10px] font-extrabold whitespace-nowrap shadow-lg animate-bounce"
+                >
+                  {vpRewardToast.text}
+                </span>
+              )}
+            </button>
+          )}
 
           {/* Daily Streak */}
           <div

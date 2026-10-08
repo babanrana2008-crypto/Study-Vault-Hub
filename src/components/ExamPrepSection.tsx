@@ -11,11 +11,13 @@ import {
   ChevronUp
 } from 'lucide-react';
 import { HIGH_YIELD_TOPICS, MNEMONICS_BANK, GOAL_SUBJECTS_MAP } from '../data/sampleData';
-import { HighYieldTopic, MnemonicItem } from '../types';
+import { HighYieldTopic, MnemonicItem, UserStats } from '../types';
 
 interface ExamPrepSectionProps {
   activeGoal: string;
   activeSubjects: string[];
+  userStats?: UserStats;
+  onUpdateStats?: (newPartial: Partial<UserStats>) => void;
   onNavigateToPracticeWithSubject: (subject: string) => void;
   onNavigateToNotes: () => void;
 }
@@ -23,37 +25,43 @@ interface ExamPrepSectionProps {
 export const ExamPrepSection: React.FC<ExamPrepSectionProps> = React.memo(({
   activeGoal,
   activeSubjects,
+  userStats,
   onNavigateToPracticeWithSubject,
   onNavigateToNotes
 }) => {
-  // Live Target Exam Clock (Days, Hours, Minutes, Seconds)
-  const [timeLeft, setTimeLeft] = useState({
-    days: 180,
-    hours: 12,
-    minutes: 45,
-    seconds: 30
-  });
+  // Real Exam Countdown Clock (Strictly from user's real configured exam date — zero fake 180-day hardcoded timer)
+  const [nowTick, setNowTick] = useState(() => Date.now());
 
   useEffect(() => {
-    const targetDate = new Date(Date.now() + 180 * 24 * 60 * 60 * 1000);
+    if (!userStats?.examCountdown?.examDate) return;
     const interval = setInterval(() => {
-      const now = new Date().getTime();
-      const difference = targetDate.getTime() - now;
-
-      if (difference > 0) {
-        const days = Math.floor(difference / (1000 * 60 * 60 * 24));
-        const hours = Math.floor((difference % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-        const minutes = Math.floor((difference % (1000 * 60 * 60)) / (1000 * 60));
-        const seconds = Math.floor((difference % (1000 * 60)) / 1000);
-        setTimeLeft({ days, hours, minutes, seconds });
-      }
+      setNowTick(Date.now());
     }, 1000);
-
     return () => clearInterval(interval);
-  }, [activeGoal]);
+  }, [userStats?.examCountdown?.examDate]);
 
-  // Topics checklist state
-  const [topics, setTopics] = useState<HighYieldTopic[]>(HIGH_YIELD_TOPICS);
+  const realTimeLeft = useMemo(() => {
+    const examDateStr = userStats?.examCountdown?.examDate?.trim();
+    if (!examDateStr) return null;
+    const targetTime = new Date(`${examDateStr}T09:00:00`).getTime();
+    if (isNaN(targetTime)) return null;
+    const difference = Math.max(0, targetTime - nowTick);
+    const days = Math.floor(difference / (1000 * 60 * 60 * 24));
+    const hours = Math.floor((difference % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+    const minutes = Math.floor((difference % (1000 * 60 * 60)) / (1000 * 60));
+    const seconds = Math.floor((difference % (1000 * 60)) / 1000);
+    return {
+      examName: userStats?.examCountdown?.examName || activeGoal,
+      examDate: examDateStr,
+      days,
+      hours,
+      minutes,
+      seconds,
+    };
+  }, [userStats?.examCountdown, activeGoal, nowTick]);
+
+  // Topics checklist state (starts from real user chapter progress or 'To Revise', never fake pre-mastered)
+  const [manualStatuses, setManualStatuses] = useState<Record<string, HighYieldTopic['status']>>({});
   const [selectedSubjectFilter, setSelectedSubjectFilter] = useState<string>('All');
   const [expandedMnemonic, setExpandedMnemonic] = useState<string | null>(MNEMONICS_BANK[0]?.id || null);
 
@@ -61,35 +69,44 @@ export const ExamPrepSection: React.FC<ExamPrepSectionProps> = React.memo(({
     return ['All', ...activeSubjects];
   }, [activeSubjects]);
 
-  const toggleTopicStatus = (topicId: string) => {
-    setTopics((prev) =>
-      prev.map((t) => {
-        if (t.id === topicId) {
-          const nextStatus: HighYieldTopic['status'] =
-            t.status === 'Mastered'
-              ? 'In Progress'
-              : t.status === 'In Progress'
-              ? 'To Revise'
-              : 'Mastered';
-          return { ...t, status: nextStatus };
-        }
-        return t;
-      })
-    );
+  const getEffectiveTopicStatus = (t: HighYieldTopic): HighYieldTopic['status'] => {
+    if (manualStatuses[t.id]) return manualStatuses[t.id];
+    const chapProg = userStats?.chapterProgress?.[t.chapter];
+    if (chapProg) {
+      if (chapProg.completed && chapProg.accuracy >= 70) return 'Mastered';
+      if (chapProg.questionsSolved > 0) return 'In Progress';
+    }
+    if (userStats?.topicsStudied?.includes(t.chapter)) {
+      return 'In Progress';
+    }
+    return 'To Revise';
+  };
+
+  const toggleTopicStatus = (topic: HighYieldTopic) => {
+    setManualStatuses((prev) => {
+      const current = prev[topic.id] || getEffectiveTopicStatus(topic);
+      const nextStatus: HighYieldTopic['status'] =
+        current === 'Mastered'
+          ? 'In Progress'
+          : current === 'In Progress'
+          ? 'To Revise'
+          : 'Mastered';
+      return { ...prev, [topic.id]: nextStatus };
+    });
   };
 
   const filteredTopics = useMemo(() => {
-    return topics.filter((t) => {
+    return HIGH_YIELD_TOPICS.filter((t) => {
       const matchesSubject =
         selectedSubjectFilter === 'All'
           ? activeSubjects.includes(t.subject) || t.targetStream.includes(activeGoal)
           : t.subject.toLowerCase() === selectedSubjectFilter.toLowerCase();
       return matchesSubject;
     });
-  }, [topics, selectedSubjectFilter, activeGoal, activeSubjects]);
+  }, [selectedSubjectFilter, activeGoal, activeSubjects]);
 
-  const displayTopics = filteredTopics.length > 0 ? filteredTopics : topics;
-  const masteredCount = displayTopics.filter((t) => t.status === 'Mastered').length;
+  const displayTopics = filteredTopics.length > 0 ? filteredTopics : HIGH_YIELD_TOPICS;
+  const masteredCount = displayTopics.filter((t) => getEffectiveTopicStatus(t) === 'Mastered').length;
   const progressPercent = Math.round((masteredCount / displayTopics.length) * 100) || 0;
 
   // Stream-specific blueprint
@@ -234,32 +251,38 @@ export const ExamPrepSection: React.FC<ExamPrepSectionProps> = React.memo(({
             </p>
           </div>
 
-          <div className="grid grid-cols-4 gap-2 sm:gap-3 text-center">
-            <div className="p-2.5 sm:p-3 rounded-xl bg-[#131b2e] border border-[#d4af37]/25 min-w-[58px]">
-              <span className="font-display text-xl sm:text-2xl font-bold text-[#fbf9f4] tabular-nums block">
-                {timeLeft.days}
-              </span>
-              <span className="text-[10px] text-[#9ca3af] uppercase font-medium">Days</span>
+          {realTimeLeft ? (
+            <div className="grid grid-cols-4 gap-2 sm:gap-3 text-center">
+              <div className="p-2.5 sm:p-3 rounded-xl bg-[#131b2e] border border-[#d4af37]/25 min-w-[58px]">
+                <span className="font-display text-xl sm:text-2xl font-bold text-[#fbf9f4] tabular-nums block">
+                  {realTimeLeft.days}
+                </span>
+                <span className="text-[10px] text-[#9ca3af] uppercase font-medium">Days</span>
+              </div>
+              <div className="p-2.5 sm:p-3 rounded-xl bg-[#131b2e] border border-[#d4af37]/25 min-w-[58px]">
+                <span className="font-display text-xl sm:text-2xl font-bold text-[#d4af37] tabular-nums block">
+                  {realTimeLeft.hours}
+                </span>
+                <span className="text-[10px] text-[#9ca3af] uppercase font-medium">Hours</span>
+              </div>
+              <div className="p-2.5 sm:p-3 rounded-xl bg-[#131b2e] border border-[#d4af37]/25 min-w-[58px]">
+                <span className="font-display text-xl sm:text-2xl font-bold text-[#fbf9f4] tabular-nums block">
+                  {realTimeLeft.minutes}
+                </span>
+                <span className="text-[10px] text-[#9ca3af] uppercase font-medium">Mins</span>
+              </div>
+              <div className="p-2.5 sm:p-3 rounded-xl bg-[#131b2e] border border-[#d4af37]/25 min-w-[58px]">
+                <span className="font-display text-xl sm:text-2xl font-bold text-amber-400 tabular-nums block">
+                  {realTimeLeft.seconds}
+                </span>
+                <span className="text-[10px] text-[#9ca3af] uppercase font-medium">Secs</span>
+              </div>
             </div>
-            <div className="p-2.5 sm:p-3 rounded-xl bg-[#131b2e] border border-[#d4af37]/25 min-w-[58px]">
-              <span className="font-display text-xl sm:text-2xl font-bold text-[#d4af37] tabular-nums block">
-                {timeLeft.hours}
-              </span>
-              <span className="text-[10px] text-[#9ca3af] uppercase font-medium">Hours</span>
+          ) : (
+            <div className="px-4 py-3 rounded-xl bg-[#131b2e] border border-[#d4af37]/25 text-xs text-[#cbd5e1] max-w-xs">
+              No exam date configured yet. Set your real exam date on the Home Screen to activate your countdown clock.
             </div>
-            <div className="p-2.5 sm:p-3 rounded-xl bg-[#131b2e] border border-[#d4af37]/25 min-w-[58px]">
-              <span className="font-display text-xl sm:text-2xl font-bold text-[#fbf9f4] tabular-nums block">
-                {timeLeft.minutes}
-              </span>
-              <span className="text-[10px] text-[#9ca3af] uppercase font-medium">Mins</span>
-            </div>
-            <div className="p-2.5 sm:p-3 rounded-xl bg-[#131b2e] border border-[#d4af37]/25 min-w-[58px]">
-              <span className="font-display text-xl sm:text-2xl font-bold text-amber-400 tabular-nums block">
-                {timeLeft.seconds}
-              </span>
-              <span className="text-[10px] text-[#9ca3af] uppercase font-medium">Secs</span>
-            </div>
-          </div>
+          )}
         </div>
       </section>
 
@@ -319,6 +342,7 @@ export const ExamPrepSection: React.FC<ExamPrepSectionProps> = React.memo(({
         {/* Matrix list */}
         <div className="grid gap-2.5">
           {displayTopics.map((item) => {
+            const effStatus = getEffectiveTopicStatus(item);
             const statusColors = {
               Mastered: 'bg-emerald-950/70 border-emerald-500/50 text-emerald-300',
               'In Progress': 'bg-amber-950/70 border-amber-500/50 text-amber-300',
@@ -345,12 +369,12 @@ export const ExamPrepSection: React.FC<ExamPrepSectionProps> = React.memo(({
 
                 <div className="flex items-center gap-2 shrink-0">
                   <button
-                    onClick={() => toggleTopicStatus(item.id)}
+                    onClick={() => toggleTopicStatus(item)}
                     className={`px-2.5 py-1 rounded-lg border text-xs font-medium transition-transform active:scale-95 ${
-                      statusColors[item.status]
+                      statusColors[effStatus]
                     }`}
                   >
-                    {item.status}
+                    {effStatus}
                   </button>
                 </div>
               </div>

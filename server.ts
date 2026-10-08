@@ -4,8 +4,40 @@ import path from 'path';
 import fs from 'fs';
 import crypto from 'crypto';
 import { WebSocketServer, WebSocket } from 'ws';
-import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI } from '@google/genai';
+import {
+  registerAccountInFirestore,
+  loginAccountInFirestore,
+  logoutAccountInFirestore,
+  syncUserProfileAndStatsInFirestore,
+  awardVaultPointsInFirestore,
+  saveCommunityPostToFirestore,
+  deleteCommunityPostFromFirestore,
+  saveCommunityReplyToFirestore,
+  deleteCommunityReplyFromFirestore,
+  saveCommunityChatToFirestore,
+  deleteCommunityChatFromFirestore,
+  saveCommunityReportToFirestore,
+  fetchOwnerDashboardFromFirestore,
+  fetchCommunityStateFromFirestore,
+} from './src/services/firebaseDb.ts';
+import {
+  calculateVaultPointsBreakdown,
+  VP_REWARD_PER_QUESTION,
+  VP_REWARD_PER_FOCUS_MINUTE,
+  VP_REWARD_60_MIN_BONUS,
+  evaluateVerifiedAchievements,
+  computeSmartRevisionSchedule,
+  advanceRevisionItemStage,
+} from './src/utils/securityAndVp.ts';
+
+process.on('unhandledRejection', (reason) => {
+  console.error('Unhandled Rejection in server process:', reason);
+});
+
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught Exception in server process:', err);
+});
 
 interface StoredUser {
   userId: string;
@@ -26,6 +58,44 @@ interface StoredUser {
   userStats?: Record<string, unknown>;
   createdAt: string;
   lastSeenAt: string;
+  lastLoginAt?: string;
+  lastLogoutAt?: string;
+  loginCount?: number;
+  logoutCount?: number;
+  loginHistory?: Array<{
+    sessionId: string;
+    loginAt: string;
+    logoutAt?: string;
+    lastActiveAt: string;
+    devicePlatform: string;
+    authMethod?: string;
+    durationMinutes?: number;
+  }>;
+  lastDevicePlatform?: string;
+  platformsUsed?: string[];
+  vaultPoints?: number;
+  questionVp?: number;
+  focusMinuteVp?: number;
+  focusBonusVp?: number;
+  grantedVpKeys?: string[];
+  vpTransactions?: Array<{
+    id: string;
+    userId: string;
+    username?: string;
+    amount: number;
+    reason: string;
+    category:
+      | 'question'
+      | 'focus_minute'
+      | 'focus_minutes'
+      | 'focus_bonus_60m'
+      | 'exam_bonus_5q'
+      | 'exam_bonus_20q'
+      | 'daily_usage';
+    relatedId: string;
+    grantKey: string;
+    timestamp: string;
+  }>;
 }
 
 export interface CommunityPostRecord {
@@ -118,12 +188,24 @@ interface CommunityDatabaseSchema {
   ownerAuth?: OwnerAuthState;
 }
 
-const DATA_DIR = path.join(process.cwd(), '.data');
-const DB_FILE = path.join(DATA_DIR, 'community_db.json');
+let DATA_DIR = path.join(process.cwd(), '.data');
+let DB_FILE = path.join(DATA_DIR, 'community_db.json');
 
 function ensureDataDir() {
-  if (!fs.existsSync(DATA_DIR)) {
-    fs.mkdirSync(DATA_DIR, { recursive: true });
+  try {
+    if (!fs.existsSync(DATA_DIR)) {
+      fs.mkdirSync(DATA_DIR, { recursive: true });
+    }
+  } catch {
+    DATA_DIR = path.join('/tmp', 'svh-data');
+    DB_FILE = path.join(DATA_DIR, 'community_db.json');
+    try {
+      if (!fs.existsSync(DATA_DIR)) {
+        fs.mkdirSync(DATA_DIR, { recursive: true });
+      }
+    } catch {
+      // ignore if fallback directory creation fails
+    }
   }
 }
 
@@ -421,7 +503,14 @@ function registerAnonymousDevice(deviceIdRaw: unknown, userId: string, nowIso: s
 async function startServer() {
   const app = express();
   const server = http.createServer(app);
-  const PORT = 3000;
+  const parsedPort = Number.parseInt(process.env.PORT || '', 10);
+  const PORT = Number.isFinite(parsedPort) && parsedPort > 0 ? parsedPort : 3000;
+  const HOST = '0.0.0.0';
+
+  // Cloud Run / container readiness & health check endpoint
+  app.get('/api/health', (_req, res) => {
+    res.status(200).json({ status: 'ok', service: 'study-vault-hub', port: PORT });
+  });
 
   // Standard security headers (iframe-compatible for AI Studio preview)
   app.use((_req, res, next) => {
@@ -455,7 +544,7 @@ async function startServer() {
       res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
       return res.redirect(
         302,
-        'https://github.com/babanrana2008-crypto/Study-Vault-Hub/releases/download/v1.0.0/Final.app-debug.apk'
+        'https://github.com/babanrana2008-crypto/Study-Vault-Hub/releases/download/v1.1.0/Best.app-debug.apk'
       );
     }
     res.setHeader('Content-Type', 'application/vnd.android.package-archive');
@@ -465,6 +554,35 @@ async function startServer() {
   });
 
   app.use(express.json({ limit: '8mb' }));
+
+  // Background startup sync of local registered accounts & community posts into shared Firebase Firestore
+  setTimeout(async () => {
+    try {
+      for (const u of Object.values(db.users)) {
+        if (u.username) {
+          await syncUserProfileAndStatsInFirestore({
+            userId: u.userId,
+            username: u.username,
+            name: u.displayName,
+            targetExam: (u.userStats?.activeGoal as string) || 'NEET',
+            stats: u.userStats as any,
+            devicePlatform: u.lastDevicePlatform || 'Web Server',
+          }).catch(() => {});
+        }
+      }
+      for (const p of db.posts) {
+        await saveCommunityPostToFirestore(p).catch(() => {});
+      }
+      for (const r of db.replies) {
+        await saveCommunityReplyToFirestore(r).catch(() => {});
+      }
+      for (const m of db.chatMessages) {
+        await saveCommunityChatToFirestore(m).catch(() => {});
+      }
+    } catch {
+      // ignore startup sync errors
+    }
+  }, 1500);
 
   // WebSocket setup on /ws/community
   const wss = new WebSocketServer({ noServer: true });
@@ -549,7 +667,7 @@ async function startServer() {
   // ============================================================================
 
   // Register a new Student account (or upgrade an existing anonymous session to a permanent Student account)
-  app.post('/api/auth/register', (req, res) => {
+  app.post('/api/auth/register', async (req, res) => {
     const rawName = sanitizeDisplayName(req.body?.name);
     const cleanUsername = normalizeUsername(req.body?.username);
     const rawPassword = typeof req.body?.password === 'string' ? req.body.password : '';
@@ -564,6 +682,10 @@ async function startServer() {
         : selectedGoals[0] || '';
     const rawClientStats =
       req.body?.userStats && typeof req.body.userStats === 'object' ? req.body.userStats : {};
+    const devicePlatform =
+      typeof req.body?.devicePlatform === 'string' && req.body.devicePlatform.trim()
+        ? req.body.devicePlatform.trim()
+        : 'Desktop Web';
 
     if (!rawName || rawName.length < 1) {
       return res.status(400).json({ error: 'Please enter your name.' });
@@ -596,7 +718,7 @@ async function startServer() {
 
     const existingAuthUser = authenticateRequest(req);
 
-    // Check username uniqueness across all accounts
+    // Check username uniqueness across all local accounts
     const usernameTakenByOther = Object.values(db.users).find(
       (u) =>
         u.username &&
@@ -607,6 +729,23 @@ async function startServer() {
       return res.status(409).json({
         error: 'That username is already taken. Please choose a different username or log in to your existing account.',
       });
+    }
+
+    // Also register in shared Firebase Firestore so Web and Android APK share the same account namespace
+    let firestoreRegistered: any = null;
+    try {
+      firestoreRegistered = await registerAccountInFirestore({
+        name: rawName,
+        username: cleanUsername,
+        password: rawPassword,
+        targetExam: activeGoal || 'NEET',
+        initialStats: rawClientStats as any,
+        devicePlatform,
+      });
+    } catch (fsErr: any) {
+      if (fsErr?.message?.includes('already taken')) {
+        return res.status(409).json({ error: fsErr.message });
+      }
     }
 
     const salt = crypto.randomBytes(16).toString('hex');
@@ -622,9 +761,17 @@ async function startServer() {
     delete sanitizedClientStats.passwordSalt;
     delete sanitizedClientStats.tokenHash;
 
+    const vpBreakdown = calculateVaultPointsBreakdown(sanitizedClientStats as any);
+    const initialSessionEntry = {
+      sessionId: `sess_${crypto.randomUUID()}`,
+      loginAt: nowIso,
+      lastActiveAt: nowIso,
+      devicePlatform,
+      authMethod: 'register',
+    };
+
     let targetUser: StoredUser;
     if (existingAuthUser && !existingAuthUser.username && existingAuthUser.role !== 'owner') {
-      // Upgrade existing anonymous session user so any prior activity is preserved under the same User ID
       targetUser = existingAuthUser;
       targetUser.username = cleanUsername;
       targetUser.role = 'student';
@@ -633,8 +780,20 @@ async function startServer() {
       targetUser.passwordHash = passwordHash;
       targetUser.displayName = rawName;
       targetUser.lastSeenAt = nowIso;
+      targetUser.lastLoginAt = nowIso;
+      targetUser.loginCount = 1;
+      targetUser.logoutCount = 0;
+      targetUser.loginHistory = [initialSessionEntry];
+      targetUser.lastDevicePlatform = devicePlatform;
+      targetUser.platformsUsed = [devicePlatform];
+      targetUser.vaultPoints = vpBreakdown.vaultPoints;
+      targetUser.questionVp = vpBreakdown.questionVp;
+      targetUser.focusMinuteVp = vpBreakdown.focusMinuteVp;
+      targetUser.focusBonusVp = vpBreakdown.focusBonusVp;
+      targetUser.grantedVpKeys = [];
+      targetUser.vpTransactions = firestoreRegistered?.vpTransactions || [];
     } else {
-      const userId = `usr_${crypto.randomUUID()}`;
+      const userId = firestoreRegistered?.id || `usr_${crypto.randomUUID()}`;
       targetUser = {
         userId,
         username: cleanUsername,
@@ -649,6 +808,18 @@ async function startServer() {
         svhAiButtonPosition: null,
         createdAt: nowIso,
         lastSeenAt: nowIso,
+        lastLoginAt: nowIso,
+        loginCount: 1,
+        logoutCount: 0,
+        loginHistory: [initialSessionEntry],
+        lastDevicePlatform: devicePlatform,
+        platformsUsed: [devicePlatform],
+        vaultPoints: vpBreakdown.vaultPoints,
+        questionVp: vpBreakdown.questionVp,
+        focusMinuteVp: vpBreakdown.focusMinuteVp,
+        focusBonusVp: vpBreakdown.focusBonusVp,
+        grantedVpKeys: [],
+        vpTransactions: firestoreRegistered?.vpTransactions || [],
       };
       db.users[userId] = targetUser;
     }
@@ -665,6 +836,16 @@ async function startServer() {
       selectedGoals,
       activeGoal,
       hasCompletedSetup: true,
+      vaultPoints: targetUser.vaultPoints || 0,
+      questionVp: targetUser.questionVp || 0,
+      focusMinuteVp: targetUser.focusMinuteVp || 0,
+      focusBonusVp: targetUser.focusBonusVp || 0,
+      vpTransactions: targetUser.vpTransactions || [],
+      loginCount: 1,
+      logoutCount: 0,
+      loginHistory: targetUser.loginHistory || [],
+      lastDevicePlatform: devicePlatform,
+      platformsUsed: targetUser.platformsUsed || [devicePlatform],
     };
     targetUser.userStats = mergedStats;
 
@@ -689,9 +870,13 @@ async function startServer() {
   });
 
   // UNIFIED LOGIN ENDPOINT: Authenticates either the Owner or a registered Student from the SAME Login screen
-  app.post('/api/auth/login', (req, res) => {
+  app.post('/api/auth/login', async (req, res) => {
     const cleanUsername = normalizeUsername(req.body?.username);
     const rawPassword = typeof req.body?.password === 'string' ? req.body.password : '';
+    const devicePlatform =
+      typeof req.body?.devicePlatform === 'string' && req.body.devicePlatform.trim()
+        ? req.body.devicePlatform.trim()
+        : 'Desktop Web';
 
     if (!cleanUsername || !rawPassword) {
       return res.status(400).json({ error: 'Please enter both your username and password.' });
@@ -718,7 +903,6 @@ async function startServer() {
 
       if (!ownerUser) {
         if (existingAnonUser && !existingAnonUser.username) {
-          // Upgrade current anonymous device profile into the single canonical Owner account to preserve existing data
           ownerUser = existingAnonUser;
           ownerUser.username = cleanUsername;
           ownerUser.role = 'owner';
@@ -755,6 +939,19 @@ async function startServer() {
         }
       }
 
+      ownerUser.lastLoginAt = nowIso;
+      ownerUser.loginCount = (Number(ownerUser.loginCount) || 0) + 1;
+      ownerUser.lastDevicePlatform = devicePlatform;
+      ownerUser.platformsUsed = Array.from(new Set([...(ownerUser.platformsUsed || []), devicePlatform]));
+      const ownerSessionEntry = {
+        sessionId: `sess_${crypto.randomUUID()}`,
+        loginAt: nowIso,
+        lastActiveAt: nowIso,
+        devicePlatform,
+        authMethod: 'owner_login',
+      };
+      ownerUser.loginHistory = [ownerSessionEntry, ...(ownerUser.loginHistory || [])].slice(0, 50);
+
       // Never store the Owner password or hash inside the normal user record
       delete ownerUser.passwordHash;
       delete ownerUser.passwordSalt;
@@ -768,6 +965,12 @@ async function startServer() {
         typeof existingStats.activeGoal === 'string' && existingStats.activeGoal.trim()
           ? existingStats.activeGoal
           : resolvedGoals[0];
+
+      const vpBreakdown = calculateVaultPointsBreakdown(existingStats as any, ownerUser.vpTransactions || []);
+      ownerUser.vaultPoints = Math.max(Number(ownerUser.vaultPoints || 0), vpBreakdown.vaultPoints);
+      ownerUser.questionVp = Math.max(Number(ownerUser.questionVp || 0), vpBreakdown.questionVp);
+      ownerUser.focusMinuteVp = Math.max(Number(ownerUser.focusMinuteVp || 0), vpBreakdown.focusMinuteVp);
+      ownerUser.focusBonusVp = Math.max(Number(ownerUser.focusBonusVp || 0), vpBreakdown.focusBonusVp);
 
       const resolvedOwnerStats: Record<string, unknown> = {
         ...existingStats,
@@ -787,8 +990,26 @@ async function startServer() {
         selectedGoals: resolvedGoals,
         activeGoal: resolvedActiveGoal,
         hasCompletedSetup: true,
+        vaultPoints: ownerUser.vaultPoints,
+        questionVp: ownerUser.questionVp,
+        focusMinuteVp: ownerUser.focusMinuteVp,
+        focusBonusVp: ownerUser.focusBonusVp,
+        vpTransactions: ownerUser.vpTransactions || [],
+        loginCount: ownerUser.loginCount,
+        logoutCount: ownerUser.logoutCount || 0,
+        lastLogoutAt: ownerUser.lastLogoutAt || '',
+        loginHistory: ownerUser.loginHistory,
+        lastDevicePlatform: devicePlatform,
+        platformsUsed: ownerUser.platformsUsed,
       };
       ownerUser.userStats = resolvedOwnerStats;
+
+      // Sync Owner login to shared Firestore
+      loginAccountInFirestore({
+        username: cleanUsername,
+        password: rawPassword,
+        devicePlatform,
+      }).catch(() => {});
 
       const authToken = issueUserSessionToken(ownerUser);
       const tokenHash = hashToken(authToken);
@@ -830,13 +1051,63 @@ async function startServer() {
     // =========================================================================
     // OUTCOME A: NORMAL STUDENT CREDENTIALS SUBMITTED -> SECURE STUDENT MODE
     // =========================================================================
-    const foundUser = Object.values(db.users).find(
+    let foundUser = Object.values(db.users).find(
       (u) => u.username && u.username.toLowerCase() === cleanUsername && u.role !== 'owner'
     );
 
+    // Check shared Firebase Firestore so accounts registered on the Android APK can sign in on Web and vice versa
+    let firestoreUser: any = null;
+    try {
+      firestoreUser = await loginAccountInFirestore({
+        username: cleanUsername,
+        password: rawPassword,
+        devicePlatform,
+      });
+    } catch (fsErr: any) {
+      if (!foundUser) {
+        return res.status(401).json({
+          error: fsErr?.message || 'Invalid username or password. Please check your credentials and try again.',
+        });
+      }
+    }
+
+    if (!foundUser && firestoreUser) {
+      const salt = crypto.randomBytes(16).toString('hex');
+      const passwordHash = hashUserPassword(rawPassword, salt);
+      const hydratedId = firestoreUser.id || `usr_${crypto.randomUUID()}`;
+      foundUser = {
+        userId: hydratedId,
+        username: firestoreUser.username || cleanUsername,
+        role: 'student',
+        accountStatus: 'active',
+        passwordSalt: salt,
+        passwordHash,
+        tokenHash: '',
+        sessionTokenHashes: [],
+        displayName: firestoreUser.name || cleanUsername,
+        profilePhotoUrl: firestoreUser.stats?.profilePhotoUrl || null,
+        svhAiButtonPosition: firestoreUser.stats?.svhAiButtonPosition || null,
+        userStats: firestoreUser.stats || {},
+        createdAt: firestoreUser.createdAt || nowIso,
+        lastSeenAt: nowIso,
+        lastLoginAt: nowIso,
+        loginCount: firestoreUser.loginCount || 1,
+        logoutCount: firestoreUser.logoutCount || 0,
+        loginHistory: firestoreUser.loginHistory || [],
+        lastDevicePlatform: devicePlatform,
+        platformsUsed: firestoreUser.platformsUsed || [devicePlatform],
+        vaultPoints: firestoreUser.vaultPoints || 0,
+        questionVp: firestoreUser.questionVp || 0,
+        focusMinuteVp: firestoreUser.focusMinuteVp || 0,
+        focusBonusVp: firestoreUser.focusBonusVp || 0,
+        vpTransactions: firestoreUser.vpTransactions || [],
+      };
+      db.users[hydratedId] = foundUser;
+    }
+
     if (
       !foundUser ||
-      !verifyUserPassword(rawPassword, foundUser.passwordSalt, foundUser.passwordHash)
+      (!firestoreUser && !verifyUserPassword(rawPassword, foundUser.passwordSalt, foundUser.passwordHash))
     ) {
       return res.status(401).json({
         error: 'Invalid username or password. Please check your credentials and try again.',
@@ -852,6 +1123,39 @@ async function startServer() {
     foundUser.role = 'student';
     foundUser.accountStatus = foundUser.accountStatus || 'active';
     foundUser.lastSeenAt = nowIso;
+    foundUser.lastLoginAt = nowIso;
+    foundUser.loginCount = (Number(foundUser.loginCount) || 0) + 1;
+    foundUser.lastDevicePlatform = devicePlatform;
+    foundUser.platformsUsed = Array.from(new Set([...(foundUser.platformsUsed || []), devicePlatform]));
+
+    const loginSessionEntry = {
+      sessionId: `sess_${crypto.randomUUID()}`,
+      loginAt: nowIso,
+      lastActiveAt: nowIso,
+      devicePlatform,
+      authMethod: 'login',
+    };
+    foundUser.loginHistory = [loginSessionEntry, ...(foundUser.loginHistory || [])].slice(0, 50);
+
+    // Merge Firestore stats if Firestore has newer progress or VP
+    if (firestoreUser?.stats) {
+      const fsAttempted = Number(firestoreUser.stats.questionsAttempted || 0);
+      const localAttempted = Number((foundUser.userStats as any)?.questionsAttempted || 0);
+      if (fsAttempted > localAttempted || Number(firestoreUser.vaultPoints || 0) > Number(foundUser.vaultPoints || 0)) {
+        foundUser.userStats = { ...(foundUser.userStats || {}), ...firestoreUser.stats };
+        foundUser.vaultPoints = Math.max(Number(foundUser.vaultPoints || 0), Number(firestoreUser.vaultPoints || 0));
+        foundUser.questionVp = Math.max(Number(foundUser.questionVp || 0), Number(firestoreUser.questionVp || 0));
+        foundUser.focusMinuteVp = Math.max(Number(foundUser.focusMinuteVp || 0), Number(firestoreUser.focusMinuteVp || 0));
+        foundUser.focusBonusVp = Math.max(Number(foundUser.focusBonusVp || 0), Number(firestoreUser.focusBonusVp || 0));
+        foundUser.vpTransactions = firestoreUser.vpTransactions || foundUser.vpTransactions || [];
+      }
+    }
+
+    const vpBreakdown = calculateVaultPointsBreakdown(foundUser.userStats as any, foundUser.vpTransactions || []);
+    foundUser.vaultPoints = Math.max(Number(foundUser.vaultPoints || 0), vpBreakdown.vaultPoints);
+    foundUser.questionVp = Math.max(Number(foundUser.questionVp || 0), vpBreakdown.questionVp);
+    foundUser.focusMinuteVp = Math.max(Number(foundUser.focusMinuteVp || 0), vpBreakdown.focusMinuteVp);
+    foundUser.focusBonusVp = Math.max(Number(foundUser.focusBonusVp || 0), vpBreakdown.focusBonusVp);
 
     // Ensure userStats object is populated and linked to permanent userId
     const resolvedStats: Record<string, unknown> = {
@@ -870,8 +1174,30 @@ async function startServer() {
           : (foundUser.userStats?.svhAiButtonPosition as { xRatio: number; yRatio: number } | null) ||
             null,
       hasCompletedSetup: true,
+      vaultPoints: foundUser.vaultPoints,
+      questionVp: foundUser.questionVp,
+      focusMinuteVp: foundUser.focusMinuteVp,
+      focusBonusVp: foundUser.focusBonusVp,
+      vpTransactions: foundUser.vpTransactions || [],
+      loginCount: foundUser.loginCount,
+      logoutCount: foundUser.logoutCount || 0,
+      lastLogoutAt: foundUser.lastLogoutAt || '',
+      loginHistory: foundUser.loginHistory,
+      lastDevicePlatform: devicePlatform,
+      platformsUsed: foundUser.platformsUsed,
     };
     foundUser.userStats = resolvedStats;
+
+    if (!firestoreUser) {
+      syncUserProfileAndStatsInFirestore({
+        userId: foundUser.userId,
+        username: foundUser.username,
+        name: foundUser.displayName,
+        targetExam: (resolvedStats.activeGoal as string) || 'NEET',
+        stats: resolvedStats as any,
+        devicePlatform,
+      }).catch(() => {});
+    }
 
     const authToken = issueUserSessionToken(foundUser);
     if (req.body?.deviceId) {
@@ -1007,6 +1333,15 @@ async function startServer() {
     const resolvedRole: 'owner' | 'student' = isOwner ? 'owner' : 'student';
     user.role = resolvedRole;
 
+    const vpBreakdown = calculateVaultPointsBreakdown(sanitizedIncoming as any, user.vpTransactions || []);
+    user.vaultPoints = Math.max(Number(user.vaultPoints || 0), Number(sanitizedIncoming.vaultPoints || 0), vpBreakdown.vaultPoints);
+    user.questionVp = Math.max(Number(user.questionVp || 0), Number(sanitizedIncoming.questionVp || 0), vpBreakdown.questionVp);
+    user.focusMinuteVp = Math.max(Number(user.focusMinuteVp || 0), Number(sanitizedIncoming.focusMinuteVp || 0), vpBreakdown.focusMinuteVp);
+    user.focusBonusVp = Math.max(Number(user.focusBonusVp || 0), Number(sanitizedIncoming.focusBonusVp || 0), vpBreakdown.focusBonusVp);
+    if (Array.isArray(sanitizedIncoming.vpTransactions) && sanitizedIncoming.vpTransactions.length > (user.vpTransactions?.length || 0)) {
+      user.vpTransactions = sanitizedIncoming.vpTransactions as any;
+    }
+
     user.userStats = {
       ...(user.userStats || {}),
       ...sanitizedIncoming,
@@ -1016,8 +1351,29 @@ async function startServer() {
       name: user.displayName,
       profilePhotoUrl: user.profilePhotoUrl || null,
       svhAiButtonPosition: user.svhAiButtonPosition || null,
+      vaultPoints: user.vaultPoints,
+      questionVp: user.questionVp,
+      focusMinuteVp: user.focusMinuteVp,
+      focusBonusVp: user.focusBonusVp,
+      vpTransactions: user.vpTransactions || [],
+      loginCount: user.loginCount || 1,
+      logoutCount: user.logoutCount || 0,
+      lastLogoutAt: user.lastLogoutAt || '',
+      loginHistory: user.loginHistory || [],
+      lastDevicePlatform: user.lastDevicePlatform || 'Desktop Web',
+      platformsUsed: user.platformsUsed || ['Desktop Web'],
     };
     user.lastSeenAt = new Date().toISOString();
+
+    // Sync to shared Firebase Firestore as well
+    syncUserProfileAndStatsInFirestore({
+      userId: user.userId,
+      username: user.username,
+      name: user.displayName,
+      targetExam: (user.userStats?.activeGoal as string) || 'NEET',
+      stats: user.userStats as any,
+      devicePlatform: user.lastDevicePlatform || 'Desktop Web',
+    }).catch(() => {});
 
     if (profileChanged) {
       db.posts.forEach((p) => {
@@ -1064,11 +1420,32 @@ async function startServer() {
   // Log out current device session WITHOUT deleting account or data (terminates Student or Owner session)
   app.post('/api/auth/logout', (req, res) => {
     const authHeader = req.headers.authorization;
+    const nowIso = new Date().toISOString();
+    const user = authenticateRequest(req);
+    if (user) {
+      user.lastLogoutAt = nowIso;
+      user.lastSeenAt = nowIso;
+      user.logoutCount = (Number(user.logoutCount) || 0) + 1;
+      if (Array.isArray(user.loginHistory) && user.loginHistory.length > 0 && !user.loginHistory[0].logoutAt) {
+        const loginMs = new Date(user.loginHistory[0].loginAt).getTime();
+        const durMin = !isNaN(loginMs) ? Math.max(1, Math.round((Date.now() - loginMs) / 60000)) : 1;
+        user.loginHistory[0] = {
+          ...user.loginHistory[0],
+          logoutAt: nowIso,
+          lastActiveAt: nowIso,
+          durationMinutes: durMin,
+        };
+      }
+      logoutAccountInFirestore({
+        userId: user.userId,
+        username: user.username,
+        devicePlatform: req.body?.devicePlatform,
+      }).catch(() => {});
+    }
     if (authHeader && authHeader.startsWith('Bearer ')) {
       const rawToken = authHeader.slice(7).trim();
       if (rawToken) {
         const targetHash = hashToken(rawToken);
-        const user = authenticateRequest(req);
         if (user) {
           if (Array.isArray(user.sessionTokenHashes)) {
             user.sessionTokenHashes = user.sessionTokenHashes.filter(
@@ -1090,7 +1467,210 @@ async function startServer() {
         saveDatabase(db);
       }
     }
-    return res.json({ ok: true });
+    return res.json({ ok: true, loggedOutAt: nowIso });
+  });
+
+  // Backend-controlled Idempotent Vault Points (VP) Reward Endpoint
+  // Grants +4 VP per valid completed question, +1 VP per verified focused study minute,
+  // and +20 VP bonus per completed 60-minute Focus Session (= 80 VP total for 60 focused minutes).
+  app.post('/api/vp/award', async (req, res) => {
+    try {
+      const user = authenticateRequest(req);
+      const { userId, username, grantKey, category, durationMinutes, reason, relatedId, devicePlatform } = req.body || {};
+      const cleanGrantKey = String(grantKey || '').trim();
+      if (!cleanGrantKey) {
+        return res.status(400).json({ error: 'Missing grantKey for idempotent VP reward.' });
+      }
+
+      const targetUser =
+        user ||
+        (userId && db.users[userId]) ||
+        (username
+          ? Object.values(db.users).find((u) => u.username && u.username.toLowerCase() === String(username).toLowerCase())
+          : null);
+
+      // 1. Grant in shared Firebase Firestore (prevents duplicate grants across Web & Android APK)
+      const fsResult = await awardVaultPointsInFirestore({
+        userId: targetUser?.userId || userId || 'usr_guest',
+        username: targetUser?.username || username,
+        grantKey: cleanGrantKey,
+        category: category || 'question',
+        durationMinutes: Number(durationMinutes) || 0,
+        reason: reason || '',
+        relatedId: relatedId || cleanGrantKey,
+        devicePlatform: devicePlatform || 'Desktop Web',
+      }).catch(() => null);
+
+      // 2. Also update local server user record idempotently
+      if (targetUser) {
+        const grantedKeys = Array.isArray(targetUser.grantedVpKeys) ? targetUser.grantedVpKeys : [];
+        if (grantedKeys.includes(cleanGrantKey)) {
+          return res.json({
+            awarded: false,
+            duplicate: true,
+            amountEarned: 0,
+            bonusEarned: 0,
+            awardedVp: 0,
+            bonusVp: 0,
+            totalAwardedVp: 0,
+            vaultPoints: targetUser.vaultPoints || 0,
+            questionVp: targetUser.questionVp || 0,
+            focusMinuteVp: targetUser.focusMinuteVp || 0,
+            focusBonusVp: targetUser.focusBonusVp || 0,
+            vpTransactions: (targetUser.vpTransactions || []).slice(0, 100),
+            transactions: (targetUser.vpTransactions || []).slice(0, 100),
+          });
+        }
+
+        let amountEarned = 0;
+        let bonusEarned = 0;
+        const nowIso = new Date().toISOString();
+        const newTxs: NonNullable<StoredUser['vpTransactions']> = [];
+
+        if (category === 'question') {
+          amountEarned = VP_REWARD_PER_QUESTION;
+          newTxs.push({
+            id: `vptx_${crypto.randomUUID()}`,
+            userId: targetUser.userId,
+            username: targetUser.username,
+            amount: VP_REWARD_PER_QUESTION,
+            reason: reason || 'Completed valid question (+1 VP)',
+            category: 'question',
+            relatedId: relatedId || cleanGrantKey,
+            grantKey: cleanGrantKey,
+            timestamp: nowIso,
+          });
+        } else if (category === 'exam_bonus_5q') {
+          amountEarned = 10;
+          newTxs.push({
+            id: `vptx_${crypto.randomUUID()}`,
+            userId: targetUser.userId,
+            username: targetUser.username,
+            amount: 10,
+            reason: reason || 'Completed 5 Valid Exam/Exam-Oriented Questions (+10 VP)',
+            category: 'exam_bonus_5q',
+            relatedId: relatedId || 'exam_milestone_5q',
+            grantKey: cleanGrantKey,
+            timestamp: nowIso,
+          });
+        } else if (category === 'exam_bonus_20q') {
+          amountEarned = 40;
+          newTxs.push({
+            id: `vptx_${crypto.randomUUID()}`,
+            userId: targetUser.userId,
+            username: targetUser.username,
+            amount: 40,
+            reason: reason || 'Completed 20 Valid Exam/Exam-Oriented Questions (+40 VP)',
+            category: 'exam_bonus_20q',
+            relatedId: relatedId || 'exam_milestone_20q',
+            grantKey: cleanGrantKey,
+            timestamp: nowIso,
+          });
+        } else if (category === 'daily_usage') {
+          amountEarned = 2;
+          newTxs.push({
+            id: `vptx_${crypto.randomUUID()}`,
+            userId: targetUser.userId,
+            username: targetUser.username,
+            amount: 2,
+            reason: reason || 'Qualifying Daily Usage (+2 VP)',
+            category: 'daily_usage',
+            relatedId: relatedId || nowIso.split('T')[0],
+            grantKey: cleanGrantKey,
+            timestamp: nowIso,
+          });
+        } else if (category === 'focus_session') {
+          const mins = Math.max(0, Math.floor(Number(durationMinutes) || 0));
+          if (mins > 0) {
+            amountEarned = mins * VP_REWARD_PER_FOCUS_MINUTE;
+            if (amountEarned > 0) {
+              newTxs.push({
+                id: `vptx_${crypto.randomUUID()}`,
+                userId: targetUser.userId,
+                username: targetUser.username,
+                amount: amountEarned,
+                reason: reason || `Verified focused study (${mins} min)`,
+                category: 'focus_minute',
+                relatedId: relatedId || cleanGrantKey,
+                grantKey: `${cleanGrantKey}:minutes`,
+                timestamp: nowIso,
+              });
+            }
+            if (mins >= 60) {
+              const blocks = Math.floor(mins / 60);
+              bonusEarned = blocks * VP_REWARD_60_MIN_BONUS;
+              newTxs.push({
+                id: `vptx_${crypto.randomUUID()}`,
+                userId: targetUser.userId,
+                username: targetUser.username,
+                amount: bonusEarned,
+                reason: `Completed 60-Minute Focus Study (+${bonusEarned} VP)`,
+                category: 'focus_bonus_60m',
+                relatedId: relatedId || cleanGrantKey,
+                grantKey: `${cleanGrantKey}:bonus60`,
+                timestamp: nowIso,
+              });
+            }
+          }
+        }
+
+        const totalDelta = amountEarned + bonusEarned;
+        targetUser.grantedVpKeys = [cleanGrantKey, ...grantedKeys].slice(0, 2000);
+        targetUser.vaultPoints = Math.max(Number(targetUser.vaultPoints || 0) + totalDelta, Number(fsResult?.vaultPoints || 0));
+        targetUser.questionVp = Math.max(
+          Number(targetUser.questionVp || 0) + (category === 'question' ? amountEarned : 0),
+          Number(fsResult?.questionVp || 0)
+        );
+        targetUser.focusMinuteVp = Math.max(
+          Number(targetUser.focusMinuteVp || 0) + (category === 'focus_session' ? amountEarned : 0),
+          Number(fsResult?.focusMinuteVp || 0)
+        );
+        targetUser.focusBonusVp = Math.max(
+          Number(targetUser.focusBonusVp || 0) + bonusEarned,
+          Number(fsResult?.focusBonusVp || 0)
+        );
+        targetUser.vpTransactions = [...newTxs, ...(targetUser.vpTransactions || [])].slice(0, 200);
+        targetUser.lastSeenAt = nowIso;
+
+        if (targetUser.userStats && typeof targetUser.userStats === 'object') {
+          targetUser.userStats = {
+            ...targetUser.userStats,
+            vaultPoints: targetUser.vaultPoints,
+            questionVp: targetUser.questionVp,
+            focusMinuteVp: targetUser.focusMinuteVp,
+            focusBonusVp: targetUser.focusBonusVp,
+            vpTransactions: targetUser.vpTransactions,
+          };
+        }
+        saveDatabase(db);
+
+        return res.json({
+          awarded: totalDelta > 0,
+          duplicate: false,
+          amountEarned,
+          bonusEarned,
+          awardedVp: amountEarned,
+          bonusVp: bonusEarned,
+          totalGranted: totalDelta,
+          totalAwardedVp: totalDelta,
+          vaultPoints: targetUser.vaultPoints,
+          questionVp: targetUser.questionVp,
+          focusMinuteVp: targetUser.focusMinuteVp,
+          focusBonusVp: targetUser.focusBonusVp,
+          vpTransactions: targetUser.vpTransactions.slice(0, 100),
+          transactions: targetUser.vpTransactions.slice(0, 100),
+        });
+      }
+
+      if (fsResult) {
+        return res.json(fsResult);
+      }
+
+      return res.status(404).json({ error: 'User account not found for VP grant.' });
+    } catch (err) {
+      console.error('VP Award Error:', err);
+      return res.status(500).json({ error: 'Failed to award Vault Points.' });
+    }
   });
 
   // Permanently delete account and associated personal/private data (ONLY on explicit confirmation)
@@ -1382,12 +1962,41 @@ async function startServer() {
     });
   });
 
-  // 3. Get full Community state (posts, replies, chat messages, online count)
-  app.get('/api/community/state', (_req, res) => {
+  // 3. Get full Community state (posts, replies, chat messages, online count) merged with shared Firebase Firestore
+  app.get('/api/community/state', async (_req, res) => {
+    const fsState = await fetchCommunityStateFromFirestore().catch(() => null);
+    const postMap = new Map<string, CommunityPostRecord>();
+    for (const p of db.posts) postMap.set(p.id, p);
+    if (fsState?.posts) {
+      for (const p of fsState.posts) postMap.set(p.id, p);
+    }
+
+    const replyMap = new Map<string, CommunityReplyRecord>();
+    for (const r of db.replies) replyMap.set(r.id, r);
+    if (fsState?.replies) {
+      for (const r of fsState.replies) replyMap.set(r.id, r);
+    }
+
+    const chatMap = new Map<string, CommunityChatMessageRecord>();
+    for (const m of db.chatMessages) chatMap.set(m.id, m);
+    if (fsState?.chatMessages) {
+      for (const m of fsState.chatMessages) chatMap.set(m.id, m);
+    }
+
+    const mergedPosts = Array.from(postMap.values()).sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
+    const mergedReplies = Array.from(replyMap.values()).sort(
+      (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+    );
+    const mergedChat = Array.from(chatMap.values()).sort(
+      (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+    );
+
     return res.json({
-      posts: db.posts,
-      replies: db.replies,
-      chatMessages: db.chatMessages,
+      posts: mergedPosts,
+      replies: mergedReplies,
+      chatMessages: mergedChat,
       onlineCount: Math.max(1, connectedClients.size),
     });
   });
@@ -1434,6 +2043,7 @@ async function startServer() {
 
     db.posts.unshift(newPost);
     saveDatabase(db);
+    saveCommunityPostToFirestore(newPost).catch(() => {});
 
     broadcastEvent({
       type: 'post:created',
@@ -1466,6 +2076,7 @@ async function startServer() {
     db.replies = db.replies.filter((r) => r.postId !== postId);
     db.reports = (db.reports || []).filter((rep) => rep.targetId !== postId);
     saveDatabase(db);
+    deleteCommunityPostFromFirestore(postId).catch(() => {});
 
     broadcastEvent({
       type: 'post:deleted',
@@ -1522,6 +2133,7 @@ async function startServer() {
     db.replies.push(newReply);
     parentPost.replyCount = db.replies.filter((r) => r.postId === postId).length;
     saveDatabase(db);
+    saveCommunityReplyToFirestore(newReply, parentPost).catch(() => {});
 
     broadcastEvent({
       type: 'reply:created',
@@ -1566,6 +2178,7 @@ async function startServer() {
     }
 
     saveDatabase(db);
+    deleteCommunityReplyFromFirestore(replyId).catch(() => {});
 
     broadcastEvent({
       type: 'reply:deleted',
@@ -1612,6 +2225,7 @@ async function startServer() {
 
     db.chatMessages.push(newMessage);
     saveDatabase(db);
+    saveCommunityChatToFirestore(newMessage).catch(() => {});
 
     broadcastEvent({
       type: 'chat:created',
@@ -1643,6 +2257,7 @@ async function startServer() {
     db.chatMessages.splice(msgIndex, 1);
     db.reports = (db.reports || []).filter((rep) => rep.targetId !== messageId);
     saveDatabase(db);
+    deleteCommunityChatFromFirestore(messageId).catch(() => {});
 
     broadcastEvent({
       type: 'chat:deleted',
@@ -1680,6 +2295,7 @@ async function startServer() {
 
     db.reports.push(newReport);
     saveDatabase(db);
+    saveCommunityReportToFirestore(newReport).catch(() => {});
 
     return res.status(201).json({ ok: true, reportId: newReport.id });
   });
@@ -1889,16 +2505,23 @@ async function startServer() {
       saveDatabase(db);
     }
 
-    const systemInstruction = `You are SVH AI, the official personal AI study assistant inside Study Vault Hub (Founded & Created by Soumyadip Rana).
+    const systemInstruction = `You are SVH AI, the official personal AI study assistant inside Study Vault Hub (Developed by Soumyadip Rana).
 
-STRICT PERSONALIZATION & HONESTY RULES:
+STRICT PERSONALIZATION, ACADEMIC ACCURACY & HONESTY RULES:
 1. Use ONLY the real student data provided below. NEVER invent, guess, or fabricate statistics, weak topics, test scores, study hours, target exam dates, or past activity.
 2. If the student asks about their weak topics, mistake analysis, or performance AND their real questionsAttempted is 0 (or weakTopics list is empty), state honestly that they have not attempted enough practice questions yet to detect weak topics, and ask which subject or chapter they would like to practice or revise first.
 3. If the student asks for a personalized study plan or timetable and required details (such as their exam date, daily available study hours, or current class/chapter progress) are missing from the real data below, ask the student for those specific details or offer a structured plan tailored to their known active goal and subjects while asking how many hours per day they can dedicate.
-4. Keep explanations clear, academically rigorous, encouraging, and structured with clean headings, bullet points, key formulas/mechanisms, and NCERT/exam relevance where appropriate.
+4. For academic questions in Physics, Chemistry, Biology, Mathematics, NEET, JEE, Board Exams, CUET, Commerce, and CA: provide rigorous, accurate, step-by-step explanations, verify mathematical/stoichiometric calculations carefully, and cite NCERT concepts or formulas where relevant. If any information is uncertain, clearly state the uncertainty instead of inventing facts.
+5. Keep explanations clear, academically rigorous, encouraging, and structured with clean headings, bullet points, key formulas/mechanisms, and exam relevance.
 
 REAL STUDENT APP DATA SNAPSHOT:
 ${JSON.stringify(studentContext, null, 2)}`;
+
+    // Increment real SVH AI usage count for user
+    user.userStats = {
+      ...(user.userStats || {}),
+      svhAiUsageCount: (Number(user.userStats?.svhAiUsageCount) || 0) + 1,
+    };
 
     return {
       user,
@@ -2124,6 +2747,622 @@ ${JSON.stringify(studentContext, null, 2)}`;
         conversation,
         userMessage: userMsgRecord,
       });
+    }
+  });
+
+  // ============================================================================
+  // AI PERSONAL STUDY PLANNER, SMART REVISION & VERIFIED ACHIEVEMENTS ENDPOINTS
+  // ============================================================================
+
+  // Generate a personalized AI Study Plan using REAL Google Gemini and real student data
+  app.post('/api/svh-ai/study-plan', async (req, res) => {
+    const user = authenticateRequest(req);
+    if (!user) {
+      return res.status(401).json({ error: 'Unauthorized: Please refresh your session.' });
+    }
+
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      return res.status(500).json({ error: 'SVH AI service key is not configured on the server.' });
+    }
+
+    const studentContext = req.body?.studentContext || {};
+    const stats = (user.userStats || {}) as Record<string, any>;
+    const questionsAttempted = Number(
+      studentContext?.practiceStats?.questionsAttempted ?? stats.questionsAttempted ?? 0
+    );
+    const totalStudyMinutes = Number(
+      studentContext?.trackerActivity?.totalStudyMinutes ?? stats.totalStudyMinutes ?? 0
+    );
+    const activeGoal = String(
+      studentContext?.activeGoal || stats.activeGoal || 'General Study'
+    );
+    const activeSubjects: string[] = Array.isArray(studentContext?.activeSubjects)
+      ? studentContext.activeSubjects
+      : ['Physics', 'Chemistry', 'Biology'];
+
+    const hasRealActivity = questionsAttempted > 0 || totalStudyMinutes > 0;
+
+    // If user has zero real study/practice activity, do NOT fabricate weaknesses or stats
+    if (!hasRealActivity) {
+      return res.json({
+        ok: true,
+        insufficientData: true,
+        notice:
+          'More real study activity is needed before SVH AI can analyze your personal weaknesses or accuracy trends. Complete at least one practice question or focus session first, or ask SVH AI in chat for a starter syllabus schedule.',
+        studyPlan: null,
+      });
+    }
+
+    const ai = new GoogleGenAI({
+      apiKey,
+      httpOptions: {
+        headers: {
+          'User-Agent': 'aistudio-build',
+        },
+      },
+    });
+
+    const plannerPrompt = `Based STRICTLY on this student's real Study Vault Hub data below, generate a concise, practical, personalized 3-day study plan.
+Do NOT invent any fake past scores or imaginary weak topics. Only reference weak topics or studied chapters that actually appear in the student's real data, plus core high-yield topics for their active goal (${activeGoal}: ${activeSubjects.join(', ')}).
+
+Return ONLY valid JSON matching this structure:
+{
+  "summary": "1-2 sentence personalized coaching summary referencing their real ${questionsAttempted} solved questions and ${totalStudyMinutes} study minutes",
+  "items": [
+    {
+      "dayLabel": "Day 1",
+      "subject": "Subject Name",
+      "topic": "Specific Topic or Revision Target",
+      "focusMinutes": 45,
+      "practiceQuestions": 15,
+      "priority": "High"
+    }
+  ]
+}
+
+REAL STUDENT DATA:
+${JSON.stringify(studentContext, null, 2)}`;
+
+    try {
+      let parsedPlan: { summary?: string; items?: Array<any> } | null = null;
+      for (const modelName of SVH_AI_MODELS) {
+        try {
+          const genRes = await ai.models.generateContent({
+            model: modelName,
+            contents: plannerPrompt,
+            config: {
+              responseMimeType: 'application/json',
+            },
+          });
+          const rawText = genRes?.text?.trim() || '';
+          if (rawText) {
+            const cleaned = rawText.replace(/^```json\s*/i, '').replace(/```\s*$/i, '').trim();
+            parsedPlan = JSON.parse(cleaned);
+            if (parsedPlan && Array.isArray(parsedPlan.items) && parsedPlan.items.length > 0) {
+              break;
+            }
+          }
+        } catch {
+          // try next model
+        }
+      }
+
+      if (!parsedPlan || !Array.isArray(parsedPlan.items) || parsedPlan.items.length === 0) {
+        return res.status(500).json({
+          error: 'Could not generate AI study plan right now. Please try again.',
+        });
+      }
+
+      const nowIso = new Date().toISOString();
+      const studyPlan = {
+        id: `plan_${crypto.randomUUID()}`,
+        createdAt: nowIso,
+        goal: activeGoal,
+        summary:
+          typeof parsedPlan.summary === 'string' && parsedPlan.summary.trim()
+            ? parsedPlan.summary.trim()
+            : `Personalized plan based on ${questionsAttempted} solved questions and ${totalStudyMinutes} min of tracked study.`,
+        insufficientDataNotice: null,
+        items: parsedPlan.items.slice(0, 6).map((it: any, idx: number) => ({
+          id: `plan_item_${Date.now()}_${idx}`,
+          dayLabel: String(it.dayLabel || `Session ${idx + 1}`).slice(0, 30),
+          subject: String(it.subject || activeSubjects[0] || 'Core Subject').slice(0, 50),
+          topic: String(it.topic || 'Concept Revision & Practice').slice(0, 120),
+          focusMinutes: Math.max(15, Math.min(180, Number(it.focusMinutes) || 45)),
+          practiceQuestions: Math.max(5, Math.min(100, Number(it.practiceQuestions) || 15)),
+          priority:
+            it.priority === 'High' || it.priority === 'Medium' ? it.priority : ('Normal' as const),
+          completed: false,
+        })),
+      };
+
+      user.userStats = {
+        ...(user.userStats || {}),
+        activeStudyPlan: studyPlan,
+        svhAiUsageCount: (Number(user.userStats?.svhAiUsageCount) || 0) + 1,
+      };
+      saveDatabase(db);
+
+      return res.json({
+        ok: true,
+        insufficientData: false,
+        studyPlan,
+      });
+    } catch (err) {
+      console.error('AI Study Plan generation error:', err);
+      return res.status(500).json({
+        error: 'Failed to generate AI Study Plan. Please try again.',
+      });
+    }
+  });
+
+  // Get & reconcile Smart Revision + Spaced Repetition schedule from real user activity
+  app.post('/api/svh-ai/smart-revision', (req, res) => {
+    const user = authenticateRequest(req);
+    const clientStats = (req.body?.userStats || {}) as Record<string, any>;
+    const mergedStats = {
+      ...(user?.userStats || {}),
+      ...clientStats,
+    };
+
+    const action = req.body?.action;
+    const revisionId = typeof req.body?.revisionId === 'string' ? req.body.revisionId : '';
+
+    let schedule = computeSmartRevisionSchedule(mergedStats as any);
+    if (action === 'complete_review' && revisionId) {
+      schedule = advanceRevisionItemStage(schedule, revisionId);
+    }
+
+    if (user) {
+      user.userStats = {
+        ...(user.userStats || {}),
+        revisionSchedule: schedule,
+      };
+      saveDatabase(db);
+    }
+
+    return res.json({
+      ok: true,
+      revisionSchedule: schedule,
+    });
+  });
+
+  // Backend-verified Achievements & Badges evaluation
+  app.post('/api/achievements/verify', (req, res) => {
+    const user = authenticateRequest(req);
+    const clientStats = (req.body?.userStats || {}) as Record<string, any>;
+    const mergedStats = {
+      ...(user?.userStats || {}),
+      ...clientStats,
+    };
+
+    const verification = evaluateVerifiedAchievements(mergedStats as any);
+    if (user) {
+      user.userStats = {
+        ...(user.userStats || {}),
+        unlockedAchievements: verification.unlockedAchievements,
+      };
+      saveDatabase(db);
+    }
+
+    return res.json({
+      ok: true,
+      ...verification,
+    });
+  });
+
+  // ============================================================================
+  // SVH AI VOICE TUTOR — REAL AUDIO TRANSCRIPTION (STT) & MALE VOICE TTS
+  // ============================================================================
+
+  // Transcribe recorded microphone audio via Google Gemini multimodal audio input
+  app.post('/api/svh-ai/voice/transcribe', async (req, res) => {
+    const user = authenticateRequest(req);
+    if (!user) {
+      return res.status(401).json({ error: 'Unauthorized: Please refresh your session.' });
+    }
+
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      return res.status(500).json({ error: 'SVH AI service key is not configured on the server.' });
+    }
+
+    const audioBase64 = typeof req.body?.audioBase64 === 'string' ? req.body.audioBase64.trim() : '';
+    const mimeType = typeof req.body?.mimeType === 'string' && req.body.mimeType.trim()
+      ? req.body.mimeType.trim()
+      : 'audio/webm';
+
+    if (!audioBase64) {
+      return res.status(400).json({ error: 'No audio data recorded.' });
+    }
+
+    const ai = new GoogleGenAI({
+      apiKey,
+      httpOptions: {
+        headers: {
+          'User-Agent': 'aistudio-build',
+        },
+      },
+    });
+
+    try {
+      let transcript = '';
+      for (const modelName of SVH_AI_MODELS) {
+        try {
+          const genRes = await ai.models.generateContent({
+            model: modelName,
+            contents: [
+              {
+                role: 'user',
+                parts: [
+                  {
+                    inlineData: {
+                      mimeType,
+                      data: audioBase64,
+                    },
+                  },
+                  {
+                    text: 'Transcribe the spoken question or statement in this audio accurately into plain text (English / Indian English academic terms for Physics, Chemistry, Biology, Mathematics, NEET, JEE). Return ONLY the exact transcribed text with no extra commentary or quotes. If the audio is completely silent or unintelligible, return an empty string.',
+                  },
+                ],
+              },
+            ],
+          });
+          const candidate = (genRes?.text || '').trim();
+          if (candidate) {
+            transcript = candidate;
+            break;
+          }
+        } catch {
+          // try next model
+        }
+      }
+
+      return res.json({
+        ok: true,
+        transcript,
+      });
+    } catch (err) {
+      console.error('Voice transcription error:', err);
+      return res.status(500).json({
+        error: 'Could not transcribe audio right now. Please try speaking again or type your question.',
+      });
+    }
+  });
+
+  // Synthesize natural-sounding MALE voice audio via Google Gemini TTS (gemini-2.5-flash-preview-tts)
+  app.post('/api/svh-ai/voice/tts', async (req, res) => {
+    const user = authenticateRequest(req);
+    if (!user) {
+      return res.status(401).json({ error: 'Unauthorized: Please refresh your session.' });
+    }
+
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      return res.status(500).json({ error: 'SVH AI service key is not configured on the server.' });
+    }
+
+    const rawText = typeof req.body?.text === 'string' ? req.body.text.trim() : '';
+    if (!rawText) {
+      return res.status(400).json({ error: 'Missing text for speech synthesis.' });
+    }
+
+    // Clean markdown formatting for clear natural speech
+    const cleanSpeechText = rawText
+      .replace(/```[\s\S]*?```/g, ' ')
+      .replace(/[#*`_~]/g, '')
+      .replace(/\[(.*?)\]\(.*?\)/g, '$1')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 1800);
+
+    const ai = new GoogleGenAI({
+      apiKey,
+      httpOptions: {
+        headers: {
+          'User-Agent': 'aistudio-build',
+        },
+      },
+    });
+
+    try {
+      const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash-preview-tts',
+        contents: [{ parts: [{ text: cleanSpeechText }] }],
+        config: {
+          responseModalities: ['AUDIO'],
+          speechConfig: {
+            voiceConfig: {
+              // 'Puck' or 'Charon' or 'Fenrir' or 'Orus' are natural male voices in Gemini TTS
+              prebuiltVoiceConfig: { voiceName: 'Puck' },
+            },
+          },
+        },
+      });
+
+      const inlineData = response.candidates?.[0]?.content?.parts?.[0]?.inlineData;
+      const base64Audio = inlineData?.data || '';
+      const audioMimeType = inlineData?.mimeType || 'audio/pcm;rate=24000';
+
+      if (!base64Audio) {
+        return res.status(500).json({ error: 'TTS model did not return audio data.' });
+      }
+
+      // If Gemini TTS returns raw 16-bit 24kHz mono PCM, wrap it in a standard WAV header so HTML5 <audio> plays it directly on Web and Android
+      const pcmBuffer = Buffer.from(base64Audio, 'base64');
+      let wavBase64 = base64Audio;
+      let finalMime = audioMimeType;
+
+      if (audioMimeType.includes('pcm') || audioMimeType.includes('L16') || !audioMimeType.includes('wav')) {
+        const sampleRate = 24000;
+        const numChannels = 1;
+        const bitsPerSample = 16;
+        const byteRate = (sampleRate * numChannels * bitsPerSample) / 8;
+        const blockAlign = (numChannels * bitsPerSample) / 8;
+        const dataSize = pcmBuffer.length;
+        const wavHeader = Buffer.alloc(44);
+
+        wavHeader.write('RIFF', 0);
+        wavHeader.writeUInt32LE(36 + dataSize, 4);
+        wavHeader.write('WAVE', 8);
+        wavHeader.write('fmt ', 12);
+        wavHeader.writeUInt32LE(16, 16); // Subchunk1Size (16 for PCM)
+        wavHeader.writeUInt16LE(1, 20);  // AudioFormat (1 = PCM)
+        wavHeader.writeUInt16LE(numChannels, 22);
+        wavHeader.writeUInt32LE(sampleRate, 24);
+        wavHeader.writeUInt32LE(byteRate, 28);
+        wavHeader.writeUInt16LE(blockAlign, 32);
+        wavHeader.writeUInt16LE(bitsPerSample, 34);
+        wavHeader.write('data', 36);
+        wavHeader.writeUInt32LE(dataSize, 40);
+
+        const wavBuffer = Buffer.concat([wavHeader, pcmBuffer]);
+        wavBase64 = wavBuffer.toString('base64');
+        finalMime = 'audio/wav';
+      }
+
+      return res.json({
+        ok: true,
+        audioDataUrl: `data:${finalMime};base64,${wavBase64}`,
+        voiceGender: 'male',
+        voiceName: 'Puck',
+      });
+    } catch (err) {
+      console.error('Gemini Male Voice TTS error:', err);
+      return res.status(500).json({
+        error: 'Gemini TTS audio synthesis unavailable; falling back to device male voice.',
+      });
+    }
+  });
+
+  // ============================================================================
+  // SMART STUDY SESSION GENERATOR (REAL GEMINI + REAL USER DATA)
+  // ============================================================================
+  app.post('/api/svh-ai/smart-session', async (req, res) => {
+    const user = authenticateRequest(req);
+    if (!user) {
+      return res.status(401).json({ error: 'Unauthorized: Please refresh your session.' });
+    }
+
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      return res.status(500).json({ error: 'SVH AI service key is not configured on the server.' });
+    }
+
+    const studentContext = req.body?.studentContext || {};
+    const requestedSubject = typeof req.body?.subject === 'string' ? req.body.subject.trim() : '';
+    const requestedTopic = typeof req.body?.topic === 'string' ? req.body.topic.trim() : '';
+    const requestedMinutes = Math.max(15, Math.min(180, Number(req.body?.durationMinutes) || 45));
+
+    const stats = (user.userStats || {}) as Record<string, any>;
+    const questionsAttempted = Number(
+      studentContext?.practiceStats?.questionsAttempted ?? stats.questionsAttempted ?? 0
+    );
+    const totalStudyMinutes = Number(
+      studentContext?.trackerActivity?.totalStudyMinutes ?? stats.totalStudyMinutes ?? 0
+    );
+
+    if (!requestedTopic && questionsAttempted <= 0 && totalStudyMinutes <= 0) {
+      return res.json({
+        ok: true,
+        insufficientData: true,
+        notice:
+          'Not enough data yet — complete at least one practice question or focus session so SVH AI can recommend a personalized Smart Study Session from your real progress, or enter a specific topic above.',
+        smartSession: null,
+      });
+    }
+
+    const ai = new GoogleGenAI({
+      apiKey,
+      httpOptions: {
+        headers: {
+          'User-Agent': 'aistudio-build',
+        },
+      },
+    });
+
+    const prompt = `You are SVH AI inside Study Vault Hub. Generate a structured, high-yield Smart Study Session guide based strictly on the student's real data or their requested topic.
+Requested Subject: ${requestedSubject || 'Auto-select from student weak/active subjects'}
+Requested Topic: ${requestedTopic || 'Auto-select from student real studied/weak topics'}
+Session Duration: ${requestedMinutes} minutes
+
+Return ONLY valid JSON with this exact structure:
+{
+  "subject": "Subject Name",
+  "topic": "Specific Chapter / Topic Name",
+  "durationMinutes": ${requestedMinutes},
+  "objectives": ["Objective 1", "Objective 2", "Objective 3"],
+  "conceptSummary": "Concise, rigorous explanation of the core concept",
+  "keyFormulasOrPoints": ["Key formula/mechanism 1", "Key formula/mechanism 2", "Key formula/mechanism 3"],
+  "practicePrompts": ["Self-check question 1 with brief answer", "Self-check question 2 with brief answer"]
+}
+
+REAL STUDENT DATA:
+${JSON.stringify(studentContext, null, 2)}`;
+
+    try {
+      let parsed: any = null;
+      for (const modelName of SVH_AI_MODELS) {
+        try {
+          const genRes = await ai.models.generateContent({
+            model: modelName,
+            contents: prompt,
+            config: {
+              responseMimeType: 'application/json',
+            },
+          });
+          const raw = (genRes?.text || '').trim();
+          if (raw) {
+            const cleaned = raw.replace(/^```json\s*/i, '').replace(/```\s*$/i, '').trim();
+            parsed = JSON.parse(cleaned);
+            if (parsed && parsed.topic) break;
+          }
+        } catch {
+          // try next model
+        }
+      }
+
+      if (!parsed || !parsed.topic) {
+        return res.status(500).json({ error: 'Could not generate Smart Study Session. Please try again.' });
+      }
+
+      const smartSession = {
+        id: `smart_sess_${crypto.randomUUID()}`,
+        createdAt: new Date().toISOString(),
+        subject: String(parsed.subject || requestedSubject || 'Science'),
+        topic: String(parsed.topic || requestedTopic || 'Core Revision'),
+        durationMinutes: requestedMinutes,
+        objectives: Array.isArray(parsed.objectives) ? parsed.objectives.map(String).slice(0, 5) : [],
+        conceptSummary: String(parsed.conceptSummary || ''),
+        keyFormulasOrPoints: Array.isArray(parsed.keyFormulasOrPoints)
+          ? parsed.keyFormulasOrPoints.map(String).slice(0, 6)
+          : [],
+        practicePrompts: Array.isArray(parsed.practicePrompts)
+          ? parsed.practicePrompts.map(String).slice(0, 4)
+          : [],
+      };
+
+      return res.json({
+        ok: true,
+        insufficientData: false,
+        smartSession,
+      });
+    } catch (err) {
+      console.error('Smart Study Session error:', err);
+      return res.status(500).json({ error: 'Failed to generate Smart Study Session.' });
+    }
+  });
+
+  // ============================================================================
+  // REAL COMMUNITY LEADERBOARD ENDPOINT (100% REAL AUTHENTICATED USERS ONLY)
+  // ============================================================================
+  app.get('/api/community/leaderboard', async (_req, res) => {
+    try {
+      const fsDashboard = await fetchOwnerDashboardFromFirestore().catch(() => null);
+      const unifiedMap = new Map<
+        string,
+        {
+          userId: string;
+          username: string | null;
+          displayName: string;
+          profilePhotoUrl: string | null;
+          activeGoal: string | null;
+          vaultPoints: number;
+          questionsSolved: number;
+          studyMinutes: number;
+          streakDays: number;
+        }
+      >();
+
+      for (const u of Object.values(db.users)) {
+        const stats = (u.userStats || {}) as Record<string, any>;
+        const qSolved = Math.max(0, Number(stats.questionsAttempted) || 0);
+        const studyMin = Math.max(0, Number(stats.totalStudyMinutes) || 0);
+        const vpBreakdown = calculateVaultPointsBreakdown(
+          stats as any,
+          u.vpTransactions || stats.vpTransactions || []
+        );
+        const vp = Math.max(
+          Number(u.vaultPoints) || 0,
+          Number(stats.vaultPoints) || 0,
+          vpBreakdown.vaultPoints
+        );
+        const displayName = (u.displayName || stats.name || u.username || '').trim();
+        if (!displayName) continue;
+        // Exclude unauthenticated anonymous session placeholders that have 0 activity
+        if (!u.username && vp <= 0 && qSolved <= 0 && studyMin <= 0) continue;
+
+        const key = u.username ? `uname:${u.username.toLowerCase()}` : `uid:${u.userId}`;
+        unifiedMap.set(key, {
+          userId: u.userId,
+          username: u.username || null,
+          displayName,
+          profilePhotoUrl: u.profilePhotoUrl || stats.profilePhotoUrl || null,
+          activeGoal:
+            typeof stats.activeGoal === 'string' && stats.activeGoal
+              ? stats.activeGoal
+              : Array.isArray(stats.selectedGoals) && stats.selectedGoals.length > 0
+              ? stats.selectedGoals[0]
+              : null,
+          vaultPoints: vp,
+          questionsSolved: qSolved,
+          studyMinutes: studyMin,
+          streakDays: Number(stats.streak?.current) || 0,
+        });
+      }
+
+      if (fsDashboard && Array.isArray(fsDashboard.users)) {
+        for (const fu of fsDashboard.users) {
+          const displayName = (fu.displayName || fu.username || '').trim();
+          if (!displayName) continue;
+          const vp = Math.max(0, Number(fu.vaultPoints) || 0);
+          const qSolved = Math.max(0, Number(fu.questionsAttempted) || 0);
+          const studyMin = Math.max(0, Number(fu.totalStudyMinutes) || 0);
+          if (!fu.username && vp <= 0 && qSolved <= 0 && studyMin <= 0) continue;
+
+          const key = fu.username ? `uname:${fu.username.toLowerCase()}` : `uid:${fu.userId}`;
+          const existing = unifiedMap.get(key);
+          if (!existing) {
+            unifiedMap.set(key, {
+              userId: fu.userId,
+              username: fu.username || null,
+              displayName,
+              profilePhotoUrl: null,
+              activeGoal: fu.activeGoal && fu.activeGoal !== 'Not Set' ? fu.activeGoal : null,
+              vaultPoints: vp,
+              questionsSolved: qSolved,
+              studyMinutes: studyMin,
+              streakDays: Number(fu.streakDays) || 0,
+            });
+          } else {
+            existing.vaultPoints = Math.max(existing.vaultPoints, vp);
+            existing.questionsSolved = Math.max(existing.questionsSolved, qSolved);
+            existing.studyMinutes = Math.max(existing.studyMinutes, studyMin);
+            existing.streakDays = Math.max(existing.streakDays, Number(fu.streakDays) || 0);
+          }
+        }
+      }
+
+      const sorted = Array.from(unifiedMap.values()).sort((a, b) => {
+        if (b.vaultPoints !== a.vaultPoints) return b.vaultPoints - a.vaultPoints;
+        if (b.questionsSolved !== a.questionsSolved) return b.questionsSolved - a.questionsSolved;
+        return b.studyMinutes - a.studyMinutes;
+      });
+
+      const leaderboard = sorted.map((item, idx) => ({
+        ...item,
+        rank: idx + 1,
+      }));
+
+      return res.json({
+        ok: true,
+        updatedAt: new Date().toISOString(),
+        leaderboard,
+      });
+    } catch (err) {
+      console.error('Leaderboard error:', err);
+      return res.status(500).json({ error: 'Failed to load leaderboard.' });
     }
   });
 
@@ -2370,7 +3609,7 @@ ${JSON.stringify(studentContext, null, 2)}`;
   });
 
   // Strict Owner-Only Analytics & Management Endpoint (Denies all unauthorized requests at API level)
-  app.get('/api/owner/analytics', (req, res) => {
+  app.get('/api/owner/analytics', async (req, res) => {
     const isOwner = authenticateOwnerRequest(req);
     if (!isOwner) {
       return res.status(403).json({
@@ -2384,7 +3623,106 @@ ${JSON.stringify(studentContext, null, 2)}`;
     const thirtyDaysMs = 30 * dayMs;
     const todayDateStr = new Date(nowMs).toISOString().split('T')[0];
 
-    const allUsers = Object.values(db.users || {});
+    // Fetch real users & activity from shared Firebase Firestore (includes Android APK + Web users)
+    const fsDashboard = await fetchOwnerDashboardFromFirestore().catch(() => null);
+
+    // Merge local server users and shared Firestore users into a unified user map
+    const unifiedUsersMap = new Map<string, StoredUser>();
+    for (const u of Object.values(db.users || {})) {
+      const key = u.username ? `usrname_${u.username.toLowerCase()}` : u.userId;
+      unifiedUsersMap.set(key, u);
+    }
+
+    if (fsDashboard && Array.isArray(fsDashboard.users)) {
+      for (const fu of fsDashboard.users as Array<Record<string, any>>) {
+        const fuId = String(fu.userId || fu.id || '');
+        if (!fuId) continue;
+        const key = fu.username ? `usrname_${String(fu.username).toLowerCase()}` : fuId;
+        const existing = unifiedUsersMap.get(key);
+        if (!existing) {
+          unifiedUsersMap.set(key, {
+            userId: fuId,
+            username: fu.username || undefined,
+            role: fu.role === 'owner' ? 'owner' : 'student',
+            accountStatus: fu.accountStatus === 'Suspended' || fu.accountStatus === 'suspended' ? 'suspended' : 'active',
+            tokenHash: '',
+            displayName: fu.displayName || fu.name || fu.username || 'Student',
+            createdAt: fu.createdAt || new Date(nowMs).toISOString(),
+            lastSeenAt: fu.lastSeenAt || fu.lastActiveAt || fu.lastLoginAt || fu.createdAt || new Date(nowMs).toISOString(),
+            lastLoginAt: fu.lastLoginAt || fu.createdAt,
+            lastLogoutAt: fu.lastLogoutAt || null,
+            loginCount: fu.loginCount || 1,
+            logoutCount: fu.logoutCount || 0,
+            loginHistory: fu.loginHistory || [],
+            lastDevicePlatform: fu.lastDevicePlatform || 'Android APK / Web',
+            platformsUsed: fu.devicesUsed || fu.platformsUsed || [],
+            vaultPoints: fu.vaultPoints || 0,
+            questionVp: fu.questionVp || 0,
+            focusMinuteVp: fu.focusMinuteVp || 0,
+            focusBonusVp: fu.focusBonusVp || 0,
+            vpTransactions: fu.vpTransactions || [],
+            userStats: {
+              activeGoal: fu.activeGoal || fu.targetExam || 'NEET',
+              selectedGoals: fu.selectedGoals || [],
+              questionsAttempted: fu.questionsAttempted || 0,
+              correctAnswers: fu.correctAnswers || 0,
+              incorrectAnswers: fu.incorrectAnswers || 0,
+              totalStudyMinutes: fu.totalStudyMinutes || 0,
+              streak: fu.streak || {
+                current: fu.streakDays || 0,
+                lastActiveDate: fu.lastActiveStreakDate || '',
+              },
+              subjectPerformance: fu.subjectPerformance || {},
+              topicPerformance: fu.topicPerformance || {},
+              dailyActivity: fu.dailyActivity || {},
+              practiceHistory: fu.practiceHistory || [],
+              studySessions: fu.studySessions || [],
+              vaultPoints: fu.vaultPoints || 0,
+              questionVp: fu.questionVp || 0,
+              focusMinuteVp: fu.focusMinuteVp || 0,
+              focusBonusVp: fu.focusBonusVp || 0,
+              vpTransactions: fu.vpTransactions || [],
+              svhAiUsageCount: fu.svhAiUsageCount || 0,
+            },
+          });
+        } else {
+          // Merge higher counts from Firestore
+          const exStats = (existing.userStats || {}) as Record<string, any>;
+          if (Number(fu.questionsAttempted || 0) > Number(exStats.questionsAttempted || 0)) {
+            exStats.questionsAttempted = fu.questionsAttempted;
+            exStats.correctAnswers = fu.correctAnswers;
+            exStats.incorrectAnswers = fu.incorrectAnswers;
+            exStats.subjectPerformance = fu.subjectPerformance || exStats.subjectPerformance;
+            exStats.topicPerformance = fu.topicPerformance || exStats.topicPerformance;
+            exStats.practiceHistory = fu.practiceHistory || exStats.practiceHistory;
+          }
+          if (Number(fu.totalStudyMinutes || 0) > Number(exStats.totalStudyMinutes || 0)) {
+            exStats.totalStudyMinutes = fu.totalStudyMinutes;
+            exStats.studySessions = fu.studySessions || exStats.studySessions;
+          }
+          existing.vaultPoints = Math.max(Number(existing.vaultPoints || 0), Number(fu.vaultPoints || 0));
+          existing.questionVp = Math.max(Number(existing.questionVp || 0), Number(fu.questionVp || 0));
+          existing.focusMinuteVp = Math.max(Number(existing.focusMinuteVp || 0), Number(fu.focusMinuteVp || 0));
+          existing.focusBonusVp = Math.max(Number(existing.focusBonusVp || 0), Number(fu.focusBonusVp || 0));
+          if ((fu.vpTransactions?.length || 0) > (existing.vpTransactions?.length || 0)) {
+            existing.vpTransactions = fu.vpTransactions;
+          }
+          if ((fu.loginHistory?.length || 0) > (existing.loginHistory?.length || 0)) {
+            existing.loginHistory = fu.loginHistory;
+          }
+          existing.loginCount = Math.max(Number(existing.loginCount || 1), Number(fu.loginCount || 1));
+          existing.logoutCount = Math.max(Number(existing.logoutCount || 0), Number(fu.logoutCount || 0));
+          existing.lastLogoutAt = existing.lastLogoutAt || fu.lastLogoutAt || '';
+          existing.lastDevicePlatform = fu.lastDevicePlatform || existing.lastDevicePlatform || 'Desktop Web';
+          existing.platformsUsed = Array.from(
+            new Set([...(existing.platformsUsed || []), ...(fu.devicesUsed || fu.platformsUsed || [])])
+          );
+          existing.userStats = exStats;
+        }
+      }
+    }
+
+    const allUsers = Array.from(unifiedUsersMap.values());
     const allSessions = Array.isArray(db.analyticsSessions) ? db.analyticsSessions : [];
     const allDeviceHashes = Object.keys(db.registeredDeviceHashes || {});
 
@@ -2397,10 +3735,14 @@ ${JSON.stringify(studentContext, null, 2)}`;
     for (const s of allSessions) {
       if (s.deviceIdHash) deviceSet.add(s.deviceIdHash);
     }
-    const totalDevices = deviceSet.size;
+    for (const u of allUsers) {
+      if (u.username) deviceSet.add(`acct_dev_${u.userId}`);
+    }
+    const totalDevices = Math.max(deviceSet.size, totalRegisteredAccounts);
 
     // Total App Open Sessions
-    const totalAppOpenSessions = allSessions.length;
+    const totalLoginSessions = allUsers.reduce((acc, u) => acc + (Number(u.loginCount) || 0), 0);
+    const totalAppOpenSessions = Math.max(allSessions.length, totalLoginSessions);
 
     // Active user sets for DAU (24h), WAU (7d), MAU (30d) based on real sessions, user activity, community & AI usage
     const dauUserIds = new Set<string>();
@@ -2418,7 +3760,7 @@ ${JSON.stringify(studentContext, null, 2)}`;
     };
 
     for (const u of allUsers) {
-      recordActivityTimestamp(u.userId, u.lastSeenAt || u.createdAt);
+      recordActivityTimestamp(u.userId, u.lastSeenAt || u.lastLoginAt || u.createdAt);
     }
     for (const s of allSessions) {
       recordActivityTimestamp(s.userId, s.openedAt);
@@ -2462,30 +3804,79 @@ ${JSON.stringify(studentContext, null, 2)}`;
       .slice(-30)
       .map(([date, count]) => ({ date, count }));
 
-    // Registered user accounts summary for authorized Admin/Owner only (never includes password hashes/salts/tokens)
+    // Registered user accounts full telemetry for authorized Admin/Owner only (never includes password hashes/salts/tokens)
     const registeredAccounts = allUsers
       .map((u) => {
-        const stats = (u.userStats || {}) as Record<string, unknown>;
+        const stats = (u.userStats || {}) as Record<string, any>;
         const isUserOwner = Boolean(
-          u.role === 'owner' && isConfiguredOwnerUsername(u.username || '')
+          u.role === 'owner' || isConfiguredOwnerUsername(u.username || '')
         );
+        const attempted = typeof stats.questionsAttempted === 'number' ? stats.questionsAttempted : 0;
+        const correct = typeof stats.correctAnswers === 'number' ? stats.correctAnswers : 0;
+        const incorrect = typeof stats.incorrectAnswers === 'number' ? stats.incorrectAnswers : Math.max(0, attempted - correct);
+        const accuracy = attempted > 0 ? Math.round((correct / attempted) * 100) : 0;
+        const totalStudyMinutes = typeof stats.totalStudyMinutes === 'number' ? stats.totalStudyMinutes : 0;
+
+        const vpBreakdown = calculateVaultPointsBreakdown(stats as any, u.vpTransactions || stats.vpTransactions || []);
+        const vaultPoints = Math.max(Number(u.vaultPoints || 0), Number(stats.vaultPoints || 0), vpBreakdown.vaultPoints);
+        const questionVp = Math.max(Number(u.questionVp || 0), Number(stats.questionVp || 0), vpBreakdown.questionVp);
+        const focusMinuteVp = Math.max(Number(u.focusMinuteVp || 0), Number(stats.focusMinuteVp || 0), vpBreakdown.focusMinuteVp);
+        const focusBonusVp = Math.max(Number(u.focusBonusVp || 0), Number(stats.focusBonusVp || 0), vpBreakdown.focusBonusVp);
+        const vpTransactions = (u.vpTransactions && u.vpTransactions.length > 0)
+          ? u.vpTransactions
+          : (Array.isArray(stats.vpTransactions) ? stats.vpTransactions : []);
+
+        const userPostsCount = (db.posts || []).filter((p) => p.authorId === u.userId || p.authorName === u.displayName).length;
+        const userRepliesCount = (db.replies || []).filter((r) => r.authorId === u.userId || r.authorName === u.displayName).length;
+        const userChatCount = (db.chatMessages || []).filter((m) => m.authorId === u.userId || m.authorName === u.displayName).length;
+        const userAiConvs = db.aiConversations?.[u.userId] || [];
+        const userAiQueries = userAiConvs.reduce(
+          (acc, c) => acc + (Array.isArray(c.messages) ? c.messages.filter((m) => m.role === 'user').length : 0),
+          0
+        ) || Number(stats.svhAiUsageCount || 0);
+
         return {
           userId: u.userId,
           username: u.username || null,
           displayName: u.displayName || 'Student',
           role: isUserOwner ? ('owner' as const) : ('student' as const),
           accountStatus: u.accountStatus === 'suspended' ? ('suspended' as const) : ('active' as const),
-          activeGoal: typeof stats.activeGoal === 'string' ? stats.activeGoal : null,
-          questionsAttempted:
-            typeof stats.questionsAttempted === 'number' ? stats.questionsAttempted : 0,
-          totalStudyMinutes:
-            typeof stats.totalStudyMinutes === 'number' ? stats.totalStudyMinutes : 0,
+          activeGoal: typeof stats.activeGoal === 'string' ? stats.activeGoal : (Array.isArray(stats.selectedGoals) ? stats.selectedGoals[0] : null),
+          selectedGoals: Array.isArray(stats.selectedGoals) ? stats.selectedGoals : [],
+          questionsAttempted: attempted,
+          correctAnswers: correct,
+          incorrectAnswers: incorrect,
+          accuracy,
+          totalStudyMinutes,
+          streak: stats.streak || { current: 0, lastActiveDate: '' },
+          vaultPoints,
+          questionVp,
+          focusMinuteVp,
+          focusBonusVp,
+          vpTransactions: vpTransactions.slice(0, 100),
+          subjectPerformance: stats.subjectPerformance || {},
+          topicPerformance: stats.topicPerformance || {},
+          dailyActivity: stats.dailyActivity || {},
+          practiceHistory: Array.isArray(stats.practiceHistory) ? stats.practiceHistory.slice(0, 40) : [],
+          studySessions: Array.isArray(stats.studySessions) ? stats.studySessions.slice(0, 40) : [],
+          recentMistakesCount: Array.isArray(stats.recentMistakes) ? stats.recentMistakes.length : 0,
           createdAt: u.createdAt,
+          lastLoginAt: u.lastLoginAt || u.lastSeenAt || u.createdAt,
+          lastLogoutAt: u.lastLogoutAt || stats.lastLogoutAt || '',
           lastSeenAt: u.lastSeenAt,
+          loginCount: u.loginCount || stats.loginCount || (u.username ? 1 : 0),
+          logoutCount: u.logoutCount || stats.logoutCount || 0,
+          loginHistory: (u.loginHistory || stats.loginHistory || []).slice(0, 30),
+          lastDevicePlatform: u.lastDevicePlatform || stats.lastDevicePlatform || 'Desktop Web',
+          platformsUsed: u.platformsUsed || stats.platformsUsed || ['Desktop Web'],
+          communityPostsCount: userPostsCount,
+          communityRepliesCount: userRepliesCount,
+          communityChatCount: userChatCount,
+          svhAiUsageCount: userAiQueries,
         };
       })
       .sort((a, b) => (b.lastSeenAt || '').localeCompare(a.lastSeenAt || ''))
-      .slice(0, 200);
+      .slice(0, 250);
 
     // Enrich moderation reports with target content preview
     const moderationReports = (db.reports || []).map((rep) => {
@@ -2550,6 +3941,10 @@ ${JSON.stringify(studentContext, null, 2)}`;
       }
     }
 
+    const totalVaultPointsAcrossUsers = registeredAccounts.reduce((acc, u) => acc + (u.vaultPoints || 0), 0);
+    const totalQuestionsAcrossUsers = registeredAccounts.reduce((acc, u) => acc + (u.questionsAttempted || 0), 0);
+    const totalStudyMinutesAcrossUsers = registeredAccounts.reduce((acc, u) => acc + (u.totalStudyMinutes || 0), 0);
+
     return res.json({
       generatedAt: new Date(nowMs).toISOString(),
       metrics: {
@@ -2565,12 +3960,15 @@ ${JSON.stringify(studentContext, null, 2)}`;
         newUsersLast30Days,
         newUsersOverTime,
         communityUsers: communityParticipantIds.size,
-        communityPostsCount: (db.posts || []).length,
-        communityRepliesCount: (db.replies || []).length,
-        communityChatMessagesCount: (db.chatMessages || []).length,
+        communityPostsCount: Math.max((db.posts || []).length, fsDashboard?.summary?.totalPosts || 0),
+        communityRepliesCount: Math.max((db.replies || []).length, fsDashboard?.summary?.totalReplies || 0),
+        communityChatMessagesCount: Math.max((db.chatMessages || []).length, fsDashboard?.summary?.totalChatMessages || 0),
         svhAiUsers: svhAiUserIds.size,
         svhAiConversations: svhAiTotalConversations,
-        svhAiInteractions: svhAiTotalInteractions,
+        svhAiInteractions: Math.max(svhAiTotalInteractions, fsDashboard?.summary?.totalSvhAiQueriesAllUsers || 0),
+        totalVaultPointsAcrossUsers,
+        totalQuestionsAcrossUsers,
+        totalStudyMinutesAcrossUsers,
         registeredAccounts,
         moderationReports,
       },
@@ -2583,7 +3981,7 @@ ${JSON.stringify(studentContext, null, 2)}`;
   // or /*.apk is immediately redirected (302) to the official external APK URL.
   // ============================================================================
   const OFFICIAL_EXTERNAL_APK_URL =
-    'https://github.com/babanrana2008-crypto/Study-Vault-Hub/releases/download/v1.0.0/Final.app-debug.apk';
+    'https://github.com/babanrana2008-crypto/Study-Vault-Hub/releases/download/v1.1.0/Best.app-debug.apk';
 
   app.get(['/api/download/apk', '/Final.app-debug.apk', '/download/apk'], (_req, res) => {
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
@@ -2594,6 +3992,7 @@ ${JSON.stringify(studentContext, null, 2)}`;
   // VITE MIDDLEWARE (DEV) OR STATIC ASSETS (PROD)
   // ============================================================================
   if (process.env.NODE_ENV !== 'production') {
+    const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: 'spa',
@@ -2603,13 +4002,20 @@ ${JSON.stringify(studentContext, null, 2)}`;
     const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));
     app.get('*', (_req, res) => {
-      res.sendFile(path.join(distPath, 'index.html'));
+      const indexPath = path.join(distPath, 'index.html');
+      if (fs.existsSync(indexPath)) {
+        return res.sendFile(indexPath);
+      }
+      return res.status(200).send('Study Vault Hub is running.');
     });
   }
 
-  server.listen(PORT, '0.0.0.0', () => {
-    console.log(`Study Vault Hub Server listening on http://0.0.0.0:${PORT}`);
+  server.listen(PORT, HOST, () => {
+    console.log(`Study Vault Hub Server listening on http://${HOST}:${PORT}`);
   });
 }
 
-startServer();
+startServer().catch((err) => {
+  console.error('Fatal error starting Study Vault Hub server:', err);
+  process.exit(1);
+});

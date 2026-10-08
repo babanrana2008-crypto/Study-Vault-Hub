@@ -474,20 +474,95 @@ export const SAMPLE_MCQS: MCQQuestion[] = [
     correctIndex: 0,
     explanation: '2AgCl(s) + Sunlight -> 2Ag(s) + Cl2(g). This is a photochemical decomposition reaction where silver chloride decomposes into grey elemental silver and chlorine gas.',
     hint: 'Energy from sunlight splits the compound into metallic silver.'
+  },
+  // Physics - Electrodynamics
+  {
+    id: 'q8',
+    subject: 'Physics',
+    targetStreams: ['NEET', 'JEE Main', 'JEE Advanced', 'Class 12 Board', 'CUET'],
+    topic: 'Electrostatics & Capacitors',
+    difficulty: 'Moderate',
+    year: 'NCERT & Entrance Benchmark',
+    question: 'A parallel plate air capacitor has capacitance C. When the space between the plates is half-filled with a dielectric of dielectric constant K = 4 (covering half the area for the full distance d), what is the new equivalent capacitance?',
+    options: ['1.5 C', '2.5 C', '2.0 C', '4.0 C'],
+    correctIndex: 1,
+    explanation: 'Splitting the area A into two equal halves (A/2 each) creates two capacitors in parallel: C1 (air) = (epsilon_0 * (A/2)) / d = C/2, and C2 (dielectric) = K * (epsilon_0 * (A/2)) / d = 4 * (C/2) = 2C. Equivalent parallel capacitance C_eq = C1 + C2 = 0.5C + 2C = 2.5C.',
+    hint: 'Area division places the two half-capacitors in parallel combination: C_eq = C_air + C_dielectric.'
+  },
+  // Biology - Human Physiology
+  {
+    id: 'q9',
+    subject: 'Biology',
+    targetStreams: ['NEET', 'Class 11 Board', 'CUET'],
+    topic: 'Breathing and Exchange of Gases',
+    difficulty: 'Moderate',
+    year: 'NEET Standard',
+    question: 'Which of the following conditions inside metabolically active systemic tissues facilitates the dissociation of oxygen from oxyhaemoglobin (shifting the oxygen-haemoglobin dissociation curve to the right)?',
+    options: [
+      'Low pO2, high pCO2, high H+ concentration, and elevated temperature',
+      'High pO2, low pCO2, low H+ concentration, and lower temperature',
+      'High pO2, high pH (alkaline medium), and decreased 2,3-BPG',
+      'Low pCO2, high pH, and decreased temperature'
+    ],
+    correctIndex: 0,
+    explanation: 'According to the Bohr effect, active tissues consume O2 and release CO2 and heat. Consequently, low pO2, high pCO2, elevated [H+] (lower pH), and higher temperature decrease haemoglobin’s affinity for O2, shifting the curve to the right and releasing O2 to tissues.',
+    hint: 'Think of the metabolic environment inside exercising skeletal muscle (Bohr effect).'
+  },
+  // Chemistry - Electrochemistry
+  {
+    id: 'q10',
+    subject: 'Chemistry',
+    targetStreams: ['NEET', 'JEE Main', 'JEE Advanced', 'Class 12 Board'],
+    topic: 'Electrochemistry',
+    difficulty: 'Hard',
+    year: 'Competitive Entrance Standard',
+    question: 'How many Faradays of electricity are required to completely reduce 1 mole of permanganate ions (MnO4^-) to manganese(II) ions (Mn^2+) in an acidic medium?',
+    options: ['3 F', '1 F', '5 F', '7 F'],
+    correctIndex: 2,
+    explanation: 'In MnO4^-, the oxidation state of Mn is +7 (x + 4(-2) = -1 => x = +7). In acidic medium, the half-reaction is MnO4^- + 8H+ + 5e^- -> Mn^2+ + 4H2O. Since 5 moles of electrons are required per mole of MnO4^-, the charge needed is 5 Faradays (5 F).',
+    hint: 'Calculate the change in oxidation number of Manganese from MnO4^- (+7) to Mn^2+ (+2).'
+  },
+  // Mathematics - Matrices & Determinants
+  {
+    id: 'q11',
+    subject: 'Mathematics',
+    targetStreams: ['JEE Main', 'JEE Advanced', 'Class 12 Board', 'CUET', 'WBJEE'],
+    topic: 'Matrices & Determinants',
+    difficulty: 'Moderate',
+    year: 'JEE Main & Board Standard',
+    question: 'If A is a non-singular square matrix of order 3 x 3 such that |A| = 5, then what is the value of the determinant |adj(A)|?',
+    options: ['5', '125', '25', '15'],
+    correctIndex: 2,
+    explanation: 'For any non-singular square matrix A of order n, the determinant of its adjoint is given by |adj(A)| = |A|^(n - 1). Here n = 3 and |A| = 5, so |adj(A)| = 5^(3 - 1) = 5^2 = 25.',
+    hint: 'Use the standard identity |adj(A)| = |A|^(n-1) where n is the order of matrix A.'
+  },
+  // Biology - Genetics
+  {
+    id: 'q12',
+    subject: 'Biology',
+    targetStreams: ['NEET', 'Class 12 Board', 'CUET'],
+    topic: 'Molecular Basis of Inheritance',
+    difficulty: 'Moderate',
+    year: 'NEET & NCERT Benchmark',
+    question: 'In a double-stranded B-DNA molecule consisting of 2,000 base pairs (bp), if Cytosine (C) constitutes 30% of the total nitrogenous bases, how many Adenine (A) nucleotides are present in the DNA molecule?',
+    options: ['600', '1,200', '800', '400'],
+    correctIndex: 2,
+    explanation: '2,000 base pairs = 4,000 total nucleotides (bases). By Chargaff’s rule, %C = %G = 30%, which accounts for 60% of bases. The remaining 40% is divided equally between Adenine and Thymine (%A = %T = 20%). Therefore, number of Adenine bases = 20% of 4,000 = 800.',
+    hint: '2,000 base pairs equal 4,000 total bases. Apply Chargaff’s rule: %A + %G = 50%.'
   }
 ];
 
 export const HIGH_YIELD_TOPICS: HighYieldTopic[] = [
-  // General & Competitive
-  { id: 'hy1', subject: 'Biology', targetStream: 'NEET', chapter: 'Genetics and Evolution', weightagePercent: 18, expectedQuestions: 18, difficultyLevel: 'High', status: 'Mastered' },
-  { id: 'hy2', subject: 'Biology', targetStream: 'NEET', chapter: 'Human Physiology', weightagePercent: 20, expectedQuestions: 20, difficultyLevel: 'High', status: 'In Progress' },
-  { id: 'hy3', subject: 'Physics', targetStream: 'JEE Main', chapter: 'Mechanics & Rotational Dynamics', weightagePercent: 30, expectedQuestions: 8, difficultyLevel: 'High', status: 'In Progress' },
+  // All topics start at 'To Revise' so readiness is 0% until the student genuinely marks/masters them
+  { id: 'hy1', subject: 'Biology', targetStream: 'NEET', chapter: 'Genetics and Evolution', weightagePercent: 18, expectedQuestions: 18, difficultyLevel: 'High', status: 'To Revise' },
+  { id: 'hy2', subject: 'Biology', targetStream: 'NEET', chapter: 'Human Physiology', weightagePercent: 20, expectedQuestions: 20, difficultyLevel: 'High', status: 'To Revise' },
+  { id: 'hy3', subject: 'Physics', targetStream: 'JEE Main', chapter: 'Mechanics & Rotational Dynamics', weightagePercent: 30, expectedQuestions: 8, difficultyLevel: 'High', status: 'To Revise' },
   { id: 'hy4', subject: 'Mathematics', targetStream: 'JEE Main', chapter: 'Differential & Integral Calculus', weightagePercent: 32, expectedQuestions: 9, difficultyLevel: 'High', status: 'To Revise' },
-  { id: 'hy5', subject: 'Chemistry', targetStream: 'JEE Main', chapter: 'Organic Reaction Mechanisms', weightagePercent: 35, expectedQuestions: 10, difficultyLevel: 'High', status: 'In Progress' },
-  { id: 'hy6', subject: 'Accountancy', targetStream: 'Commerce', chapter: 'Partnership & Company Accounts', weightagePercent: 40, expectedQuestions: 12, difficultyLevel: 'High', status: 'Mastered' },
-  { id: 'hy7', subject: 'Economics', targetStream: 'Commerce', chapter: 'National Income & Money/Banking', weightagePercent: 35, expectedQuestions: 10, difficultyLevel: 'Medium', status: 'In Progress' },
-  { id: 'hy8', subject: 'Mathematics', targetStream: 'Class 10 Board', chapter: 'Trigonometry & Quadratic Equations', weightagePercent: 28, expectedQuestions: 8, difficultyLevel: 'Medium', status: 'Mastered' },
-  { id: 'hy9', subject: 'Science', targetStream: 'Class 10 Board', chapter: 'Chemical Reactions & Life Processes', weightagePercent: 30, expectedQuestions: 10, difficultyLevel: 'Foundational', status: 'In Progress' }
+  { id: 'hy5', subject: 'Chemistry', targetStream: 'JEE Main', chapter: 'Organic Reaction Mechanisms', weightagePercent: 35, expectedQuestions: 10, difficultyLevel: 'High', status: 'To Revise' },
+  { id: 'hy6', subject: 'Accountancy', targetStream: 'Commerce', chapter: 'Partnership & Company Accounts', weightagePercent: 40, expectedQuestions: 12, difficultyLevel: 'High', status: 'To Revise' },
+  { id: 'hy7', subject: 'Economics', targetStream: 'Commerce', chapter: 'National Income & Money/Banking', weightagePercent: 35, expectedQuestions: 10, difficultyLevel: 'Medium', status: 'To Revise' },
+  { id: 'hy8', subject: 'Mathematics', targetStream: 'Class 10 Board', chapter: 'Trigonometry & Quadratic Equations', weightagePercent: 28, expectedQuestions: 8, difficultyLevel: 'Medium', status: 'To Revise' },
+  { id: 'hy9', subject: 'Science', targetStream: 'Class 10 Board', chapter: 'Chemical Reactions & Life Processes', weightagePercent: 30, expectedQuestions: 10, difficultyLevel: 'Foundational', status: 'To Revise' }
 ];
 
 export const MNEMONICS_BANK: MnemonicItem[] = [
@@ -544,6 +619,11 @@ export const INITIAL_USER_STATS: UserStats = {
   correctAnswers: 0,
   incorrectAnswers: 0,
   totalStudyMinutes: 0,
+  vaultPoints: 0,
+  questionVp: 0,
+  focusMinuteVp: 0,
+  focusBonusVp: 0,
+  vpTransactions: [],
   streak: {
     current: 0,
     lastActiveDate: ''
@@ -558,6 +638,13 @@ export const INITIAL_USER_STATS: UserStats = {
   practiceHistory: [],
   topicsStudied: [],
   subjectsStudied: {},
+  subjectPerformance: {},
+  topicPerformance: {},
+  dailyActivity: {},
+  recentMistakes: [],
+  revisionSchedule: [],
+  unlockedAchievements: {},
+  activeStudyPlan: null,
   bookmarkedItemIds: [],
   completedNoteIds: [],
   readBookIds: []
