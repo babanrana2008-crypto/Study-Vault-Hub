@@ -1,30 +1,4 @@
 import { Capacitor } from '@capacitor/core';
-import {
-  registerAccountInFirestore,
-  loginAccountInFirestore,
-  logoutAccountInFirestore,
-  syncUserProfileAndStatsInFirestore,
-  awardVaultPointsInFirestore,
-  fetchCommunityStateFromFirestore,
-  saveCommunityPostToFirestore,
-  deleteCommunityPostFromFirestore,
-  saveCommunityReplyToFirestore,
-  deleteCommunityReplyFromFirestore,
-  saveCommunityChatToFirestore,
-  deleteCommunityChatFromFirestore,
-  saveCommunityReportToFirestore,
-  fetchOwnerDashboardFromFirestore,
-  fetchRealLeaderboardFromFirestore,
-} from './firebaseDb';
-import {
-  reconcileUserVpState,
-  mergeUserStatsSafely,
-  detectClientDevicePlatform,
-  evaluateVerifiedAchievements,
-  computeSmartRevisionSchedule,
-  advanceRevisionItemStage,
-} from '../utils/securityAndVp';
-import { UserStats, StudySession, VPTransaction } from '../types';
 
 /**
  * Native Android & Resilient API Bridge for Study Vault Hub.
@@ -217,10 +191,6 @@ const INITIAL_SEEDED_USERS: Record<string, NativeStoredUser> = {
       correctAnswers: 2,
       incorrectAnswers: 2,
       totalStudyMinutes: 0,
-      vaultPoints: 16,
-      questionVp: 16,
-      focusMinuteVp: 0,
-      focusBonusVp: 0,
       streak: {
         current: 1,
         lastActiveDate: '2026-10-06',
@@ -245,73 +215,6 @@ const INITIAL_SEEDED_USERS: Record<string, NativeStoredUser> = {
       },
       userId: 'usr_acc4805d-709e-4352-891c-4ef2bd21424e',
       username: 'ssrr',
-      role: 'student',
-    },
-  },
-  'usr_548a037d-002d-4847-8485-a7490304459c': {
-    userId: 'usr_548a037d-002d-4847-8485-a7490304459c',
-    username: 'baban143',
-    role: 'student',
-    accountStatus: 'active',
-    webScryptSalt: '09892ba27b71a2f158e12cc2d7e8d8ce',
-    webScryptHash:
-      '7125293684b06b5faef6a8474fa8e68fb796f49d567eb2bc4d95d5714ec03aa3d2a49bf8069727ffbf2a78e674270296fb6cf59db9864dc4ef239bc053445bd6',
-    tokenHash: '',
-    sessionTokenHashes: [],
-    displayName: 'Soumyadip Rana',
-    profilePhotoUrl: null,
-    svhAiButtonPosition: {
-      xRatio: 0.9921,
-      yRatio: 0.7774,
-    },
-    createdAt: '2026-10-07T06:06:16.826Z',
-    lastSeenAt: '2026-10-07T18:10:09.104Z',
-    userStats: {
-      name: 'Soumyadip Rana',
-      profilePhotoUrl: null,
-      hasCompletedSetup: true,
-      themePreference: 'light',
-      examCountdown: {
-        examName: 'NEET',
-        examDate: '2027-05-05',
-        updatedAt: '2026-10-07T06:06:51.999Z',
-      },
-      selectedGoals: ['NEET', 'JEE Main', 'Class 12 Board'],
-      activeGoal: 'NEET',
-      customGoals: [],
-      targetCollegeOrInstitution: '',
-      questionsAttempted: 4,
-      correctAnswers: 1,
-      incorrectAnswers: 3,
-      totalStudyMinutes: 0,
-      vaultPoints: 16,
-      questionVp: 16,
-      focusMinuteVp: 0,
-      focusBonusVp: 0,
-      streak: {
-        current: 1,
-        lastActiveDate: '2026-10-07',
-      },
-      dailyGoals: {
-        studyMinutes: 120,
-        questionCount: 20,
-        taskCount: 3,
-      },
-      tasks: [],
-      studySessions: [],
-      practiceHistory: [],
-      topicsStudied: ['Cell Biology', 'Mechanics & Rotational Motion'],
-      subjectsStudied: {},
-      bookmarkedItemIds: [],
-      completedNoteIds: [],
-      readBookIds: [],
-      chapterProgress: {},
-      svhAiButtonPosition: {
-        xRatio: 0.9921,
-        yRatio: 0.7774,
-      },
-      userId: 'usr_548a037d-002d-4847-8485-a7490304459c',
-      username: 'baban143',
       role: 'student',
     },
   },
@@ -713,67 +616,6 @@ export async function handleNativeAndroidApiRequest(
 
     const existingAuthUser = await authenticateNativeRequest(db, init);
 
-    // First attempt registration in shared Firebase Firestore so Web and APK share accounts immediately
-    try {
-      const fsReg = await registerAccountInFirestore({
-        name: rawName,
-        username: cleanUsername,
-        password: rawPassword,
-        selectedGoals,
-        activeGoal,
-        deviceId: typeof body.deviceId === 'string' ? body.deviceId : undefined,
-        userStats: rawClientStats as Partial<UserStats>,
-        existingUserId:
-          existingAuthUser && !existingAuthUser.username && existingAuthUser.role !== 'owner'
-            ? existingAuthUser.userId
-            : undefined,
-      });
-
-      const salt = randomHex(16);
-      const passwordHash = await hashStudentPassword(rawPassword, salt);
-      const targetUser: NativeStoredUser = {
-        userId: fsReg.userId,
-        username: fsReg.username,
-        role: 'student',
-        accountStatus: 'active',
-        passwordSalt: salt,
-        passwordHash,
-        tokenHash: '',
-        sessionTokenHashes: [],
-        displayName: fsReg.displayName,
-        profilePhotoUrl: fsReg.profilePhotoUrl,
-        svhAiButtonPosition: fsReg.svhAiButtonPosition,
-        userStats: fsReg.userStats as Record<string, unknown>,
-        createdAt: fsReg.createdAt,
-        lastSeenAt: nowIso,
-      };
-      const issuedTok = await issueSessionToken(targetUser);
-      db.users[targetUser.userId] = targetUser;
-      saveNativeDb(db);
-
-      return jsonResponse(
-        {
-          userId: targetUser.userId,
-          username: targetUser.username,
-          role: 'student',
-          isOwner: false,
-          displayName: targetUser.displayName,
-          profilePhotoUrl: targetUser.profilePhotoUrl || null,
-          svhAiButtonPosition: targetUser.svhAiButtonPosition || null,
-          userStats: targetUser.userStats,
-          vaultPoints: fsReg.vaultPoints,
-          authToken: issuedTok,
-        },
-        201
-      );
-    } catch (fsErr) {
-      const msg = fsErr instanceof Error ? fsErr.message : '';
-      if (msg.toLowerCase().includes('already taken') || msg.toLowerCase().includes('reserved')) {
-        return jsonResponse({ error: msg }, 409);
-      }
-      // Fall through to local native DB if Firestore is temporarily offline
-    }
-
     const usernameTakenByOther = Object.values(db.users).find(
       (u) =>
         u.username &&
@@ -959,16 +801,6 @@ export async function handleNativeAndroidApiRequest(
 
       saveNativeDb(db);
 
-      // Sync Owner login to shared Firestore
-      syncUserProfileAndStatsInFirestore({
-        userId: ownerAccount.userId,
-        username: ownerAccount.username,
-        displayName: ownerAccount.displayName,
-        profilePhotoUrl: ownerAccount.profilePhotoUrl || null,
-        svhAiButtonPosition: ownerAccount.svhAiButtonPosition || null,
-        userStats: ownerAccount.userStats as Partial<UserStats>,
-      }).catch(() => {});
-
       return jsonResponse({
         userId: ownerAccount.userId,
         username: ownerAccount.username,
@@ -982,67 +814,12 @@ export async function handleNativeAndroidApiRequest(
       });
     }
 
-    // Outcome A: Student Login — Check shared Firebase Firestore first so accounts created on Web work on APK and vice versa
+    // Outcome A: Student Login
     if (await isOwnerUsernameDigestMatch(cleanUsername)) {
       return jsonResponse(
         { error: 'Invalid username or password. Please check your credentials and try again.' },
         401
       );
-    }
-
-    try {
-      const fsLogin = await loginAccountInFirestore({
-        username: cleanUsername,
-        password: rawPassword,
-        deviceId: typeof body.deviceId === 'string' ? body.deviceId : undefined,
-      });
-
-      const salt = randomHex(16);
-      const passwordHash = await hashStudentPassword(rawPassword, salt);
-      const existingLocal = db.users[fsLogin.userId];
-      const mergedStats = mergeUserStatsSafely(
-        existingLocal?.userStats as Partial<UserStats>,
-        fsLogin.userStats
-      );
-
-      const syncedUser: NativeStoredUser = {
-        userId: fsLogin.userId,
-        username: fsLogin.username,
-        role: fsLogin.role,
-        accountStatus: 'active',
-        passwordSalt: salt,
-        passwordHash,
-        tokenHash: '',
-        sessionTokenHashes: existingLocal?.sessionTokenHashes || [],
-        displayName: fsLogin.displayName,
-        profilePhotoUrl: fsLogin.profilePhotoUrl,
-        svhAiButtonPosition: fsLogin.svhAiButtonPosition,
-        userStats: mergedStats as Record<string, unknown>,
-        createdAt: fsLogin.createdAt || nowIso,
-        lastSeenAt: nowIso,
-      };
-      const issuedTok = await issueSessionToken(syncedUser);
-      db.users[syncedUser.userId] = syncedUser;
-      saveNativeDb(db);
-
-      return jsonResponse({
-        userId: syncedUser.userId,
-        username: syncedUser.username,
-        role: syncedUser.role || 'student',
-        isOwner: syncedUser.role === 'owner',
-        displayName: syncedUser.displayName,
-        profilePhotoUrl: syncedUser.profilePhotoUrl || null,
-        svhAiButtonPosition: syncedUser.svhAiButtonPosition || null,
-        userStats: syncedUser.userStats,
-        vaultPoints: fsLogin.vaultPoints,
-        authToken: issuedTok,
-      });
-    } catch (fsLoginErr) {
-      const errMsg = fsLoginErr instanceof Error ? fsLoginErr.message : '';
-      // If account wasn't in Firestore yet (e.g. pre-seeded local account), check local DB below
-      if (errMsg && !errMsg.includes('Invalid username or password')) {
-        // network error, continue to local DB check
-      }
     }
 
     const foundUser = Object.values(db.users).find(
@@ -1235,16 +1012,6 @@ export async function handleNativeAndroidApiRequest(
 
     saveNativeDb(db);
 
-    // Sync profile & stats update to shared Firebase Firestore
-    syncUserProfileAndStatsInFirestore({
-      userId: user.userId,
-      username: user.username,
-      displayName: user.displayName,
-      profilePhotoUrl: user.profilePhotoUrl || null,
-      svhAiButtonPosition: user.svhAiButtonPosition || null,
-      userStats: user.userStats as Partial<UserStats>,
-    }).catch(() => {});
-
     return jsonResponse({
       ok: true,
       userId: user.userId,
@@ -1256,182 +1023,6 @@ export async function handleNativeAndroidApiRequest(
       svhAiButtonPosition: user.svhAiButtonPosition || null,
       userStats: user.userStats,
     });
-  }
-
-  // --------------------------------------------------------------------------
-  // 4B. POST /api/vp/award (Backend-Controlled Idempotent Vault Points Engine)
-  // --------------------------------------------------------------------------
-  if (pathname === '/api/vp/award' && method === 'POST') {
-    const user = await authenticateNativeRequest(db, init);
-    const fallbackUserId =
-      user?.userId || (typeof body.userId === 'string' ? body.userId : 'usr_anonymous');
-    const grantKey = typeof body.grantKey === 'string' ? body.grantKey.trim() : '';
-    const category =
-      typeof body.category === 'string' &&
-      [
-        'question',
-        'focus_session',
-        'exam_bonus_5q',
-        'exam_bonus_20q',
-        'daily_usage',
-      ].includes(body.category)
-        ? body.category
-        : 'question';
-
-    if (!grantKey) {
-      return jsonResponse({ error: 'Missing idempotency grantKey for VP reward.' }, 400);
-    }
-
-    try {
-      const vpRes = await awardVaultPointsInFirestore({
-        userId: fallbackUserId,
-        username: user?.username,
-        grantKey,
-        category,
-        relatedId: typeof body.relatedId === 'string' ? body.relatedId : undefined,
-        questionId: typeof body.questionId === 'string' ? body.questionId : undefined,
-        sessionId: typeof body.sessionId === 'string' ? body.sessionId : undefined,
-        durationMinutes:
-          typeof body.durationMinutes === 'number' ? body.durationMinutes : undefined,
-        subject: typeof body.subject === 'string' ? body.subject : undefined,
-        topic: typeof body.topic === 'string' ? body.topic : undefined,
-      });
-
-      if (user) {
-        user.userStats = {
-          ...(user.userStats || {}),
-          vaultPoints: vpRes.vaultPoints,
-          questionVp: vpRes.questionVp,
-          focusMinuteVp: vpRes.focusMinuteVp,
-          focusBonusVp: vpRes.focusBonusVp,
-          sixtyMinBonusCount: vpRes.sixtyMinBonusCount,
-          vpTransactions: vpRes.vpTransactions,
-        };
-        saveNativeDb(db);
-      }
-
-      return jsonResponse(vpRes);
-    } catch {
-      // Local idempotent fallback if completely offline
-      const currentStats = (user?.userStats || {}) as Partial<UserStats>;
-      const existingTxs: VPTransaction[] = Array.isArray(currentStats.vpTransactions)
-        ? currentStats.vpTransactions
-        : [];
-      const safeDocId = grantKey.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 150);
-      if (existingTxs.some((t) => t.id === safeDocId)) {
-        return jsonResponse({
-          ok: true,
-          duplicate: true,
-          awardedVp: 0,
-          bonusVp: 0,
-          totalAwardedVp: 0,
-          vaultPoints: currentStats.vaultPoints || 0,
-          questionVp: currentStats.questionVp || 0,
-          focusMinuteVp: currentStats.focusMinuteVp || 0,
-          focusBonusVp: currentStats.focusBonusVp || 0,
-          sixtyMinBonusCount: currentStats.sixtyMinBonusCount || 0,
-          vpTransactions: existingTxs,
-        });
-      }
-
-      const newTxs: VPTransaction[] = [];
-      let awardedVp = 0;
-      let bonusVp = 0;
-      if (category === 'question') {
-        awardedVp = 1;
-        newTxs.push({
-          id: safeDocId,
-          userId: fallbackUserId,
-          timestamp: nowIso,
-          amount: 1,
-          reason: `Completed valid practice question${body.subject ? ` (${body.subject})` : ''}`,
-          category: 'question',
-          relatedId: (body.questionId as string) || safeDocId,
-          subject: body.subject as string | undefined,
-          topic: body.topic as string | undefined,
-        });
-      } else if (category === 'exam_bonus_5q') {
-        awardedVp = 10;
-        newTxs.push({
-          id: safeDocId,
-          userId: fallbackUserId,
-          timestamp: nowIso,
-          amount: 10,
-          reason: 'Completed 5 Valid Exam/Exam-Oriented Questions (+10 VP)',
-          category: 'exam_bonus_5q',
-          relatedId: (body.relatedId as string) || 'exam_milestone_5q',
-        });
-      } else if (category === 'exam_bonus_20q') {
-        awardedVp = 40;
-        newTxs.push({
-          id: safeDocId,
-          userId: fallbackUserId,
-          timestamp: nowIso,
-          amount: 40,
-          reason: 'Completed 20 Valid Exam/Exam-Oriented Questions (+40 VP)',
-          category: 'exam_bonus_20q',
-          relatedId: (body.relatedId as string) || 'exam_milestone_20q',
-        });
-      } else if (category === 'daily_usage') {
-        awardedVp = 2;
-        newTxs.push({
-          id: safeDocId,
-          userId: fallbackUserId,
-          timestamp: nowIso,
-          amount: 2,
-          reason: 'Qualifying Daily Usage (+2 VP)',
-          category: 'daily_usage',
-          relatedId: (body.relatedId as string) || nowIso.split('T')[0],
-        });
-      } else {
-        const mins = Math.max(0, Math.floor(Number(body.durationMinutes) || 0));
-        awardedVp = 0;
-        bonusVp = mins >= 60 ? Math.floor(mins / 60) * 20 : 0;
-        if (bonusVp > 0) {
-          newTxs.push({
-            id: `${safeDocId}_bonus60`,
-            userId: fallbackUserId,
-            timestamp: nowIso,
-            amount: bonusVp,
-            reason: `Completed 60-Minute Focus Study (+${bonusVp} VP)`,
-            category: 'focus_bonus_60m',
-            relatedId: (body.sessionId as string) || safeDocId,
-            subject: body.subject as string | undefined,
-            topic: body.topic as string | undefined,
-          });
-        }
-      }
-
-      const vpState = reconcileUserVpState({
-        userId: fallbackUserId,
-        existingTransactions: [...newTxs, ...existingTxs],
-        questionsAttempted: currentStats.questionsAttempted || 0,
-        studySessions: (currentStats.studySessions as StudySession[]) || [],
-        createdAt: user?.createdAt || nowIso,
-      });
-
-      if (user) {
-        user.userStats = {
-          ...(user.userStats || {}),
-          vaultPoints: vpState.vaultPoints,
-          questionVp: vpState.questionVp,
-          focusMinuteVp: vpState.focusMinuteVp,
-          focusBonusVp: vpState.focusBonusVp,
-          sixtyMinBonusCount: vpState.sixtyMinBonusCount,
-          vpTransactions: vpState.vpTransactions,
-        };
-        saveNativeDb(db);
-      }
-
-      return jsonResponse({
-        ok: true,
-        duplicate: false,
-        awardedVp,
-        bonusVp,
-        totalAwardedVp: awardedVp + bonusVp,
-        ...vpState,
-      });
-    }
   }
 
   // --------------------------------------------------------------------------
@@ -1450,10 +1041,6 @@ export async function handleNativeAndroidApiRequest(
       const targetHash = await sha256Hex(rawToken);
       const user = await authenticateNativeRequest(db, init);
       if (user) {
-        logoutAccountInFirestore({
-          userId: user.userId,
-          username: user.username,
-        }).catch(() => {});
         if (Array.isArray(user.sessionTokenHashes)) {
           user.sessionTokenHashes = user.sessionTokenHashes.filter((h) => h !== targetHash);
         }
@@ -1628,49 +1215,12 @@ export async function handleNativeAndroidApiRequest(
   }
 
   if (pathname === '/api/community/state' && method === 'GET') {
-    try {
-      const fsState = await fetchCommunityStateFromFirestore();
-      // Merge with any local posts/replies/chat
-      const postMap = new Map<string, NativeCommunityPost>();
-      for (const p of db.posts) postMap.set(p.id, p);
-      for (const p of fsState.posts) postMap.set(p.id, p as NativeCommunityPost);
-      const mergedPosts = Array.from(postMap.values()).sort(
-        (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-      );
-
-      const replyMap = new Map<string, NativeCommunityReply>();
-      for (const r of db.replies) replyMap.set(r.id, r);
-      for (const r of fsState.replies) replyMap.set(r.id, r as NativeCommunityReply);
-      const mergedReplies = Array.from(replyMap.values()).sort(
-        (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-      );
-
-      const chatMap = new Map<string, NativeChatMessage>();
-      for (const m of db.chatMessages) chatMap.set(m.id, m);
-      for (const m of fsState.chatMessages) chatMap.set(m.id, m as NativeChatMessage);
-      const mergedChat = Array.from(chatMap.values()).sort(
-        (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-      );
-
-      db.posts = mergedPosts;
-      db.replies = mergedReplies;
-      db.chatMessages = mergedChat;
-      saveNativeDb(db);
-
-      return jsonResponse({
-        posts: mergedPosts,
-        replies: mergedReplies,
-        chatMessages: mergedChat,
-        onlineCount: Math.max(1, Object.keys(db.users).length),
-      });
-    } catch {
-      return jsonResponse({
-        posts: db.posts,
-        replies: db.replies,
-        chatMessages: db.chatMessages,
-        onlineCount: Math.max(1, Object.keys(db.users).length),
-      });
-    }
+    return jsonResponse({
+      posts: db.posts,
+      replies: db.replies,
+      chatMessages: db.chatMessages,
+      onlineCount: Math.max(1, Object.keys(db.users).length),
+    });
   }
 
   if (pathname === '/api/community/posts' && method === 'POST') {
@@ -1697,7 +1247,6 @@ export async function handleNativeAndroidApiRequest(
     };
     db.posts.unshift(newPost);
     saveNativeDb(db);
-    saveCommunityPostToFirestore(newPost).catch(() => {});
     return jsonResponse({ post: newPost }, 201);
   }
 
@@ -1742,7 +1291,6 @@ export async function handleNativeAndroidApiRequest(
     db.replies.push(newReply);
     post.replyCount = db.replies.filter((r) => r.postId === post.id).length;
     saveNativeDb(db);
-    saveCommunityReplyToFirestore(newReply, post.replyCount).catch(() => {});
     return jsonResponse({ reply: newReply, replyCount: post.replyCount }, 201);
   }
 
@@ -1766,7 +1314,6 @@ export async function handleNativeAndroidApiRequest(
     };
     db.chatMessages.push(message);
     saveNativeDb(db);
-    saveCommunityChatToFirestore(message).catch(() => {});
     return jsonResponse({ message }, 201);
   }
 
@@ -1915,173 +1462,62 @@ export async function handleNativeAndroidApiRequest(
         403
       );
     }
+    const allUsers = Object.values(db.users);
+    const registeredAccounts = allUsers.map((u) => {
+      const stats = (u.userStats || {}) as Record<string, unknown>;
+      return {
+        userId: u.userId,
+        username: u.username || null,
+        displayName: u.displayName || 'Student',
+        role: u.role === 'owner' ? ('owner' as const) : ('student' as const),
+        accountStatus:
+          u.accountStatus === 'suspended' ? ('suspended' as const) : ('active' as const),
+        activeGoal: typeof stats.activeGoal === 'string' ? stats.activeGoal : null,
+        questionsAttempted:
+          typeof stats.questionsAttempted === 'number' ? stats.questionsAttempted : 0,
+        totalStudyMinutes:
+          typeof stats.totalStudyMinutes === 'number' ? stats.totalStudyMinutes : 0,
+        createdAt: u.createdAt,
+        lastSeenAt: u.lastSeenAt,
+      };
+    });
 
-    try {
-      const fsDashboard = await fetchOwnerDashboardFromFirestore();
-      return jsonResponse(fsDashboard);
-    } catch {
-      // Fallback to local db users if offline
-      const allUsers = Object.values(db.users);
-      const sanitizedUsers = allUsers.map((u) => {
-        const stats = (u.userStats || {}) as Partial<UserStats>;
-        const qAttempted = Number(stats.questionsAttempted) || 0;
-        const qCorrect = Number(stats.correctAnswers) || 0;
-        const qIncorrect = Number(stats.incorrectAnswers) || Math.max(0, qAttempted - qCorrect);
-        const studyMin = Number(stats.totalStudyMinutes) || 0;
-        const vpState = reconcileUserVpState({
-          userId: u.userId,
-          existingTransactions: stats.vpTransactions || [],
-          questionsAttempted: qAttempted,
-          studySessions: stats.studySessions || [],
-          createdAt: u.createdAt,
-        });
-        return {
-          userId: u.userId,
-          username: u.username || null,
-          role: u.role === 'owner' ? ('owner' as const) : ('student' as const),
-          displayName: u.displayName || 'Student',
-          hasProfilePhoto: Boolean(u.profilePhotoUrl),
-          createdAt: u.createdAt,
-          lastSeenAt: u.lastSeenAt,
-          lastLoginAt: stats.lastLoginAt || u.createdAt,
-          lastLogoutAt: stats.lastLogoutAt || null,
-          loginCount: stats.loginCount || 1,
-          logoutCount: stats.logoutCount || 0,
-          loginHistory: stats.loginHistory || [],
-          lastDevicePlatform: stats.lastDevicePlatform || detectClientDevicePlatform(),
-          devicesUsed: stats.devicesUsed || [detectClientDevicePlatform()],
-          isCurrentlyActive: true,
-          accountStatus: u.accountStatus === 'suspended' ? 'Suspended' : 'Active',
-          activeGoal: stats.activeGoal || stats.selectedGoals?.[0] || 'Not Set',
-          selectedGoals: stats.selectedGoals || [],
-          questionsAttempted: qAttempted,
-          correctAnswers: qCorrect,
-          incorrectAnswers: qIncorrect,
-          accuracyPercent: qAttempted > 0 ? Number(((qCorrect / qAttempted) * 100).toFixed(1)) : 0,
-          totalStudyMinutes: studyMin,
-          studySessionsCount: Array.isArray(stats.studySessions) ? stats.studySessions.length : 0,
-          studySessions: stats.studySessions || [],
-          practiceHistory: stats.practiceHistory || [],
-          subjectsStudied: stats.subjectsStudied || {},
-          topicsStudied: stats.topicsStudied || [],
-          chapterProgress: stats.chapterProgress || {},
-          tasksCompleted: Array.isArray(stats.tasks) ? stats.tasks.filter((t) => t.completed).length : 0,
-          totalTasks: Array.isArray(stats.tasks) ? stats.tasks.length : 0,
-          streakDays: stats.streak?.current || 0,
-          lastActiveStreakDate: stats.streak?.lastActiveDate || null,
-          vaultPoints: vpState.vaultPoints,
-          questionVp: vpState.questionVp,
-          focusMinuteVp: vpState.focusMinuteVp,
-          focusBonusVp: vpState.focusBonusVp,
-          sixtyMinBonusCount: vpState.sixtyMinBonusCount,
-          vpTransactions: vpState.vpTransactions,
-          postsCount: db.posts.filter((p) => p.authorId === u.userId).length,
-          repliesCount: db.replies.filter((r) => r.authorId === u.userId).length,
-          chatCount: db.chatMessages.filter((m) => m.authorId === u.userId).length,
-          reportsSubmittedCount: db.reports.filter((r) => r.reporterId === u.userId).length,
-          svhAiUsageCount: (db.aiConversations[u.userId] || []).reduce(
-            (sum, c) => sum + c.messages.filter((m) => m.role === 'user').length,
-            0
-          ),
-        };
-      });
-
-      return jsonResponse({
-        generatedAt: nowIso,
-        metrics: {
-          totalUniqueUsers: sanitizedUsers.length,
-          totalRegisteredAccounts: sanitizedUsers.filter((u) => Boolean(u.username)).length,
-          totalDevices: Math.max(1, sanitizedUsers.length),
-          totalAppOpenSessions: sanitizedUsers.reduce((s, u) => s + (u.loginCount || 1), 0),
-          dau: sanitizedUsers.length,
-          wau: sanitizedUsers.length,
-          mau: sanitizedUsers.length,
-          newUsersToday: 0,
-          newUsersLast7Days: sanitizedUsers.length,
-          newUsersLast30Days: sanitizedUsers.length,
-          newUsersOverTime: [],
-          communityUsers: new Set([
-            ...db.posts.map((p) => p.authorId),
-            ...db.replies.map((r) => r.authorId),
-            ...db.chatMessages.map((m) => m.authorId),
-          ]).size,
-          communityPostsCount: db.posts.length,
-          communityRepliesCount: db.replies.length,
-          communityChatMessagesCount: db.chatMessages.length,
-          svhAiUsers: sanitizedUsers.filter((u) => (u.svhAiUsageCount || 0) > 0).length,
-          svhAiConversations: Object.values(db.aiConversations).reduce((s, l) => s + l.length, 0),
-          svhAiInteractions: sanitizedUsers.reduce((s, u) => s + u.svhAiUsageCount, 0),
-          totalVaultPointsAcrossUsers: sanitizedUsers.reduce((s, u) => s + u.vaultPoints, 0),
-          totalQuestionsAcrossUsers: sanitizedUsers.reduce((s, u) => s + u.questionsAttempted, 0),
-          totalStudyMinutesAcrossUsers: sanitizedUsers.reduce((s, u) => s + u.totalStudyMinutes, 0),
-          registeredAccounts: sanitizedUsers.map((u) => ({
-            userId: u.userId,
-            username: u.username,
-            displayName: u.displayName,
-            role: u.role,
-            accountStatus: (u.accountStatus === 'Suspended' ? 'suspended' : 'active') as 'active' | 'suspended',
-            activeGoal: u.activeGoal,
-            selectedGoals: u.selectedGoals,
-            questionsAttempted: u.questionsAttempted,
-            correctAnswers: u.correctAnswers,
-            incorrectAnswers: u.incorrectAnswers,
-            accuracy: Math.round(u.accuracyPercent || 0),
-            totalStudyMinutes: u.totalStudyMinutes,
-            streak: {
-              current: u.streakDays || 0,
-              lastActiveDate: u.lastActiveStreakDate || '',
-            },
-            vaultPoints: u.vaultPoints,
-            questionVp: u.questionVp,
-            focusMinuteVp: u.focusMinuteVp,
-            focusBonusVp: u.focusBonusVp,
-            vpTransactions: u.vpTransactions,
-            practiceHistory: u.practiceHistory,
-            studySessions: u.studySessions,
-            subjectPerformance: {},
-            topicPerformance: {},
-            dailyActivity: {},
-            recentMistakesCount: u.incorrectAnswers,
-            createdAt: u.createdAt,
-            lastLoginAt: u.lastLoginAt,
-            lastLogoutAt: u.lastLogoutAt || '',
-            lastSeenAt: u.lastSeenAt,
-            loginCount: u.loginCount,
-            logoutCount: u.logoutCount,
-            loginHistory: u.loginHistory,
-            lastDevicePlatform: u.lastDevicePlatform,
-            platformsUsed: u.devicesUsed,
-            communityPostsCount: u.postsCount,
-            communityRepliesCount: u.repliesCount,
-            communityChatCount: u.chatCount,
-            svhAiUsageCount: u.svhAiUsageCount,
-          })),
-          moderationReports: db.reports.map((rep) => ({
-            ...rep,
-            targetAuthor: 'Community Member',
-            targetPreview: rep.reason,
-          })),
-        },
-        summary: {
-          totalUsers: sanitizedUsers.length,
-          totalRegisteredAccounts: sanitizedUsers.filter((u) => Boolean(u.username)).length,
-          activeUsersLast24h: sanitizedUsers.length,
-          activeUsersLast7d: sanitizedUsers.length,
-          totalPosts: db.posts.length,
-          totalReplies: db.replies.length,
-          totalChatMessages: db.chatMessages.length,
-          totalReports: db.reports.length,
-          totalQuestionsAttemptedAllUsers: sanitizedUsers.reduce((s, u) => s + u.questionsAttempted, 0),
-          totalStudyMinutesAllUsers: sanitizedUsers.reduce((s, u) => s + u.totalStudyMinutes, 0),
-          totalVaultPointsAllUsers: sanitizedUsers.reduce((s, u) => s + u.vaultPoints, 0),
-          totalSvhAiQueriesAllUsers: sanitizedUsers.reduce((s, u) => s + u.svhAiUsageCount, 0),
-          goalDistribution: {},
-          subjectStudyMinutesAllUsers: {},
-        },
-        users: sanitizedUsers,
-        recentReports: db.reports,
-      });
-    }
+    return jsonResponse({
+      generatedAt: nowIso,
+      metrics: {
+        totalUniqueUsers: allUsers.length,
+        totalRegisteredAccounts: allUsers.filter((u) => Boolean(u.username)).length,
+        totalDevices: Math.max(1, Object.keys(db.registeredDeviceHashes).length),
+        totalAppOpenSessions: Math.max(1, db.analyticsSessions.length),
+        dau: allUsers.length,
+        wau: allUsers.length,
+        mau: allUsers.length,
+        newUsersToday: allUsers.length,
+        newUsersLast7Days: allUsers.length,
+        newUsersLast30Days: allUsers.length,
+        newUsersOverTime: [{ date: nowIso.split('T')[0], count: allUsers.length }],
+        communityUsers: new Set(db.posts.map((p) => p.authorId)).size,
+        communityPostsCount: db.posts.length,
+        communityRepliesCount: db.replies.length,
+        communityChatMessagesCount: db.chatMessages.length,
+        svhAiUsers: Object.keys(db.aiConversations).length,
+        svhAiConversations: Object.values(db.aiConversations).reduce(
+          (acc, list) => acc + list.length,
+          0
+        ),
+        svhAiInteractions: Object.values(db.aiConversations).reduce(
+          (acc, list) =>
+            acc +
+            list.reduce(
+              (sum, c) => sum + c.messages.filter((m) => m.role === 'user').length,
+              0
+            ),
+          0
+        ),
+        registeredAccounts,
+        moderationReports: db.reports,
+      },
+    });
   }
 
   const postDeleteMatch = pathname.match(/^\/api\/community\/posts\/([^/]+)$/);
@@ -2098,7 +1534,6 @@ export async function handleNativeAndroidApiRequest(
     db.posts = db.posts.filter((p) => p.id !== postId);
     db.replies = db.replies.filter((r) => r.postId !== postId);
     saveNativeDb(db);
-    deleteCommunityPostFromFirestore(postId).catch(() => {});
     return jsonResponse({ ok: true, postId });
   }
 
@@ -2122,7 +1557,6 @@ export async function handleNativeAndroidApiRequest(
       if (parent) parent.replyCount = replyCount;
     }
     saveNativeDb(db);
-    deleteCommunityReplyFromFirestore(replyId, postId, replyCount).catch(() => {});
     return jsonResponse({ ok: true, replyId, postId, replyCount });
   }
 
@@ -2139,7 +1573,6 @@ export async function handleNativeAndroidApiRequest(
     }
     db.chatMessages = db.chatMessages.filter((m) => m.id !== messageId);
     saveNativeDb(db);
-    deleteCommunityChatFromFirestore(messageId).catch(() => {});
     return jsonResponse({ ok: true, messageId });
   }
 
@@ -2163,7 +1596,6 @@ export async function handleNativeAndroidApiRequest(
     };
     db.reports.unshift(report);
     saveNativeDb(db);
-    saveCommunityReportToFirestore(report).catch(() => {});
     return jsonResponse({ ok: true, reportId: report.id }, 201);
   }
 
@@ -2231,256 +1663,6 @@ export async function handleNativeAndroidApiRequest(
     }
     saveNativeDb(db);
     return jsonResponse({ ok: true, targetType, targetId });
-  }
-
-  if (pathname === '/api/svh-ai/smart-revision' && method === 'POST') {
-    const user = await authenticateNativeRequest(db, init);
-    const clientStats = (body.userStats || {}) as Record<string, any>;
-    const mergedStats = {
-      ...(user?.userStats || {}),
-      ...clientStats,
-    };
-    const action = body.action;
-    const revisionId = typeof body.revisionId === 'string' ? body.revisionId : '';
-
-    let schedule = computeSmartRevisionSchedule(mergedStats as Partial<UserStats>);
-    if (action === 'complete_review' && revisionId) {
-      schedule = advanceRevisionItemStage(schedule, revisionId);
-    }
-
-    if (user) {
-      user.userStats = {
-        ...(user.userStats || {}),
-        revisionSchedule: schedule,
-      };
-      saveNativeDb(db);
-    }
-
-    return jsonResponse({
-      ok: true,
-      revisionSchedule: schedule,
-    });
-  }
-
-  if (pathname === '/api/achievements/verify' && method === 'POST') {
-    const user = await authenticateNativeRequest(db, init);
-    const clientStats = (body.userStats || {}) as Record<string, any>;
-    const mergedStats = {
-      ...(user?.userStats || {}),
-      ...clientStats,
-    };
-
-    const verification = evaluateVerifiedAchievements(mergedStats as Partial<UserStats>);
-    if (user) {
-      user.userStats = {
-        ...(user.userStats || {}),
-        unlockedAchievements: verification.unlockedAchievements,
-      };
-      saveNativeDb(db);
-    }
-
-    return jsonResponse({
-      ok: true,
-      ...verification,
-    });
-  }
-
-  if (pathname === '/api/svh-ai/study-plan' && method === 'POST') {
-    const user = await authenticateNativeRequest(db, init);
-    const studentContext = (body.studentContext || {}) as Record<string, any>;
-    const stats = (user?.userStats || {}) as Record<string, any>;
-    const questionsAttempted = Number(
-      studentContext?.practiceStats?.questionsAttempted ?? stats.questionsAttempted ?? 0
-    );
-    const totalStudyMinutes = Number(
-      studentContext?.trackerActivity?.totalStudyMinutes ?? stats.totalStudyMinutes ?? 0
-    );
-    const activeGoal = String(studentContext?.activeGoal || stats.activeGoal || 'General Study');
-    const activeSubjects: string[] = Array.isArray(studentContext?.activeSubjects)
-      ? studentContext.activeSubjects
-      : ['Physics', 'Chemistry', 'Biology'];
-
-    if (questionsAttempted <= 0 && totalStudyMinutes <= 0) {
-      return jsonResponse({
-        ok: true,
-        insufficientData: true,
-        notice:
-          'More real study activity is needed before SVH AI can analyze your personal weaknesses or accuracy trends. Complete at least one practice question or focus session first, or ask SVH AI in chat for a starter syllabus schedule.',
-        studyPlan: null,
-      });
-    }
-
-    const weakTopics = Array.isArray(studentContext?.weakTopicAnalysis?.weakTopics)
-      ? studentContext.weakTopicAnalysis.weakTopics
-      : [];
-
-    const items = activeSubjects.slice(0, 3).map((subj, idx) => {
-      const weakMatch = weakTopics[idx];
-      return {
-        id: `plan_item_${Date.now()}_${idx}`,
-        dayLabel: `Day ${idx + 1}`,
-        subject: weakMatch?.topicOrSubject || subj,
-        topic: weakMatch
-          ? `Targeted Revision (${weakMatch.accuracy}% accuracy across ${weakMatch.solved} Qs)`
-          : `${subj} Core Concept Review & Practice`,
-        focusMinutes: 45,
-        practiceQuestions: 15,
-        priority: weakMatch ? ('High' as const) : ('Medium' as const),
-        completed: false,
-      };
-    });
-
-    const studyPlan = {
-      id: `plan_${Date.now()}`,
-      createdAt: nowIso,
-      goal: activeGoal,
-      summary: `Personalized study plan built from your ${questionsAttempted} solved questions and ${totalStudyMinutes} min of tracked study time.`,
-      insufficientDataNotice: null,
-      items,
-    };
-
-    if (user) {
-      user.userStats = {
-        ...(user.userStats || {}),
-        activeStudyPlan: studyPlan,
-      };
-      saveNativeDb(db);
-    }
-
-    return jsonResponse({
-      ok: true,
-      insufficientData: false,
-      studyPlan,
-    });
-  }
-
-  if (pathname === '/api/svh-ai/smart-session' && method === 'POST') {
-    const user = await authenticateNativeRequest(db, init);
-    const studentContext = (body.studentContext || {}) as Record<string, any>;
-    const requestedSubject = typeof body.subject === 'string' ? body.subject.trim() : '';
-    const requestedTopic = typeof body.topic === 'string' ? body.topic.trim() : '';
-    const requestedMinutes = Math.max(15, Math.min(180, Number(body.durationMinutes) || 45));
-    const stats = (user?.userStats || {}) as Record<string, any>;
-    const questionsAttempted = Number(
-      studentContext?.practiceStats?.questionsAttempted ?? stats.questionsAttempted ?? 0
-    );
-    const totalStudyMinutes = Number(
-      studentContext?.trackerActivity?.totalStudyMinutes ?? stats.totalStudyMinutes ?? 0
-    );
-
-    if (!requestedTopic && questionsAttempted <= 0 && totalStudyMinutes <= 0) {
-      return jsonResponse({
-        ok: true,
-        insufficientData: true,
-        notice:
-          'Not enough data yet — complete at least one practice question or focus session so SVH AI can recommend a personalized Smart Study Session from your real progress, or enter a specific topic above.',
-        smartSession: null,
-      });
-    }
-
-    const weakTopics = Array.isArray(studentContext?.weakTopicAnalysis?.weakTopics)
-      ? studentContext.weakTopicAnalysis.weakTopics
-      : [];
-    const chosenSubject =
-      requestedSubject ||
-      weakTopics[0]?.topicOrSubject ||
-      studentContext?.activeSubjects?.[0] ||
-      'Physics';
-    const chosenTopic =
-      requestedTopic ||
-      weakTopics[0]?.topicOrSubject ||
-      stats.topicsStudied?.[0] ||
-      `${chosenSubject} High-Yield Concept Review`;
-
-    return jsonResponse({
-      ok: true,
-      insufficientData: false,
-      smartSession: {
-        id: `smart_sess_${Date.now()}`,
-        createdAt: nowIso,
-        subject: chosenSubject,
-        topic: chosenTopic,
-        durationMinutes: requestedMinutes,
-        objectives: [
-          `Master core NCERT definitions and derivations for ${chosenTopic}`,
-          `Review common mistake traps and dimensional/formula checks`,
-          `Solve 10 timed application questions on ${chosenTopic}`,
-        ],
-        conceptSummary: `Focused ${requestedMinutes}-minute revision session for ${chosenTopic} (${chosenSubject}), tailored to your real Study Vault Hub activity.`,
-        keyFormulasOrPoints: [
-          `Verify standard SI units and sign conventions before substituting numerical values`,
-          `Cross-check limiting cases and boundary conditions for ${chosenTopic}`,
-          `Link each solved problem back to its core NCERT principle`,
-        ],
-        practicePrompts: [
-          `State the primary governing principle or formula for ${chosenTopic} from memory.`,
-          `Identify the most frequent calculation or conceptual pitfall in ${chosenTopic}.`,
-        ],
-      },
-    });
-  }
-
-  if (pathname === '/api/community/leaderboard' && method === 'GET') {
-    const fsBoard = await fetchRealLeaderboardFromFirestore().catch(() => []);
-    const map = new Map<string, any>();
-
-    for (const u of Object.values(db.users)) {
-      const stats = (u.userStats || {}) as Partial<UserStats>;
-      const qSolved = Math.max(0, Number(stats.questionsAttempted) || 0);
-      const studyMin = Math.max(0, Number(stats.totalStudyMinutes) || 0);
-      const vpState = reconcileUserVpState({
-        userId: u.userId,
-        existingTransactions: stats.vpTransactions || [],
-        questionsAttempted: qSolved,
-        studySessions: stats.studySessions || [],
-        createdAt: u.createdAt,
-      });
-      const vp = Math.max(Number(stats.vaultPoints) || 0, vpState.vaultPoints);
-      const displayName = (u.displayName || stats.name || u.username || '').trim();
-      if (!displayName) continue;
-      if (!u.username && vp <= 0 && qSolved <= 0 && studyMin <= 0) continue;
-
-      const key = u.username ? `uname:${u.username.toLowerCase()}` : `uid:${u.userId}`;
-      map.set(key, {
-        userId: u.userId,
-        username: u.username || null,
-        displayName,
-        profilePhotoUrl: u.profilePhotoUrl || stats.profilePhotoUrl || null,
-        activeGoal: stats.activeGoal || stats.selectedGoals?.[0] || null,
-        vaultPoints: vp,
-        questionsSolved: qSolved,
-        studyMinutes: studyMin,
-        streakDays: Number(stats.streak?.current) || 0,
-      });
-    }
-
-    for (const item of fsBoard) {
-      const key = item.username ? `uname:${item.username.toLowerCase()}` : `uid:${item.userId}`;
-      const existing = map.get(key);
-      if (!existing) {
-        map.set(key, { ...item });
-      } else {
-        existing.vaultPoints = Math.max(existing.vaultPoints, item.vaultPoints);
-        existing.questionsSolved = Math.max(existing.questionsSolved, item.questionsSolved);
-        existing.studyMinutes = Math.max(existing.studyMinutes, item.studyMinutes);
-        existing.streakDays = Math.max(existing.streakDays, item.streakDays);
-      }
-    }
-
-    const sorted = Array.from(map.values()).sort((a, b) => {
-      if (b.vaultPoints !== a.vaultPoints) return b.vaultPoints - a.vaultPoints;
-      if (b.questionsSolved !== a.questionsSolved) return b.questionsSolved - a.questionsSolved;
-      return b.studyMinutes - a.studyMinutes;
-    });
-
-    return jsonResponse({
-      ok: true,
-      updatedAt: nowIso,
-      leaderboard: sorted.map((entry, idx) => ({
-        ...entry,
-        rank: idx + 1,
-      })),
-    });
   }
 
   return jsonResponse({ ok: true });
@@ -2553,7 +1735,7 @@ export async function apiFetch(
       const controller = new AbortController();
       const timeoutId =
         typeof window !== 'undefined'
-          ? window.setTimeout(() => controller.abort(), 12000)
+          ? window.setTimeout(() => controller.abort(), 1800)
           : null;
       try {
         const candidateRes = await baseFetch(`${baseOrigin}${rawUrl}`, {

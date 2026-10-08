@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { ActiveSection, Book, StudyNote, UserStats, MCQQuestion, PracticeHistoryEntry, ThemePreference } from './types';
 import { INITIAL_USER_STATS, SAMPLE_BOOKS, SAMPLE_NOTES, GOAL_SUBJECTS_MAP } from './data/sampleData';
 import { Header } from './components/Header';
@@ -21,7 +21,6 @@ import { FocusModeModal } from './components/FocusModeModal';
 import { OwnerAnalyticsModal } from './components/OwnerAnalyticsModal';
 import { StudySession } from './types';
 import { apiFetch } from './services/nativeApiBridge';
-import { computeSmartRevisionSchedule } from './utils/securityAndVp';
 
 const STORAGE_KEY = 'study_vault_hub_data_v3';
 const THEME_STORAGE_KEY = 'study_vault_theme_preference_v1';
@@ -598,248 +597,16 @@ export default function App() {
     }));
   }, []);
 
-  // Vault Points (VP) Reward Animation Toast & Idempotent Backend Grant Engine
-  const [vpRewardToast, setVpRewardToast] = useState<{ id: string; text: string } | null>(null);
-  const vpToastTimerRef = useRef<number | null>(null);
-  const awardedGrantKeysRef = useRef<Set<string>>(new Set());
-
-  const showVpRewardToast = useCallback((text: string) => {
-    if (vpToastTimerRef.current !== null && typeof window !== 'undefined') {
-      window.clearTimeout(vpToastTimerRef.current);
-    }
-    setVpRewardToast({ id: `vptoast_${Date.now()}_${Math.random()}`, text });
-    if (typeof window !== 'undefined') {
-      vpToastTimerRef.current = window.setTimeout(() => {
-        setVpRewardToast(null);
-      }, 3200);
-    }
-  }, []);
-
-  const awardBackendVaultPoints = useCallback(
-    async (params: {
-      grantKey: string;
-      category:
-        | 'question'
-        | 'focus_session'
-        | 'exam_bonus_5q'
-        | 'exam_bonus_20q'
-        | 'daily_usage';
-      questionId?: string;
-      sessionId?: string;
-      durationMinutes?: number;
-      subject?: string;
-      topic?: string;
-      relatedId?: string;
-    }) => {
-      const cleanKey = params.grantKey.trim();
-      if (!cleanKey || awardedGrantKeysRef.current.has(cleanKey)) {
-        return;
-      }
-      awardedGrantKeysRef.current.add(cleanKey);
-
-      try {
-        let authToken = '';
-        let userId = '';
-        try {
-          const rawId = localStorage.getItem(IDENTITY_STORAGE_KEY);
-          if (rawId) {
-            const parsedId = JSON.parse(rawId);
-            authToken = parsedId?.authToken || '';
-            userId = parsedId?.userId || '';
-          }
-        } catch {
-          // ignore
-        }
-
-        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-        if (authToken) {
-          headers.Authorization = `Bearer ${authToken}`;
-        }
-
-        const res = await apiFetch('/api/vp/award', {
-          method: 'POST',
-          headers,
-          body: JSON.stringify({
-            ...params,
-            userId: userId || 'usr_local',
-          }),
-        });
-
-        if (res.ok) {
-          const data = await res.json();
-          if (!data.duplicate && Number(data.totalAwardedVp) > 0) {
-            if (params.category === 'question') {
-              showVpRewardToast(`+${data.awardedVp || 1} VP`);
-            } else if (Number(data.bonusVp) > 0) {
-              showVpRewardToast(`+${data.bonusVp} VP 60m Focus!`);
-            } else if (Number(data.awardedVp) > 0) {
-              showVpRewardToast(`+${data.awardedVp} VP`);
-            }
-          }
-          if (typeof data.vaultPoints === 'number') {
-            setUserStats((prev) => ({
-              ...prev,
-              vaultPoints: data.vaultPoints,
-              questionVp:
-                typeof data.questionVp === 'number' ? data.questionVp : prev.questionVp,
-              focusMinuteVp:
-                typeof data.focusMinuteVp === 'number'
-                  ? data.focusMinuteVp
-                  : prev.focusMinuteVp,
-              focusBonusVp:
-                typeof data.focusBonusVp === 'number'
-                  ? data.focusBonusVp
-                  : prev.focusBonusVp,
-              sixtyMinBonusCount:
-                typeof data.sixtyMinBonusCount === 'number'
-                  ? data.sixtyMinBonusCount
-                  : prev.sixtyMinBonusCount,
-              vpTransactions: Array.isArray(data.vpTransactions)
-                ? data.vpTransactions
-                : prev.vpTransactions,
-            }));
-          }
-        }
-      } catch {
-        // Fallback local VP calculation
-      }
-    },
-    [showVpRewardToast]
-  );
-
-  // Verify achievements with backend whenever real activity metrics change
-  useEffect(() => {
-    const hasActivity =
-      (userStats.questionsAttempted || 0) > 0 ||
-      (userStats.totalStudyMinutes || 0) > 0 ||
-      (userStats.studySessions?.length || 0) > 0 ||
-      (userStats.vaultPoints || 0) > 0 ||
-      (userStats.streak?.current || 0) > 0;
-    if (!hasActivity) return;
-
-    let cancelled = false;
-    const timer = window.setTimeout(async () => {
-      try {
-        let authToken = '';
-        try {
-          const rawId = localStorage.getItem(IDENTITY_STORAGE_KEY);
-          if (rawId) {
-            const parsed = JSON.parse(rawId);
-            authToken = parsed?.authToken || '';
-          }
-        } catch {
-          // ignore
-        }
-        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-        if (authToken) headers.Authorization = `Bearer ${authToken}`;
-
-        const res = await apiFetch('/api/achievements/verify', {
-          method: 'POST',
-          headers,
-          body: JSON.stringify({ userStats }),
-        });
-        if (res.ok && !cancelled) {
-          const data = await res.json();
-          if (data.unlockedAchievements && typeof data.unlockedAchievements === 'object') {
-            setUserStats((prev) => {
-              const prevKeys = Object.keys(prev.unlockedAchievements || {});
-              const nextKeys = Object.keys(data.unlockedAchievements);
-              if (
-                prevKeys.length === nextKeys.length &&
-                nextKeys.every((k) => Boolean(prev.unlockedAchievements?.[k]))
-              ) {
-                return prev;
-              }
-              return {
-                ...prev,
-                unlockedAchievements: {
-                  ...(prev.unlockedAchievements || {}),
-                  ...data.unlockedAchievements,
-                },
-              };
-            });
-          }
-        }
-      } catch {
-        // ignore network error
-      }
-    }, 350);
-
-    return () => {
-      cancelled = true;
-      window.clearTimeout(timer);
-    };
-  }, [
-    userStats.questionsAttempted,
-    userStats.totalStudyMinutes,
-    userStats.vaultPoints,
-    userStats.streak?.current,
-    userStats.studySessions?.length,
-  ]);
-
   const handleRecordSingleQuestion = useCallback(
     (isCorrect: boolean, question: MCQQuestion, chapterId?: string) => {
-      const today = new Date().toISOString().split('T')[0];
-      const grantKey = `vp_q_${question.id}_${today}`;
-      const isAlreadyAwarded = awardedGrantKeysRef.current.has(grantKey);
-
-      if (!isAlreadyAwarded) {
-        showVpRewardToast('+1 VP');
-        void awardBackendVaultPoints({
-          grantKey,
-          category: 'question',
-          questionId: question.id,
-          subject: question.subject,
-          topic: question.topic,
-        });
-        const dailyKey = `vp_daily_usage_${today}`;
-        if (!awardedGrantKeysRef.current.has(dailyKey)) {
-          void awardBackendVaultPoints({
-            grantKey: dailyKey,
-            category: 'daily_usage',
-            relatedId: today,
-          });
-        }
-      }
-
       setUserStats((prev) => {
-        const existingTxs = Array.isArray(prev.vpTransactions) ? prev.vpTransactions : [];
-        const safeId = grantKey.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 150);
-        if (isAlreadyAwarded || existingTxs.some((tx) => tx.id === safeId)) {
-          return prev;
-        }
-
         const newAttempted = prev.questionsAttempted + 1;
         const newCorrect = prev.correctAnswers + (isCorrect ? 1 : 0);
         const newIncorrect = prev.incorrectAnswers + (isCorrect ? 0 : 1);
 
-        let milestoneBonus = 0;
-        if (newAttempted === 5) {
-          milestoneBonus += 10;
-          void awardBackendVaultPoints({
-            grantKey: `vp_exam_milestone_5q`,
-            category: 'exam_bonus_5q',
-            relatedId: 'exam_milestone_5q',
-          });
-          showVpRewardToast('+1 VP & +10 VP 5-Question Bonus!');
-        } else if (newAttempted === 20) {
-          milestoneBonus += 40;
-          void awardBackendVaultPoints({
-            grantKey: `vp_exam_milestone_20q`,
-            category: 'exam_bonus_20q',
-            relatedId: 'exam_milestone_20q',
-          });
-          showVpRewardToast('+1 VP & +40 VP 20-Question Bonus!');
-        }
-
         const topicList = prev.topicsStudied.includes(question.topic)
           ? prev.topicsStudied
           : [question.topic, ...prev.topicsStudied];
-        const seenList = Array.isArray(prev.seenQuestionIds)
-          ? prev.seenQuestionIds.includes(question.id)
-            ? prev.seenQuestionIds
-            : [...prev.seenQuestionIds, question.id]
-          : [question.id];
 
         // Update real chapter progress if chapterId is present
         const currentChapterProgress = prev.chapterProgress || {};
@@ -866,75 +633,7 @@ export default function App() {
             }
           : currentChapterProgress;
 
-        // Real subjectPerformance tracking
-        const prevSubjPerf = prev.subjectPerformance?.[question.subject] || {
-          attempted: 0,
-          correct: 0,
-          accuracy: 0,
-        };
-        const nextSubjAttempted = prevSubjPerf.attempted + 1;
-        const nextSubjCorrect = prevSubjPerf.correct + (isCorrect ? 1 : 0);
-        const updatedSubjectPerformance = {
-          ...(prev.subjectPerformance || {}),
-          [question.subject]: {
-            attempted: nextSubjAttempted,
-            correct: nextSubjCorrect,
-            accuracy: Math.round((nextSubjCorrect / nextSubjAttempted) * 100),
-          },
-        };
-
-        // Real topicPerformance tracking
-        const prevTopicPerf = prev.topicPerformance?.[question.topic] || {
-          attempted: 0,
-          correct: 0,
-          accuracy: 0,
-        };
-        const nextTopicAttempted = prevTopicPerf.attempted + 1;
-        const nextTopicCorrect = prevTopicPerf.correct + (isCorrect ? 1 : 0);
-        const updatedTopicPerformance = {
-          ...(prev.topicPerformance || {}),
-          [question.topic]: {
-            attempted: nextTopicAttempted,
-            correct: nextTopicCorrect,
-            accuracy: Math.round((nextTopicCorrect / nextTopicAttempted) * 100),
-          },
-        };
-
-        // Real dailyActivity tracking (+2 VP qualifying daily usage on first activity of the day)
-        const prevDay = prev.dailyActivity?.[today] || {
-          questionsSolved: 0,
-          studyMinutes: 0,
-          vpEarned: 0,
-        };
-        const isFirstActivityToday =
-          prevDay.questionsSolved === 0 && prevDay.studyMinutes === 0;
-        const dailyUsageBonus = isFirstActivityToday ? 2 : 0;
-        const totalQuestionDeltaVp = 1 + milestoneBonus + dailyUsageBonus;
-
-        const updatedDailyActivity = {
-          ...(prev.dailyActivity || {}),
-          [today]: {
-            questionsSolved: prevDay.questionsSolved + 1,
-            studyMinutes: prevDay.studyMinutes,
-            vpEarned: (prevDay.vpEarned || 0) + totalQuestionDeltaVp,
-          },
-        };
-
-        // Real recentMistakes tracking (deduplicated)
-        const prevMistakes = Array.isArray(prev.recentMistakes) ? prev.recentMistakes : [];
-        const updatedMistakes = !isCorrect
-          ? [
-              {
-                id: question.id,
-                question: question.question,
-                subject: question.subject,
-                topic: question.topic,
-                date: today,
-              },
-              ...prevMistakes.filter((m) => m.id !== question.id),
-            ].slice(0, 50)
-          : prevMistakes;
-
+        const today = new Date().toISOString().split('T')[0];
         const prevStreak = prev.streak?.current || 0;
         const prevLastDate = prev.streak?.lastActiveDate || '';
         let nextStreak = prevStreak;
@@ -950,142 +649,49 @@ export default function App() {
           nextStreak = 1;
         }
 
-        const nextState: UserStats = {
+        return {
           ...prev,
           questionsAttempted: newAttempted,
           correctAnswers: newCorrect,
           incorrectAnswers: newIncorrect,
-          vaultPoints: (prev.vaultPoints || 0) + totalQuestionDeltaVp,
-          questionVp: (prev.questionVp || 0) + 1,
           topicsStudied: topicList,
-          seenQuestionIds: seenList,
           chapterProgress: updatedProgress,
-          subjectPerformance: updatedSubjectPerformance,
-          topicPerformance: updatedTopicPerformance,
-          dailyActivity: updatedDailyActivity,
-          recentMistakes: updatedMistakes,
           streak: {
             current: nextStreak,
             lastActiveDate: today,
           },
         };
-        nextState.revisionSchedule = computeSmartRevisionSchedule(nextState);
-        return nextState;
       });
     },
-    [awardBackendVaultPoints, showVpRewardToast]
+    []
   );
 
   // Record a completed timed test sprint
-  const handleRecordTestCompleted = useCallback(
-    (entry: PracticeHistoryEntry) => {
-      const today = new Date().toISOString().split('T')[0];
-      const baseVp = Math.max(0, entry.totalQuestions * 1);
-      const grantKey = `vp_test_${entry.id}`;
-      setUserStats((prev) => {
-        const prevAttempted = prev.questionsAttempted || 0;
-        const newAttempted = prevAttempted + entry.totalQuestions;
-        let milestoneVp = 0;
-        if (prevAttempted < 5 && newAttempted >= 5) {
-          milestoneVp += 10;
-          void awardBackendVaultPoints({
-            grantKey: `vp_exam_milestone_5q`,
-            category: 'exam_bonus_5q',
-            relatedId: 'exam_milestone_5q',
-          });
-        }
-        if (prevAttempted < 20 && newAttempted >= 20) {
-          milestoneVp += 40;
-          void awardBackendVaultPoints({
-            grantKey: `vp_exam_milestone_20q`,
-            category: 'exam_bonus_20q',
-            relatedId: 'exam_milestone_20q',
-          });
-        }
-        const prevDay = prev.dailyActivity?.[today] || {
-          questionsSolved: 0,
-          studyMinutes: 0,
-          vpEarned: 0,
-        };
-        const isFirstActivityToday =
-          prevDay.questionsSolved === 0 && prevDay.studyMinutes === 0;
-        const dailyBonus = isFirstActivityToday ? 2 : 0;
-        const earnedVp = baseVp + milestoneVp + dailyBonus;
+  const handleRecordTestCompleted = useCallback((entry: PracticeHistoryEntry) => {
+    const today = new Date().toISOString().split('T')[0];
+    setUserStats((prev) => ({
+      ...prev,
+      questionsAttempted: prev.questionsAttempted + entry.totalQuestions,
+      correctAnswers: prev.correctAnswers + entry.correctCount,
+      incorrectAnswers: prev.incorrectAnswers + entry.wrongCount,
+      practiceHistory: [entry, ...prev.practiceHistory],
+      streak: {
+        current: Math.max(1, prev.streak?.current || 0),
+        lastActiveDate: today,
+      },
+    }));
+  }, []);
 
-        if (earnedVp > 0 && !awardedGrantKeysRef.current.has(grantKey)) {
-          showVpRewardToast(`+${earnedVp} VP`);
-        }
-
-        const updatedDailyActivity = {
-          ...(prev.dailyActivity || {}),
-          [today]: {
-            questionsSolved: prevDay.questionsSolved + entry.totalQuestions,
-            studyMinutes: prevDay.studyMinutes,
-            vpEarned: (prevDay.vpEarned || 0) + earnedVp,
-          },
-        };
-        const nextState: UserStats = {
-          ...prev,
-          questionsAttempted: newAttempted,
-          correctAnswers: prev.correctAnswers + entry.correctCount,
-          incorrectAnswers: prev.incorrectAnswers + entry.wrongCount,
-          vaultPoints: (prev.vaultPoints || 0) + earnedVp,
-          questionVp: (prev.questionVp || 0) + baseVp,
-          dailyActivity: updatedDailyActivity,
-          practiceHistory: [{ ...entry, vpEarned: earnedVp }, ...prev.practiceHistory],
-          streak: {
-            current: Math.max(1, prev.streak?.current || 0),
-            lastActiveDate: today,
-          },
-        };
-        nextState.revisionSchedule = computeSmartRevisionSchedule(nextState);
-        return nextState;
-      });
-    },
-    [awardBackendVaultPoints, showVpRewardToast]
-  );
-
-  // Save a real study focus session from FocusModeModal & award +20 VP for completed 60-minute Focus Study (+2 VP daily usage if first activity)
+  // Save a real study focus session from FocusModeModal
   const handleSaveRealFocusSession = useCallback(
     (session: StudySession, completedTaskId?: string) => {
       const today = new Date().toISOString().split('T')[0];
-      const mins = Math.max(0, Math.floor(Number(session.durationMinutes) || 0));
-      const minuteVp = 0;
-      const bonusVp = mins >= 60 ? Math.floor(mins / 60) * 20 : 0;
-      const totalSessionVp = minuteVp + bonusVp;
-      const grantKey = `vp_focus_${session.id}`;
-
-      if (mins > 0 && !awardedGrantKeysRef.current.has(grantKey)) {
-        if (bonusVp > 0) {
-          showVpRewardToast(`+${bonusVp} VP 60m Focus Study!`);
-          void awardBackendVaultPoints({
-            grantKey,
-            category: 'focus_session',
-            sessionId: session.id,
-            durationMinutes: mins,
-            subject: session.subject,
-            topic: session.topic,
-          });
-        }
-        const dailyKey = `vp_daily_usage_${today}`;
-        if (!awardedGrantKeysRef.current.has(dailyKey)) {
-          void awardBackendVaultPoints({
-            grantKey: dailyKey,
-            category: 'daily_usage',
-            relatedId: today,
-          });
-        }
-      }
-
       setUserStats((prev) => {
-        if (prev.studySessions.some((s) => s.id === session.id)) {
-          return prev;
-        }
-        const updatedTotalMin = prev.totalStudyMinutes + mins;
+        const updatedTotalMin = prev.totalStudyMinutes + session.durationMinutes;
         const currentSubjectMin = prev.subjectsStudied[session.subject] || 0;
         const updatedSubjectsStudied = {
           ...prev.subjectsStudied,
-          [session.subject]: currentSubjectMin + mins,
+          [session.subject]: currentSubjectMin + session.durationMinutes,
         };
         const updatedTopics = prev.topicsStudied.includes(session.topic)
           ? prev.topicsStudied
@@ -1094,20 +700,6 @@ export default function App() {
           ? prev.tasks.map((t) => (t.id === completedTaskId ? { ...t, completed: true } : t))
           : prev.tasks;
 
-        const prevDay = prev.dailyActivity?.[today] || {
-          questionsSolved: 0,
-          studyMinutes: 0,
-          vpEarned: 0,
-        };
-        const updatedDailyActivity = {
-          ...(prev.dailyActivity || {}),
-          [today]: {
-            questionsSolved: prevDay.questionsSolved,
-            studyMinutes: prevDay.studyMinutes + mins,
-            vpEarned: (prevDay.vpEarned || 0) + totalSessionVp,
-          },
-        };
-
         const prevStreak = prev.streak?.current || 0;
         const prevLastDate = prev.streak?.lastActiveDate || '';
         let nextStreak = prevStreak;
@@ -1123,36 +715,21 @@ export default function App() {
           nextStreak = 1;
         }
 
-        const enrichedSession: StudySession = {
-          ...session,
-          durationMinutes: mins,
-          vpEarned: totalSessionVp,
-          bonusVpEarned: bonusVp,
-        };
-
-        const nextState: UserStats = {
+        return {
           ...prev,
           totalStudyMinutes: updatedTotalMin,
-          vaultPoints: (prev.vaultPoints || 0) + totalSessionVp,
-          focusMinuteVp: (prev.focusMinuteVp || 0) + minuteVp,
-          focusBonusVp: (prev.focusBonusVp || 0) + bonusVp,
-          sixtyMinBonusCount:
-            (prev.sixtyMinBonusCount || 0) + (mins >= 60 ? Math.floor(mins / 60) : 0),
           subjectsStudied: updatedSubjectsStudied,
           topicsStudied: updatedTopics,
-          dailyActivity: updatedDailyActivity,
-          studySessions: [enrichedSession, ...prev.studySessions],
+          studySessions: [session, ...prev.studySessions],
           tasks: updatedTasks,
           streak: {
             current: nextStreak,
             lastActiveDate: today,
           },
         };
-        nextState.revisionSchedule = computeSmartRevisionSchedule(nextState);
-        return nextState;
       });
     },
-    [awardBackendVaultPoints, showVpRewardToast]
+    []
   );
 
   const isItemBookmarked = useCallback(
@@ -1216,50 +793,6 @@ export default function App() {
   const handleOpenSearch = useCallback(() => {
     setIsSearchOpen(true);
   }, []);
-
-  const handleFinishSplash = useCallback(() => {
-    setShowSplash(false);
-  }, []);
-
-  const handleSelectBook = useCallback((book: Book) => {
-    setReadingBook(book);
-  }, []);
-
-  const handleSelectNote = useCallback((note: StudyNote) => {
-    setViewingNote(note);
-  }, []);
-
-  const handleOpenGoalsManager = useCallback(() => {
-    setActiveSection((prev) => (prev === 'profile' ? prev : 'profile'));
-    window.scrollTo({ top: 0, behavior: 'auto' });
-  }, []);
-
-  const handleOpenFocusMode = useCallback(() => {
-    setIsFocusModeOpen(true);
-  }, []);
-
-  const handleNavigateToNotes = useCallback(() => {
-    setActiveSection((prev) => (prev === 'notes' ? prev : 'notes'));
-    window.scrollTo({ top: 0, behavior: 'auto' });
-  }, []);
-
-  const handleNavigateToPractice = useCallback(() => {
-    setActiveSection((prev) => (prev === 'practice' ? prev : 'practice'));
-    window.scrollTo({ top: 0, behavior: 'auto' });
-  }, []);
-
-  const handleOpenOwnerAnalytics = useCallback(() => {
-    setIsOwnerModalOpen(true);
-  }, []);
-
-  const handleOpenAuthModal = useCallback((mode: 'register' | 'login') => {
-    setAuthModalConfig({ isOpen: true, mode });
-  }, []);
-
-  const pendingTasks = useMemo(
-    () => userStats.tasks.filter((t) => !t.completed),
-    [userStats.tasks]
-  );
 
   const handleAuthSuccess = useCallback(
     (payload: {
@@ -1377,9 +910,9 @@ export default function App() {
 
   return (
     <div className="min-h-screen min-h-[100dvh] w-full max-w-[100vw] overflow-x-clip bg-[#060b18] text-[#f7f4ee] flex flex-col selection:bg-[#d4af37]/30 selection:text-white">
-      {/* Official Opening Splash Animation (~3.5s) */}
+      {/* Official Opening Splash Animation (1.8s) */}
       {showSplash && (
-        <SplashScreen onFinish={handleFinishSplash} />
+        <SplashScreen onFinish={() => setShowSplash(false)} />
       )}
 
       {/* Onboarding & Cross-Device Account Authentication Modal */}
@@ -1402,8 +935,6 @@ export default function App() {
         onNavigate={handleNavigate}
         onOpenSearch={handleOpenSearch}
         streakDays={userStats.streak?.current || 0}
-        vaultPoints={userStats.vaultPoints ?? 0}
-        vpRewardToast={vpRewardToast}
         userName={userStats.name || 'Student'}
         userProfilePhotoUrl={userStats.profilePhotoUrl}
         isFloatingTopDock={isMobileOrTabletPortrait}
@@ -1431,15 +962,14 @@ export default function App() {
               userStats={userStats}
               onUpdateStats={handleUpdateStats}
               onNavigate={handleNavigate}
-              onSelectBook={handleSelectBook}
-              onSelectNote={handleSelectNote}
+              onSelectBook={(book) => setReadingBook(book)}
+              onSelectNote={(note) => setViewingNote(note)}
               isBookmarked={isItemBookmarked}
               onToggleBookmark={handleToggleBookmark}
               onRecordMCQAnswer={handleRecordSingleQuestion}
               onSelectActiveGoal={handleSelectActiveGoal}
-              onOpenGoalsManager={handleOpenGoalsManager}
-              onOpenFocusMode={handleOpenFocusMode}
-              vpRewardToast={vpRewardToast}
+              onOpenGoalsManager={() => handleNavigate('profile')}
+              onOpenFocusMode={() => setIsFocusModeOpen(true)}
             />
           )}
 
@@ -1447,7 +977,7 @@ export default function App() {
             <BooksSection
               activeGoal={activeGoal}
               activeSubjects={activeSubjects}
-              onSelectBook={handleSelectBook}
+              onSelectBook={(book) => setReadingBook(book)}
               isBookmarked={isItemBookmarked}
               onToggleBookmark={handleToggleBookmark}
               onPracticeNCERTChapter={handleOpenPracticeWithChapter}
@@ -1458,7 +988,7 @@ export default function App() {
             <NotesSection
               activeGoal={activeGoal}
               activeSubjects={activeSubjects}
-              onSelectNote={handleSelectNote}
+              onSelectNote={(note) => setViewingNote(note)}
               isBookmarked={isItemBookmarked}
               onToggleBookmark={handleToggleBookmark}
               isCompleted={isNoteCompleted}
@@ -1487,9 +1017,8 @@ export default function App() {
               activeSubjects={activeSubjects}
               userStats={userStats}
               onUpdateStats={handleUpdateStats}
-              onNavigateToPractice={handleNavigateToPractice}
-              onOpenFocusMode={handleOpenFocusMode}
-              onSaveRealSession={handleSaveRealFocusSession}
+              onNavigateToPractice={() => handleNavigate('practice')}
+              onOpenFocusMode={() => setIsFocusModeOpen(true)}
             />
           )}
 
@@ -1507,10 +1036,8 @@ export default function App() {
             <ExamPrepSection
               activeGoal={activeGoal}
               activeSubjects={activeSubjects}
-              userStats={userStats}
-              onUpdateStats={handleUpdateStats}
               onNavigateToPracticeWithSubject={handleOpenPracticeWithSubject}
-              onNavigateToNotes={handleNavigateToNotes}
+              onNavigateToNotes={() => handleNavigate('notes')}
             />
           )}
 
@@ -1518,16 +1045,16 @@ export default function App() {
             <ProfileSection
               userStats={userStats}
               onUpdateStats={handleUpdateStats}
-              onSelectBook={handleSelectBook}
-              onSelectNote={handleSelectNote}
-              onNavigateToPractice={handleNavigateToPractice}
+              onSelectBook={(book) => setReadingBook(book)}
+              onSelectNote={(note) => setViewingNote(note)}
+              onNavigateToPractice={() => handleNavigate('practice')}
               onNavigate={handleNavigate}
               themePreference={themePreference}
               resolvedTheme={resolvedTheme}
               onChangeTheme={handleChangeTheme}
               isOwnerAuthenticated={isOwnerAuthenticated}
-              onOpenOwnerAnalytics={handleOpenOwnerAnalytics}
-              onOpenAuthModal={handleOpenAuthModal}
+              onOpenOwnerAnalytics={() => setIsOwnerModalOpen(true)}
+              onOpenAuthModal={(mode) => setAuthModalConfig({ isOpen: true, mode })}
               onLogoutAccount={handleLogoutAccount}
               onAccountDeleted={handleAccountDeleted}
             />
@@ -1555,7 +1082,7 @@ export default function App() {
         onClose={() => setIsFocusModeOpen(false)}
         activeGoal={activeGoal}
         activeSubjects={activeSubjects}
-        pendingTasks={pendingTasks}
+        pendingTasks={userStats.tasks.filter((t) => !t.completed)}
         onSaveRealSession={handleSaveRealFocusSession}
       />
 

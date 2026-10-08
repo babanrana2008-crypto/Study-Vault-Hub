@@ -1,45 +1,41 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { APP_LOGO } from '../data/sampleData';
 
 interface SplashScreenProps {
   onFinish: () => void;
 }
 
-export const SplashScreen: React.FC<SplashScreenProps> = React.memo(({ onFinish }) => {
+export const SplashScreen: React.FC<SplashScreenProps> = ({ onFinish }) => {
   const [stage, setStage] = useState<'enter' | 'identity' | 'exit'>('enter');
   const [currentLogoSrc, setCurrentLogoSrc] = useState<string>(APP_LOGO);
-  const onFinishRef = useRef(onFinish);
-
-  useEffect(() => {
-    onFinishRef.current = onFinish;
-  }, [onFinish]);
 
   useEffect(() => {
     // Stage 1: Gentle logo + identity reveal
     const identityTimer = setTimeout(() => {
       setStage('identity');
-    }, 60);
+    }, 50);
 
-    // Stage 2: Keep opening splash/animation visible for ~3.3s, then begin smooth exit transition
+    // Stage 2: Smooth exit transition into Home
     const exitTimer = setTimeout(() => {
       setStage('exit');
-    }, 3300);
+    }, 1450);
 
-    // Stage 3: Smoothly open the app at ~3.75s
+    // Stage 3: Unmount cleanly
     const finishTimer = setTimeout(() => {
-      onFinishRef.current();
-    }, 3750);
+      onFinish();
+    }, 1820);
 
     return () => {
       clearTimeout(identityTimer);
       clearTimeout(exitTimer);
       clearTimeout(finishTimer);
     };
-  }, []);
+  }, [onFinish]);
 
   return (
     <div
-      className={`fixed inset-0 z-[100] flex flex-col items-center justify-between py-6 sm:py-12 px-4 bg-[#060b18] select-none transition-opacity duration-450 ease-out will-change-[opacity] overflow-hidden ${
+      onClick={onFinish}
+      className={`fixed inset-0 z-[100] flex flex-col items-center justify-between py-6 sm:py-12 px-4 bg-[#060b18] select-none transition-opacity duration-350 ease-out cursor-pointer will-change-[opacity] overflow-hidden ${
         stage === 'exit' ? 'opacity-0 pointer-events-none' : 'opacity-100'
       }`}
       aria-label="Loading Screen"
@@ -77,16 +73,19 @@ export const SplashScreen: React.FC<SplashScreenProps> = React.memo(({ onFinish 
         </h1>
       </div>
 
-      {/* Official Developer Attribution */}
+      {/* Official Founder & Creator Attribution (Large, centered, two-line layout, never truncated) */}
       <div
         className={`relative z-10 flex flex-col items-center justify-center text-center px-4 transition-all duration-700 ease-out pointer-events-none ${
           stage === 'enter' ? 'opacity-0 translate-y-1' : 'opacity-100 translate-y-0'
         }`}
       >
-        <span className="text-sm sm:text-lg md:text-xl font-display font-bold text-[#d4af37] tracking-wide whitespace-nowrap">
-          Developed by Soumyadip Rana
+        <span className="text-xs sm:text-sm uppercase tracking-[0.18em] text-[#d4af37] font-mono font-semibold whitespace-nowrap">
+          Founded &amp; Created by
+        </span>
+        <span className="text-lg sm:text-xl md:text-2xl font-display font-bold text-[#fbf9f4] tracking-wide mt-1 whitespace-nowrap">
+          Soumyadip Rana
         </span>
       </div>
     </div>
   );
-});
+};

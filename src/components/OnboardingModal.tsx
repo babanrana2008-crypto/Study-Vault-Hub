@@ -303,8 +303,11 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
               Welcome to <span className="gold-gradient-text">Study Vault Hub</span>
             </h1>
             <div className="flex flex-col items-center justify-center text-center pt-0.5 leading-snug">
-              <span className="text-xs sm:text-sm font-display font-bold text-[#d4af37] tracking-wide whitespace-nowrap">
-                Developed by Soumyadip Rana
+              <span className="text-[11px] text-[#cbd5e1] font-mono tracking-wide whitespace-nowrap">
+                Founded &amp; Created by
+              </span>
+              <span className="text-sm font-display font-bold text-[#d4af37] tracking-wide whitespace-nowrap">
+                Soumyadip Rana
               </span>
             </div>
           </div>

@@ -57,6 +57,10 @@
     backface-visibility: hidden;
   }
 
+  main {
+    transform: translateZ(0);
+  }
+
   body {
     font-family: var(--font-body);
     background-color: var(--svh-bg-page);
@@ -104,29 +108,6 @@
 .no-scrollbar {
   -ms-overflow-style: none;
   scrollbar-width: none;
-}
-
-.custom-scrollbar {
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(212, 175, 55, 0.35) transparent;
-}
-.custom-scrollbar::-webkit-scrollbar {
-  width: 5px;
-  height: 5px;
-}
-.custom-scrollbar::-webkit-scrollbar-track {
-  background: transparent;
-}
-.custom-scrollbar::-webkit-scrollbar-thumb {
-  background: rgba(212, 175, 55, 0.35);
-  border-radius: 9999px;
-}
-html[data-theme="light"] .custom-scrollbar {
-  scrollbar-color: rgba(130, 167, 205, 0.55) transparent;
-}
-html[data-theme="light"] .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: rgba(130, 167, 205, 0.55);
 }
 
 /* Subtle gold metallic shimmer */
@@ -180,14 +161,17 @@ html[data-theme="light"] .gold-glow {
 @keyframes svhSectionEnter {
   from {
     opacity: 0;
+    transform: translate3d(0, 6px, 0);
   }
   to {
     opacity: 1;
+    transform: translate3d(0, 0, 0);
   }
 }
 
 .svh-section-transition {
-  animation: svhSectionEnter 150ms ease-out;
+  animation: svhSectionEnter 180ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  will-change: opacity, transform;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -303,7 +287,6 @@ html[data-theme="light"] .bg-\[\#0a1224\] {
 }
 
 /* 4. Interactive Buttons, Pills, Subject Chips & Secondary Controls — Soft Dusty Blue */
-html[data-theme="light"] .bg-\[\#090f1f\],
 html[data-theme="light"] .bg-\[\#10192e\],
 html[data-theme="light"] .bg-\[\#101b33\],
 html[data-theme="light"] .bg-\[\#131b2e\],
@@ -313,24 +296,16 @@ html[data-theme="light"] .bg-\[\#131b2e\]\/80,
 html[data-theme="light"] .bg-\[\#131f3a\],
 html[data-theme="light"] .bg-\[\#13203d\],
 html[data-theme="light"] .bg-\[\#151f38\],
-html[data-theme="light"] .bg-\[\#162038\],
 html[data-theme="light"] .bg-\[\#162340\],
 html[data-theme="light"] .bg-\[\#172544\],
 html[data-theme="light"] .bg-\[\#19233c\],
 html[data-theme="light"] .bg-\[\#19243d\],
 html[data-theme="light"] .bg-\[\#1a253e\],
 html[data-theme="light"] .bg-\[\#1a253f\],
-html[data-theme="light"] .bg-\[\#1a2540\],
 html[data-theme="light"] .bg-\[\#1a2542\],
 html[data-theme="light"] .bg-\[\#1a2745\],
 html[data-theme="light"] .bg-\[\#1c2742\] {
   background-color: #dce8f5 !important;
-}
-
-html[data-theme="light"] .bg-\[\#0c1428\]\/95,
-html[data-theme="light"] .bg-\[\#070B19\]\/98,
-html[data-theme="light"] .bg-\[\#070B19\] {
-  background-color: #ffffff !important;
 }
 
 html[data-theme="light"] .hover\:bg-\[\#131b2e\]:hover,
