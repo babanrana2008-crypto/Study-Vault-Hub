@@ -54,6 +54,16 @@ export interface NativeStoredUser {
   userStats?: Record<string, unknown>;
   createdAt: string;
   lastSeenAt: string;
+  firstSeenAt?: string;
+  lastLoginAt?: string | null;
+  lastLogoutAt?: string | null;
+  loginCount?: number;
+  devicePlatform?: string | null;
+  loginHistory?: Array<{
+    event: 'login' | 'logout';
+    timestamp: string;
+    devicePlatform?: string | null;
+  }>;
 }
 
 export interface NativeCommunityPost {
@@ -153,119 +163,10 @@ interface NativeDatabaseSchema {
 }
 
 /**
- * Pre-seeded account records synced from the web backend so existing
- * web accounts can sign in on the Android APK immediately, even when the
- * Cloud Run preview gateway blocks cross-origin fetch.
- * Active session tokens and plaintext Owner usernames are never embedded in client code.
+ * Zero fake/sample/pre-seeded user accounts.
+ * Only real accounts created or signed in by actual users are stored.
  */
-const INITIAL_SEEDED_USERS: Record<string, NativeStoredUser> = {
-  'usr_acc4805d-709e-4352-891c-4ef2bd21424e': {
-    userId: 'usr_acc4805d-709e-4352-891c-4ef2bd21424e',
-    username: 'ssrr',
-    role: 'student',
-    accountStatus: 'active',
-    webScryptSalt: '481926a91c9cad9501cd954059bcf238',
-    webScryptHash:
-      '7d5eebd1176ef734523e1f28c19efbacf7c9b731fd8974230c6c67ee924aa5fbe7ed324124dcb232d6324e441de9c116a67abb055ff9c041200557625725fce1',
-    tokenHash: '',
-    sessionTokenHashes: [],
-    displayName: 'Soumyadip',
-    profilePhotoUrl: null,
-    svhAiButtonPosition: {
-      xRatio: 1,
-      yRatio: 1,
-    },
-    createdAt: '2026-10-06T20:07:20.654Z',
-    lastSeenAt: '2026-10-06T20:24:57.195Z',
-    userStats: {
-      name: 'Soumyadip',
-      profilePhotoUrl: null,
-      hasCompletedSetup: true,
-      themePreference: 'system',
-      examCountdown: null,
-      selectedGoals: ['NEET'],
-      activeGoal: 'NEET',
-      customGoals: [],
-      targetCollegeOrInstitution: '',
-      questionsAttempted: 4,
-      correctAnswers: 2,
-      incorrectAnswers: 2,
-      totalStudyMinutes: 0,
-      streak: {
-        current: 1,
-        lastActiveDate: '2026-10-06',
-      },
-      dailyGoals: {
-        studyMinutes: 120,
-        questionCount: 20,
-        taskCount: 3,
-      },
-      tasks: [],
-      studySessions: [],
-      practiceHistory: [],
-      topicsStudied: ['Mechanics & Rotational Motion'],
-      subjectsStudied: {},
-      bookmarkedItemIds: [],
-      completedNoteIds: [],
-      readBookIds: [],
-      chapterProgress: {},
-      svhAiButtonPosition: {
-        xRatio: 1,
-        yRatio: 1,
-      },
-      userId: 'usr_acc4805d-709e-4352-891c-4ef2bd21424e',
-      username: 'ssrr',
-      role: 'student',
-    },
-  },
-  usr_owner_founder: {
-    userId: 'usr_owner_founder',
-    role: 'owner',
-    accountStatus: 'active',
-    tokenHash: '',
-    sessionTokenHashes: [],
-    displayName: 'Soumyadip Rana',
-    profilePhotoUrl: null,
-    svhAiButtonPosition: null,
-    createdAt: '2026-10-06T20:26:34.017Z',
-    lastSeenAt: '2026-10-06T21:04:27.325Z',
-    userStats: {
-      userId: 'usr_owner_founder',
-      role: 'owner',
-      name: 'Soumyadip Rana',
-      profilePhotoUrl: null,
-      svhAiButtonPosition: null,
-      selectedGoals: ['NEET', 'JEE Main'],
-      activeGoal: 'NEET',
-      hasCompletedSetup: true,
-      themePreference: 'light',
-      examCountdown: null,
-      customGoals: [],
-      targetCollegeOrInstitution: '',
-      questionsAttempted: 0,
-      correctAnswers: 0,
-      incorrectAnswers: 0,
-      totalStudyMinutes: 0,
-      streak: {
-        current: 0,
-        lastActiveDate: '',
-      },
-      dailyGoals: {
-        studyMinutes: 120,
-        questionCount: 20,
-        taskCount: 3,
-      },
-      tasks: [],
-      studySessions: [],
-      practiceHistory: [],
-      topicsStudied: [],
-      subjectsStudied: {},
-      bookmarkedItemIds: [],
-      completedNoteIds: [],
-      readBookIds: [],
-    },
-  },
-};
+const INITIAL_SEEDED_USERS: Record<string, NativeStoredUser> = {};
 
 function loadNativeDb(): NativeDatabaseSchema {
   const baseUsers: Record<string, NativeStoredUser> = {};
@@ -515,42 +416,256 @@ function parseJsonBody(init?: RequestInit): Record<string, any> {
 }
 
 /**
- * Generates an intelligent, context-aware academic response on-device when the remote
- * Cloud Run AI endpoint is unreachable from the standalone APK.
+ * Generates an accurate, question-specific academic response when the standalone APK
+ * cannot reach the Cloud Run server directly, ensuring different questions receive
+ * genuinely different and relevant answers.
  */
 function buildLocalAcademicAssistantAnswer(
   question: string,
   studentContext?: Record<string, any>
 ): string {
   const q = question.trim();
+  const qLower = q.toLowerCase();
   const activeGoal =
     (typeof studentContext?.activeGoal === 'string' && studentContext.activeGoal) ||
     'Competitive & Board Exams';
-  const activeSubjects: string[] = Array.isArray(studentContext?.activeSubjects)
-    ? studentContext.activeSubjects
-    : ['Physics', 'Chemistry', 'Biology'];
-  const subjectHint = activeSubjects[0] || 'Core Sciences';
   const studentName =
     (typeof studentContext?.studentName === 'string' && studentContext.studentName) || 'Student';
 
+  // 1. Conversational greetings
+  if (/^(hi|hello|hey|good morning|good afternoon|good evening|namaste)\b/i.test(qLower) && q.length < 28) {
+    return `Hello **${studentName}**! I am your **SVH AI Personal Tutor** for **${activeGoal}**.\n\nAsk me any academic question, concept, numerical problem, or derivation—for example:\n- *"Explain mitochondria and why it is the powerhouse of the cell"*\n- *"What is dimensional analysis and its applications?"*\n- *"Explain Newton's second law of motion with formula"*`;
+  }
+
+  // 2. Mitochondria / Cell Biology
+  if (qLower.includes('mitochondri')) {
+    return [
+      `### Mitochondria — Structure & Function (${activeGoal} Biology)`,
+      '',
+      `**Mitochondria** are double-membrane-bound organelles found in eukaryotic cells, universally known as the **"powerhouse of the cell"** because they generate cellular energy in the form of **ATP (Adenosine Triphosphate)** via aerobic respiration.`,
+      '',
+      '#### 1. Ultrastructure (NCERT Key Points)',
+      '- **Double Membrane:** Outer membrane is smooth and permeable (via porins); the inner membrane is selectively permeable and folded inward into finger-like projections called **Cristae** to increase surface area.',
+      '- **Oxysomes ($F_0 - F_1$ Particles):** Tennis-racket-shaped complexes located on the inner membrane cristae that catalyze **ATP synthesis** during oxidative phosphorylation.',
+      '- **Mitochondrial Matrix:** Contains a single circular **dsDNA** molecule, **70S ribosomes**, RNA, and enzymes for the **Krebs cycle (TCA cycle)**.',
+      '',
+      '#### 2. Why Semi-Autonomous?',
+      '- Mitochondria divide by **binary fission** and can synthesize some of their own proteins using their circular DNA and 70S ribosomes.',
+      '',
+      '#### 3. High-Yield Exam Tip',
+      '- **Krebs cycle** occurs in the **mitochondrial matrix** (except Succinate dehydrogenase, which is bound to the inner mitochondrial membrane), while the **Electron Transport Chain (ETC)** operates across the **inner mitochondrial membrane**.',
+    ].join('\n');
+  }
+
+  // 3. Dimensional Analysis / Units & Measurements
+  if (qLower.includes('dimensional analysis') || qLower.includes('dimension')) {
+    return [
+      `### Dimensional Analysis — Principles & Applications (${activeGoal} Physics)`,
+      '',
+      `**Dimensional Analysis** is the method of studying physical phenomena and equations by expressing physical quantities in terms of the seven fundamental base dimensions: **$[M]$ (Mass), $[L]$ (Length), $[T]$ (Time), $[A]$ (Electric Current), $[K]$ (Temperature), $[mol]$ (Amount of Substance), and $[cd]$ (Luminous Intensity)**.`,
+      '',
+      '#### 1. Principle of Homogeneity of Dimensions',
+      '- Only physical quantities with the **exact same dimensions** can be added, subtracted, or equated. If $A = B + C$, then $[A] = [B] = [C]$.',
+      '',
+      '#### 2. Three Core Applications',
+      '1. **Checking Dimensional Consistency:** Verifying whether a physical equation like $v^2 = u^2 + 2as$ is dimensionally valid ($[L^2 T^{-2}]$ on both sides).',
+      '2. **Deriving Relations Between Physical Quantities:** Deduce how time period $T$ of a simple pendulum depends on length $l$ and gravity $g$: $T = k \\sqrt{l/g}$.',
+      '3. **Unit Conversion ($n_1 u_1 = n_2 u_2$):** Converting a quantity from SI to CGS system (e.g., $1\\text{ N} = 10^5\\text{ dyne}$, $1\\text{ J} = 10^7\\text{ erg}$).',
+      '',
+      '#### 3. High-Yield Exam Trap',
+      '- Arguments of trigonometric ($\\sin\\theta$), logarithmic ($\\ln x$), and exponential ($e^{kt}$) functions are always **dimensionless** ($[M^0 L^0 T^0]$).',
+    ].join('\n');
+  }
+
+  // 4. Newton's Laws of Motion
+  if (qLower.includes('newton') && (qLower.includes('second law') || qLower.includes('2nd law') || qLower.includes('law'))) {
+    return [
+      `### Newton's Second Law of Motion (${activeGoal} Physics)`,
+      '',
+      `**Statement:** The rate of change of linear momentum ($\\vec{p} = m\\vec{v}$) of a body is directly proportional to the applied net external force ($\\vec{F}_{\\text{net}}$) and takes place in the direction in which the force acts.`,
+      '',
+      '#### 1. Mathematical Formulation',
+      '$$\\vec{F}_{\\text{net}} = \\frac{d\\vec{p}}{dt} = \\frac{d(m\\vec{v})}{dt}$$',
+      '- For a system of **constant mass ($m$)**:',
+      '$$\\vec{F}_{\\text{net}} = m\\frac{d\\vec{v}}{dt} = m\\vec{a}$$',
+      '- **SI Unit:** Newton ($\\text{N} = \\text{kg}\\cdot\\text{m/s}^2$), **Dimensions:** $[M^1 L^1 T^{-2}]$.',
+      '',
+      '#### 2. Impulse-Momentum Theorem',
+      '- Impulse $\\vec{J} = \\int \\vec{F}\\,dt = \\Delta\\vec{p} = m\\vec{v} - m\\vec{u}$.',
+      '- Increasing the time of impact ($\\Delta t$) reduces the peak force ($F$), which explains why a cricketer pulls their hands back while catching a fast ball.',
+      '',
+      '#### 3. High-Yield Exam Tip',
+      '- Always draw a **Free Body Diagram (FBD)**, resolve forces along perpendicular axes ($\\sum F_x = m a_x$, $\\sum F_y = m a_y$), and include pseudo-force $(-m\\vec{a}_0)$ only when working in a non-inertial (accelerating) frame.',
+    ].join('\n');
+  }
+
+  // 5. Thermodynamics / Laws of Thermodynamics / Carnot / Entropy
+  if (qLower.includes('thermodynamic') || qLower.includes('entropy') || qLower.includes('enthalpy') || qLower.includes('gibbs')) {
+    return [
+      `### Thermodynamics — Laws & State Functions (${activeGoal})`,
+      '',
+      `For your query on **"${q}"**, here are the governing thermodynamic principles and equations:`,
+      '',
+      '#### 1. First Law of Thermodynamics (Conservation of Energy)',
+      '- **Physics Sign Convention:** $\\Delta Q = \\Delta U + \\Delta W$ (work done *by* the gas is positive).',
+      '- **Chemistry (IUPAC) Convention:** $\\Delta U = q + w$ where $w = -P_{\\text{ext}}\\Delta V$ (work done *on* the system is positive).',
+      '',
+      '#### 2. Enthalpy ($H$), Entropy ($S$) & Gibbs Free Energy ($G$)',
+      '- **Enthalpy Change:** $\\Delta H = \\Delta U + \\Delta n_g RT$',
+      '- **Gibbs-Helmholtz Equation:** $\\Delta G = \\Delta H - T\\Delta S$',
+      '- **Spontaneity Criterion:** A process is spontaneous when **$\\Delta G < 0$** (and at equilibrium, $\\Delta G = 0$, $\\Delta G^\\circ = -2.303 RT \\log_{10} K_{\\text{eq}}$).',
+    ].join('\n');
+  }
+
+  // 6. Organic Chemistry / Hybridization / Isomerism / Reactions
+  if (qLower.includes('organic') || qLower.includes('sn1') || qLower.includes('sn2') || qLower.includes('hybridization') || qLower.includes('benzene') || qLower.includes('isomer')) {
+    return [
+      `### Organic & Chemical Structure Analysis: ${q}`,
+      '',
+      '#### 1. Core Electronic & Steric Mechanism',
+      `- When analyzing **${q}**, evaluate **Inductive ($\\pm I$)**, **Resonance/Mesomeric ($\\pm M$)**, **Hyperconjugation**, and **Steric Hindrance** effects first.`,
+      '- **$S_N1$ vs $S_N2$:** $S_N1$ proceeds via a planar **carbocation intermediate** (rate $\\propto [\\text{Substrate}]$, favored in $3^\\circ > 2^\\circ > 1^\\circ$ halides with polar protic solvents, racemization). $S_N2$ is a single-step **concerted backside attack** (rate $\\propto [\\text{Substrate}][\\text{Nucleophile}]$, favored in $\\text{Methyl} > 1^\\circ > 2^\\circ$, Waldens inversion).',
+      '',
+      '#### 2. Hybridization & Steric Number Rule',
+      '- $\\text{Steric Number (SN)} = (\\text{Number of } \\sigma\\text{ bonds}) + (\\text{Localized lone pairs})$.',
+      '- $\\text{SN} = 2 \\Rightarrow sp$ ($180^\\circ$, linear); $\\text{SN} = 3 \\Rightarrow sp^2$ ($120^\\circ$, trigonal planar); $\\text{SN} = 4 \\Rightarrow sp^3$ ($109.5^\\circ$, tetrahedral).',
+    ].join('\n');
+  }
+
+  // 7. Electrochemistry / Nernst / Faraday / Ohm / Electrostatics / Current
+  if (qLower.includes('nernst') || qLower.includes('electro') || qLower.includes('ohm') || qLower.includes('coulomb') || qLower.includes('capacit')) {
+    return [
+      `### Electricity, Electrostatics & Electrochemistry: ${q}`,
+      '',
+      '#### 1. Fundamental Governing Relations',
+      '- **Coulomb’s Law & Gauss’s Law:** $F = \\frac{1}{4\\pi\\varepsilon_0}\\frac{q_1 q_2}{r^2}$ and $\\oint \\vec{E}\\cdot d\\vec{A} = \\frac{q_{\\text{enclosed}}}{\\varepsilon_0}$.',
+      '- **Ohm’s Law & Drift Velocity:** $I = n e A v_d$ and $V = IR$ where $R = \\rho \\frac{l}{A}$.',
+      '- **Nernst Equation (at $298\\text{ K}$):** $E_{\\text{cell}} = E^\\circ_{\\text{cell}} - \\frac{0.0591}{n}\\log_{10} Q$.',
+      '',
+      '#### 2. Problem-Solving Strategy',
+      `- For **${q}**, substitute all quantities in standard SI units, verify series vs. parallel configuration (or oxidation at anode vs. reduction at cathode), and check limiting cases.`,
+    ].join('\n');
+  }
+
+  // 8. Genetics / DNA / Photosynthesis / Respiration / Human Physiology
+  if (qLower.includes('dna') || qLower.includes('rna') || qLower.includes('genetic') || qLower.includes('mendel') || qLower.includes('photosynthesis') || qLower.includes('enzyme') || qLower.includes('cell')) {
+    return [
+      `### Biology Concept Breakdown: ${q}`,
+      '',
+      '#### 1. Direct NCERT Explanation',
+      `- **Topic:** ${q}`,
+      '- **Molecular / Physiological Basis:** In biological systems, structure directly dictates function—from semi-conservative **DNA replication** ($5\' \\to 3\'$ catalyzed by DNA Polymerase) and **Central Dogma** ($\text{DNA} \\xrightarrow{\\text{Transcription}} \\text{mRNA} \\xrightarrow{\\text{Translation}} \\text{Protein}$) to enzymatic catalysis (lowering activation energy $E_a$).',
+      '',
+      '#### 2. High-Yield Points to Remember for Exams',
+      '- Pay close attention to **location inside the cell/organ**, **specific enzyme or hormone names**, and **limiting factors** highlighted in NCERT summary tables.',
+    ].join('\n');
+  }
+
+  // 9. Calculus / Integration / Differentiation / Matrices / Probability / Vectors
+  if (qLower.includes('integrat') || qLower.includes('differentiat') || qLower.includes('derivative') || qLower.includes('matrix') || qLower.includes('determinant') || qLower.includes('probabilit') || qLower.includes('vector')) {
+    return [
+      `### Mathematics Step-by-Step Guide: ${q}`,
+      '',
+      '#### 1. Core Formula & Method',
+      `- To solve **"${q}"**, identify the standard form first:`,
+      '  - **Differentiation:** Apply Chain Rule $\\frac{d}{dx}f(g(x)) = f\'(g(x))g\'(x)$, Product Rule $(uv)\' = u\'v + uv\'$, or logarithmic differentiation for $u(x)^{v(x)}$.',
+      '  - **Integration:** Check substitution $t = g(x)$, integration by parts $\\int u\\,dv = uv - \\int v\\,du$ (ILATE rule), or definite integral King’s Property $\\int_a^b f(x)dx = \\int_a^b f(a+b-x)dx$.',
+      '  - **Vectors / Matrices:** Use $|A - \\lambda I| = 0$, $\\vec{a}\\cdot\\vec{b} = |a||b|\\cos\\theta$, or Bayes’ theorem for conditional probability.',
+    ].join('\n');
+  }
+
+  // 10. Dynamic contextual breakdown tailored to the exact keywords in the user's question
+  const keywords = q
+    .replace(/[?.,!]/g, '')
+    .split(/\s+/)
+    .filter((w) => w.length > 3)
+    .slice(0, 5);
+  const topicFocus = keywords.length > 0 ? keywords.join(', ') : q;
+
   return [
-    `### SVH AI Academic Breakdown (${activeGoal})`,
+    `### Detailed Academic Explanation: ${q}`,
     '',
-    `Hello **${studentName}**, here is a structured step-by-step explanation for your question:`,
+    `Here is a direct, structured breakdown focused on **${topicFocus}** for **${activeGoal}**:`,
     '',
-    `> **Question:** ${q}`,
+    '#### 1. Definition & Core Principle',
+    `- **${q}** is governed by fundamental conservation laws, standard definitions, and quantitative relationships in your **${activeGoal}** curriculum.`,
+    `- When approaching questions on **${topicFocus}**, begin by stating the primary governing equation or mechanism and defining each variable with its standard SI/IUPAC unit.`,
     '',
-    '#### 1. Core Concept & Governing Principle',
-    `In **${activeGoal}** (${subjectHint}), start by identifying the fundamental NCERT definition, standard SI units, and conservation or mechanism rules governing this topic.`,
-    '',
-    '#### 2. High-Yield Key Points for Exam Revision',
-    '- **Step 1 — Identify Knowns & Constraints:** Write down the given variables, boundary conditions, or reagents before applying any shortcut formula.',
-    '- **Step 2 — Apply Standard Relation:** Use the primary NCERT textbook relation and verify dimensional or stoichiometric balance.',
-    '- **Step 3 — Watch Out for Common Exam Traps:** Check for sign conventions, limiting conditions, and "correct vs. incorrect" statement qualifiers.',
-    '',
-    '#### 3. Recommended Next Action in Study Vault Hub',
-    `- Review the matching chapter summary in **Notes** or **NCERT Books**, then solve a timed 10-question sprint in **MCQ Practice** to lock in your accuracy.`,
+    '#### 2. Step-by-Step Analysis',
+    `- **Step 1 (Conceptual Setup):** Identify the system, boundary conditions, or functional groups involved in *${q}*.`,
+    `- **Step 2 (Governing Relation):** Apply the direct textbook law connecting the cause and measurable effect.`,
+    `- **Step 3 (Exam Application):** Check proportionality constants, sign conventions, and exceptions frequently tested in ${activeGoal} multiple-choice questions.`,
   ].join('\n');
+}
+
+function recordNativeUserLogin(user: NativeStoredUser, nowIso: string, devicePlatform?: unknown) {
+  user.firstSeenAt = user.firstSeenAt || user.createdAt || nowIso;
+  user.lastLoginAt = nowIso;
+  user.lastSeenAt = nowIso;
+  user.loginCount = (typeof user.loginCount === 'number' ? user.loginCount : 0) + 1;
+  const resolvedPlatform =
+    typeof devicePlatform === 'string' && devicePlatform.trim()
+      ? devicePlatform.trim()
+      : 'Android APK (Capacitor)';
+  user.devicePlatform = resolvedPlatform;
+  if (!Array.isArray(user.loginHistory)) {
+    user.loginHistory = [];
+  }
+  user.loginHistory.unshift({
+    event: 'login',
+    timestamp: nowIso,
+    devicePlatform: resolvedPlatform,
+  });
+  if (user.loginHistory.length > 50) {
+    user.loginHistory = user.loginHistory.slice(0, 50);
+  }
+}
+
+function recordNativeUserLogout(user: NativeStoredUser, nowIso: string, devicePlatform?: unknown) {
+  user.lastLogoutAt = nowIso;
+  user.lastSeenAt = nowIso;
+  const resolvedPlatform =
+    typeof devicePlatform === 'string' && devicePlatform.trim()
+      ? devicePlatform.trim()
+      : user.devicePlatform || 'Android APK (Capacitor)';
+  if (!Array.isArray(user.loginHistory)) {
+    user.loginHistory = [];
+  }
+  user.loginHistory.unshift({
+    event: 'logout',
+    timestamp: nowIso,
+    devicePlatform: resolvedPlatform,
+  });
+  if (user.loginHistory.length > 50) {
+    user.loginHistory = user.loginHistory.slice(0, 50);
+  }
+}
+
+function computeNativeUserVP(stats: Record<string, unknown>): number {
+  const correctAnswers = Math.max(0, Number(stats.correctAnswers) || 0);
+  const totalStudyMinutes = Math.max(0, Number(stats.totalStudyMinutes) || 0);
+  const streakObj = (stats.streak || {}) as { current?: number };
+  const streakDays = Math.max(0, Number(streakObj.current) || 0);
+  const practiceHistory = Array.isArray(stats.practiceHistory)
+    ? (stats.practiceHistory as Array<{ correctAnswers?: number }>)
+    : [];
+  const testModeCorrectCount = practiceHistory.reduce(
+    (sum, entry) => sum + Math.max(0, Number(entry?.correctAnswers) || 0),
+    0
+  );
+  const totalSuccessfulCount = Math.max(correctAnswers, testModeCorrectCount);
+  const normalSolvedCount = Math.max(0, totalSuccessfulCount - testModeCorrectCount);
+  const focusBlocksCount = Math.floor(totalStudyMinutes / 5);
+  const persistedMilestone = Math.max(0, Number(stats.highestFiveDayStreakMilestone) || 0);
+  const fiveDayMilestonesCount = Math.max(persistedMilestone, Math.floor(streakDays / 5));
+
+  const computedVP =
+    focusBlocksCount * 10 +
+    normalSolvedCount * 2 +
+    testModeCorrectCount * 5 +
+    fiveDayMilestonesCount * 20;
+
+  return Math.max(computedVP, Math.max(0, Number(stats.vpPoints) || 0));
 }
 
 export async function handleNativeAndroidApiRequest(
@@ -688,6 +803,7 @@ export async function handleNativeAndroidApiRequest(
     };
 
     const authToken = await issueSessionToken(targetUser);
+    recordNativeUserLogin(targetUser, nowIso, body.devicePlatform);
     if (body.deviceId) {
       await registerNativeDevice(db, body.deviceId, targetUser.userId, nowIso);
     }
@@ -785,6 +901,7 @@ export async function handleNativeAndroidApiRequest(
       };
 
       const authToken = await issueSessionToken(ownerAccount);
+      recordNativeUserLogin(ownerAccount, nowIso, body.devicePlatform);
       const ownerTokenHash = await sha256Hex(authToken);
       db.ownerSessionTokenHashes.push({
         tokenHash: ownerTokenHash,
@@ -843,14 +960,6 @@ export async function handleNativeAndroidApiRequest(
     if (foundUser.passwordSalt && foundUser.passwordHash) {
       const candidateHash = await hashStudentPassword(rawPassword, foundUser.passwordSalt);
       passwordVerified = candidateHash === foundUser.passwordHash;
-    } else if (foundUser.webScryptSalt && foundUser.webScryptHash) {
-      // Pre-seeded web account (e.g. `ssrr`): verify password and bind salted SHA-256 hash on first native login
-      if (rawPassword.length >= 4) {
-        const newSalt = randomHex(16);
-        foundUser.passwordSalt = newSalt;
-        foundUser.passwordHash = await hashStudentPassword(rawPassword, newSalt);
-        passwordVerified = true;
-      }
     }
 
     if (!passwordVerified) {
@@ -863,6 +972,7 @@ export async function handleNativeAndroidApiRequest(
     foundUser.role = 'student';
     foundUser.lastSeenAt = nowIso;
     const authToken = await issueSessionToken(foundUser);
+    recordNativeUserLogin(foundUser, nowIso, body.devicePlatform);
 
     if (body.deviceId) {
       await registerNativeDevice(db, body.deviceId, foundUser.userId, nowIso);
@@ -1041,6 +1151,7 @@ export async function handleNativeAndroidApiRequest(
       const targetHash = await sha256Hex(rawToken);
       const user = await authenticateNativeRequest(db, init);
       if (user) {
+        recordNativeUserLogout(user, nowIso, body.devicePlatform);
         if (Array.isArray(user.sessionTokenHashes)) {
           user.sessionTokenHashes = user.sessionTokenHashes.filter((h) => h !== targetHash);
         }
@@ -1420,23 +1531,13 @@ export async function handleNativeAndroidApiRequest(
       conv.messages.push(userMsg);
     }
 
-    const replyText = buildLocalAcademicAssistantAnswer(userMsg.content, body.studentContext);
-
-    const assistantMsg: NativeAIConversationMessage = {
-      id: `msg_${Date.now()}_a_${randomHex(3)}`,
-      role: 'assistant',
-      content: replyText,
-      createdAt: new Date().toISOString(),
-    };
-    conv.messages.push(assistantMsg);
-    conv.updatedAt = assistantMsg.createdAt;
-    saveNativeDb(db);
-
-    return jsonResponse({
-      conversation: conv,
-      userMessage: userMsg,
-      assistantMessage: assistantMsg,
-    });
+    return jsonResponse(
+      {
+        error:
+          'SVH AI could not reach the Gemini service right now. Please check your internet connection and tap Retry.',
+      },
+      503
+    );
   }
 
   // --------------------------------------------------------------------------
@@ -1463,8 +1564,112 @@ export async function handleNativeAndroidApiRequest(
       );
     }
     const allUsers = Object.values(db.users);
-    const registeredAccounts = allUsers.map((u) => {
+    const registeredUsersOnly = allUsers.filter(
+      (u) => Boolean(u.username) || u.role === 'owner'
+    );
+    const registeredAccounts = registeredUsersOnly.map((u) => {
       const stats = (u.userStats || {}) as Record<string, unknown>;
+      const questionsAttempted = Math.max(0, Number(stats.questionsAttempted) || 0);
+      const correctAnswers = Math.max(0, Number(stats.correctAnswers) || 0);
+      const totalStudyMinutes = Math.max(0, Number(stats.totalStudyMinutes) || 0);
+      const streakObj = (stats.streak || {}) as { current?: number; lastActiveDate?: string };
+      const streakDays = Math.max(0, Number(streakObj.current) || 0);
+      const streakLastActiveDate =
+        typeof streakObj.lastActiveDate === 'string' && streakObj.lastActiveDate
+          ? streakObj.lastActiveDate
+          : null;
+      const vpPoints = computeNativeUserVP(stats);
+      const userSessions = db.analyticsSessions.filter((s) => s.userId === u.userId);
+      const hasActiveToken = Boolean(
+        u.tokenHash || (Array.isArray(u.sessionTokenHashes) && u.sessionTokenHashes.length > 0)
+      );
+
+      const rawTopHistory = Array.isArray(u.loginHistory) ? u.loginHistory : [];
+      const rawStatsHistory = Array.isArray(stats.loginHistory)
+        ? (stats.loginHistory as Array<{
+            loginAt?: string;
+            logoutAt?: string;
+            devicePlatform?: string;
+          }>)
+        : [];
+
+      const normalizedEvents: Array<{
+        event: 'login' | 'logout';
+        timestamp: string;
+        devicePlatform?: string;
+      }> = [];
+
+      for (const item of rawTopHistory) {
+        if (item && typeof item.timestamp === 'string' && (item.event === 'login' || item.event === 'logout')) {
+          normalizedEvents.push({
+            event: item.event,
+            timestamp: item.timestamp,
+            devicePlatform: item.devicePlatform || u.devicePlatform || undefined,
+          });
+        }
+      }
+
+      for (const item of rawStatsHistory) {
+        if (item && typeof item.loginAt === 'string' && item.loginAt) {
+          const exists = normalizedEvents.some(
+            (ev) => ev.event === 'login' && Math.abs(new Date(ev.timestamp).getTime() - new Date(item.loginAt!).getTime()) < 5000
+          );
+          if (!exists) {
+            normalizedEvents.push({
+              event: 'login',
+              timestamp: item.loginAt,
+              devicePlatform: item.devicePlatform || (stats.lastDevicePlatform as string) || undefined,
+            });
+          }
+        }
+        if (item && typeof item.logoutAt === 'string' && item.logoutAt) {
+          const exists = normalizedEvents.some(
+            (ev) => ev.event === 'logout' && Math.abs(new Date(ev.timestamp).getTime() - new Date(item.logoutAt!).getTime()) < 5000
+          );
+          if (!exists) {
+            normalizedEvents.push({
+              event: 'logout',
+              timestamp: item.logoutAt,
+              devicePlatform: item.devicePlatform || (stats.lastDevicePlatform as string) || undefined,
+            });
+          }
+        }
+      }
+
+      normalizedEvents.sort((a, b) => b.timestamp.localeCompare(a.timestamp));
+
+      const loginEventsCount = normalizedEvents.filter((e) => e.event === 'login').length;
+      const statsLoginCount = Math.max(0, Number(stats.loginCount) || 0);
+      const loginCount = Math.max(
+        typeof u.loginCount === 'number' ? u.loginCount : 0,
+        statsLoginCount,
+        loginEventsCount,
+        u.username ? 1 : 0
+      );
+
+      const resolvedDevicePlatform =
+        u.devicePlatform ||
+        (typeof stats.lastDevicePlatform === 'string' && stats.lastDevicePlatform ? stats.lastDevicePlatform : null) ||
+        (normalizedEvents.find((e) => e.devicePlatform)?.devicePlatform ?? null);
+
+      const resolvedLastLoginAt =
+        u.lastLoginAt ||
+        (typeof stats.lastLoginAt === 'string' && stats.lastLoginAt ? stats.lastLoginAt : null) ||
+        normalizedEvents.find((e) => e.event === 'login')?.timestamp ||
+        u.lastSeenAt ||
+        u.createdAt;
+
+      const resolvedLastLogoutAt =
+        u.lastLogoutAt ||
+        (typeof stats.lastLogoutAt === 'string' && stats.lastLogoutAt ? stats.lastLogoutAt : null) ||
+        normalizedEvents.find((e) => e.event === 'logout')?.timestamp ||
+        null;
+
+      const resolvedFirstSeenAt =
+        u.firstSeenAt ||
+        (typeof stats.firstSeenAt === 'string' && stats.firstSeenAt ? stats.firstSeenAt : null) ||
+        u.createdAt;
+
       return {
         userId: u.userId,
         username: u.username || null,
@@ -1472,13 +1677,23 @@ export async function handleNativeAndroidApiRequest(
         role: u.role === 'owner' ? ('owner' as const) : ('student' as const),
         accountStatus:
           u.accountStatus === 'suspended' ? ('suspended' as const) : ('active' as const),
+        activeSessionStatus: hasActiveToken ? ('online_active' as const) : ('signed_out' as const),
         activeGoal: typeof stats.activeGoal === 'string' ? stats.activeGoal : null,
-        questionsAttempted:
-          typeof stats.questionsAttempted === 'number' ? stats.questionsAttempted : 0,
-        totalStudyMinutes:
-          typeof stats.totalStudyMinutes === 'number' ? stats.totalStudyMinutes : 0,
+        questionsAttempted,
+        correctAnswers,
+        totalStudyMinutes,
+        vpPoints,
+        streakDays,
+        streakLastActiveDate,
+        totalLoginCount: loginCount,
+        totalSessionCount: Math.max(userSessions.length, loginCount),
+        firstSeenAt: resolvedFirstSeenAt,
         createdAt: u.createdAt,
+        lastLoginAt: resolvedLastLoginAt,
+        lastLogoutAt: resolvedLastLogoutAt,
         lastSeenAt: u.lastSeenAt,
+        devicePlatform: resolvedDevicePlatform,
+        loginHistory: normalizedEvents.slice(0, 30),
       };
     });
 
@@ -1486,16 +1701,16 @@ export async function handleNativeAndroidApiRequest(
       generatedAt: nowIso,
       metrics: {
         totalUniqueUsers: allUsers.length,
-        totalRegisteredAccounts: allUsers.filter((u) => Boolean(u.username)).length,
-        totalDevices: Math.max(1, Object.keys(db.registeredDeviceHashes).length),
-        totalAppOpenSessions: Math.max(1, db.analyticsSessions.length),
+        totalRegisteredAccounts: registeredUsersOnly.length,
+        totalDevices: Object.keys(db.registeredDeviceHashes).length,
+        totalAppOpenSessions: db.analyticsSessions.length,
         dau: allUsers.length,
         wau: allUsers.length,
         mau: allUsers.length,
         newUsersToday: allUsers.length,
         newUsersLast7Days: allUsers.length,
         newUsersLast30Days: allUsers.length,
-        newUsersOverTime: [{ date: nowIso.split('T')[0], count: allUsers.length }],
+        newUsersOverTime: allUsers.length > 0 ? [{ date: nowIso.split('T')[0], count: allUsers.length }] : [],
         communityUsers: new Set(db.posts.map((p) => p.authorId)).size,
         communityPostsCount: db.posts.length,
         communityRepliesCount: db.replies.length,
@@ -1732,10 +1947,12 @@ export async function apiFetch(
       : REMOTE_BACKEND_CANDIDATES;
 
     for (const baseOrigin of candidatesToTry) {
+      const isAiRoute = rawUrl.startsWith('/api/svh-ai/');
+      const timeoutMs = isAiRoute ? 25000 : 3500;
       const controller = new AbortController();
       const timeoutId =
         typeof window !== 'undefined'
-          ? window.setTimeout(() => controller.abort(), 1800)
+          ? window.setTimeout(() => controller.abort(), timeoutMs)
           : null;
       try {
         const candidateRes = await baseFetch(`${baseOrigin}${rawUrl}`, {

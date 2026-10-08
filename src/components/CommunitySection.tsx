@@ -16,13 +16,25 @@ import {
   AlertTriangle,
   ZoomIn,
   HelpCircle,
+  Trophy,
+  Award,
+  Flame,
+  Sparkles,
+  BookOpen,
 } from 'lucide-react';
 import {
   CommunityPost,
   CommunityReply,
   CommunityChatMessage,
+  CommunityLeaderboardEntry,
+  UserStats,
 } from '../types';
 import { apiFetch } from '../services/nativeApiBridge';
+import {
+  calculateUserVPBreakdown,
+  evaluateUserMilestones,
+  getVPRankInfo,
+} from '../utils/vpPoints';
 
 interface CommunitySectionProps {
   userName: string;
@@ -30,6 +42,7 @@ interface CommunitySectionProps {
   activeGoal: string;
   activeSubjects: string[];
   isOwnerAuthenticated?: boolean;
+  userStats?: UserStats;
 }
 
 interface StoredIdentity {
@@ -136,16 +149,21 @@ export const CommunitySection: React.FC<CommunitySectionProps> = React.memo(({
   activeGoal,
   activeSubjects,
   isOwnerAuthenticated = false,
+  userStats,
 }) => {
   const displayUserName = (userName || 'Student').trim() || 'Student';
 
-  // Sub-navigation: 'feed' (Doubts & Discussions) vs 'chat' (Community Chat)
-  const [activeTab, setActiveTab] = useState<'feed' | 'chat'>(() => {
+  // Sub-navigation: 'feed' (Doubts & Discussions) vs 'chat' (Community Chat) vs 'leaderboard' (Community Leaderboard)
+  const [activeTab, setActiveTab] = useState<'feed' | 'chat' | 'leaderboard'>(() => {
     try {
       const savedUi = localStorage.getItem(COMMUNITY_UI_STATE_KEY);
       if (savedUi) {
         const parsed = JSON.parse(savedUi);
-        if (parsed?.activeTab === 'chat' || parsed?.activeTab === 'feed') {
+        if (
+          parsed?.activeTab === 'chat' ||
+          parsed?.activeTab === 'feed' ||
+          parsed?.activeTab === 'leaderboard'
+        ) {
           return parsed.activeTab;
         }
       }
@@ -208,6 +226,7 @@ export const CommunitySection: React.FC<CommunitySectionProps> = React.memo(({
       return [];
     }
   });
+  const [serverLeaderboard, setServerLeaderboard] = useState<CommunityLeaderboardEntry[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(() => {
     try {
       const hasCachedPosts = Boolean(localStorage.getItem(COMMUNITY_POSTS_CACHE_KEY));
@@ -426,6 +445,9 @@ export const CommunitySection: React.FC<CommunitySectionProps> = React.memo(({
         setPosts(Array.isArray(data.posts) ? data.posts : []);
         setReplies(Array.isArray(data.replies) ? data.replies : []);
         setChatMessages(Array.isArray(data.chatMessages) ? data.chatMessages : []);
+        if (Array.isArray(data.leaderboard)) {
+          setServerLeaderboard(data.leaderboard);
+        }
         setErrorBanner(null);
         setIsLoading(false);
         return;
@@ -723,6 +745,157 @@ export const CommunitySection: React.FC<CommunitySectionProps> = React.memo(({
   const visibleChatMessages = useMemo(() => {
     return chatMessages.filter((m) => !hiddenIds.includes(m.id));
   }, [chatMessages, hiddenIds]);
+
+  // Real Community Leaderboard & Milestones Computation (100% real data, zero fake entries)
+  const { leaderboardEntries, myRankEntry, myMilestones, myVPBreakdown } = useMemo(() => {
+    const baseStats: UserStats = userStats || {
+      name: displayUserName,
+      profilePhotoUrl: userProfilePhotoUrl || null,
+      hasCompletedSetup: false,
+      selectedGoals: [activeGoal || 'CBSE Class 12'],
+      activeGoal: activeGoal || 'CBSE Class 12',
+      customGoals: [],
+      questionsAttempted: 0,
+      correctAnswers: 0,
+      incorrectAnswers: 0,
+      totalStudyMinutes: 0,
+      streak: { current: 0, lastActiveDate: '' },
+      dailyGoals: { studyMinutes: 120, questionCount: 20, taskCount: 3 },
+      tasks: [],
+      studySessions: [],
+      practiceHistory: [],
+      topicsStudied: [],
+      subjectsStudied: {},
+      bookmarkedItemIds: [],
+      completedNoteIds: [],
+      readBookIds: [],
+    };
+
+    const vpBreakdown = calculateUserVPBreakdown(baseStats);
+    const milestones = evaluateUserMilestones(baseStats, vpBreakdown.totalVP);
+    const unlockedMilestoneCount = milestones.filter((m) => m.unlocked).length;
+
+    const myUserId = identity?.userId || baseStats.userId || 'local-current-student';
+    const myPostsCount = posts.filter((p) => p.authorId === myUserId).length;
+    const myRepliesCount = replies.filter((r) => r.authorId === myUserId).length;
+    const myChatCount = chatMessages.filter((m) => m.authorId === myUserId).length;
+
+    const communityBonusVP =
+      myPostsCount * 20 + myRepliesCount * 35 + Math.min(200, myChatCount * 5);
+    const myTotalCombinedVP = vpBreakdown.totalVP + communityBonusVP;
+    const myRankTierInfo = getVPRankInfo(myTotalCombinedVP);
+
+    // Aggregate real users from server leaderboard + live posts/replies/chat
+    const entryMap = new Map<string, CommunityLeaderboardEntry>();
+
+    for (const srvEntry of serverLeaderboard) {
+      if (!srvEntry?.userId) continue;
+      entryMap.set(srvEntry.userId, { ...srvEntry });
+    }
+
+    // Ensure any live authors in posts/replies/chat are accurately reflected
+    const allUserIds = new Set<string>();
+    posts.forEach((p) => p.authorId && allUserIds.add(p.authorId));
+    replies.forEach((r) => r.authorId && allUserIds.add(r.authorId));
+    chatMessages.forEach((m) => m.authorId && allUserIds.add(m.authorId));
+
+    allUserIds.forEach((uid) => {
+      const uPosts = posts.filter((p) => p.authorId === uid);
+      const uReplies = replies.filter((r) => r.authorId === uid);
+      const uChats = chatMessages.filter((m) => m.authorId === uid);
+
+      const latestName =
+        uPosts[0]?.authorName ||
+        uReplies[0]?.authorName ||
+        uChats[uChats.length - 1]?.authorName ||
+        entryMap.get(uid)?.displayName ||
+        'Student';
+      const latestPhoto =
+        uPosts[0]?.authorAvatarUrl ??
+        uReplies[0]?.authorAvatarUrl ??
+        uChats[uChats.length - 1]?.authorAvatarUrl ??
+        entryMap.get(uid)?.profilePhotoUrl ??
+        null;
+
+      const commVP =
+        uPosts.length * 20 + uReplies.length * 35 + Math.min(200, uChats.length * 5);
+      const existing = entryMap.get(uid);
+      const bestVP = Math.max(existing?.vpPoints || 0, commVP);
+      const tierInfo = getVPRankInfo(bestVP);
+
+      const mUnlocked =
+        (uPosts.length >= 1 ? 1 : 0) +
+        (uReplies.length >= 1 ? 1 : 0) +
+        (uReplies.length >= 5 ? 1 : 0) +
+        (bestVP >= 250 ? 1 : 0);
+
+      entryMap.set(uid, {
+        userId: uid,
+        displayName: latestName,
+        profilePhotoUrl: latestPhoto,
+        vpPoints: bestVP,
+        rankTitle: tierInfo.currentTier.title,
+        rankLevel: tierInfo.currentTier.level,
+        postsCount: uPosts.length,
+        repliesCount: uReplies.length,
+        chatCount: uChats.length,
+        milestonesUnlocked: Math.max(existing?.milestonesUnlocked || 0, mUnlocked),
+        lastActiveAt:
+          existing?.lastActiveAt ||
+          uPosts[0]?.createdAt ||
+          uReplies[0]?.createdAt ||
+          new Date().toISOString(),
+      });
+    });
+
+    // Always include/merge the current authenticated student with their real local + community VP
+    const existingMe = entryMap.get(myUserId);
+    const mergedMyVP = Math.max(myTotalCombinedVP, existingMe?.vpPoints || 0);
+    const mergedTier = getVPRankInfo(mergedMyVP);
+
+    const myEntry: CommunityLeaderboardEntry = {
+      userId: myUserId,
+      displayName: displayUserName,
+      profilePhotoUrl: userProfilePhotoUrl ?? existingMe?.profilePhotoUrl ?? null,
+      vpPoints: mergedMyVP,
+      rankTitle: mergedTier.currentTier.title,
+      rankLevel: mergedTier.currentTier.level,
+      postsCount: Math.max(myPostsCount, existingMe?.postsCount || 0),
+      repliesCount: Math.max(myRepliesCount, existingMe?.repliesCount || 0),
+      chatCount: Math.max(myChatCount, existingMe?.chatCount || 0),
+      milestonesUnlocked: Math.max(
+        unlockedMilestoneCount,
+        existingMe?.milestonesUnlocked || 0
+      ),
+      lastActiveAt: new Date().toISOString(),
+    };
+
+    entryMap.set(myUserId, myEntry);
+
+    const sorted = Array.from(entryMap.values()).sort((a, b) => {
+      if (b.vpPoints !== a.vpPoints) return b.vpPoints - a.vpPoints;
+      if (b.repliesCount !== a.repliesCount) return b.repliesCount - a.repliesCount;
+      return b.postsCount - a.postsCount;
+    });
+
+    return {
+      leaderboardEntries: sorted,
+      myRankEntry: myEntry,
+      myMilestones: milestones,
+      myVPBreakdown: vpBreakdown,
+    };
+  }, [
+    userStats,
+    displayUserName,
+    userProfilePhotoUrl,
+    activeGoal,
+    activeSubjects,
+    identity?.userId,
+    posts,
+    replies,
+    chatMessages,
+    serverLeaderboard,
+  ]);
 
   // Handlers for Image Upload
   const handlePostImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1089,21 +1262,23 @@ export const CommunitySection: React.FC<CommunitySectionProps> = React.memo(({
         </div>
       )}
 
-      {/* Main Mode Switcher: Doubts & Discussions vs Community Chat */}
-      <div className="p-1.5 bg-[#090e1c] rounded-2xl border border-[#d4af37]/25 flex items-center gap-2">
+      {/* Main Mode Switcher: Doubts & Discussions vs Community Chat vs Community Leaderboard */}
+      <div className="p-1.5 bg-[#090e1c] rounded-2xl border border-[#d4af37]/25 grid grid-cols-3 gap-1.5 sm:gap-2">
         <button
           onClick={() => {
             setActiveTab('feed');
           }}
-          className={`flex-1 py-2.5 px-4 rounded-xl text-xs sm:text-sm font-semibold transition-all flex items-center justify-center gap-2 ${
+          className={`py-2.5 px-2.5 sm:px-4 rounded-xl text-[11px] sm:text-sm font-semibold transition-all flex items-center justify-center gap-1.5 sm:gap-2 cursor-pointer ${
             activeTab === 'feed'
               ? 'bg-[#d4af37] text-[#080d1a] shadow-sm font-bold'
               : 'text-[#cbd5e1] hover:text-[#fbf9f4] hover:bg-[#131b2e]'
           }`}
         >
-          <HelpCircle className="w-4 h-4" />
-          <span>Doubts &amp; Discussions</span>
-          <span className="text-[10px] font-mono opacity-80">({visiblePosts.length})</span>
+          <HelpCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+          <span className="truncate">Discussions</span>
+          <span className="text-[10px] font-mono opacity-80 hidden xs:inline">
+            ({visiblePosts.length})
+          </span>
         </button>
 
         <button
@@ -1111,15 +1286,35 @@ export const CommunitySection: React.FC<CommunitySectionProps> = React.memo(({
             setActiveTab('chat');
             setSelectedPostId(null);
           }}
-          className={`flex-1 py-2.5 px-4 rounded-xl text-xs sm:text-sm font-semibold transition-all flex items-center justify-center gap-2 ${
+          className={`py-2.5 px-2.5 sm:px-4 rounded-xl text-[11px] sm:text-sm font-semibold transition-all flex items-center justify-center gap-1.5 sm:gap-2 cursor-pointer ${
             activeTab === 'chat'
               ? 'bg-[#d4af37] text-[#080d1a] shadow-sm font-bold'
               : 'text-[#cbd5e1] hover:text-[#fbf9f4] hover:bg-[#131b2e]'
           }`}
         >
-          <MessageCircle className="w-4 h-4" />
-          <span>Community Chat</span>
-          <span className="text-[10px] font-mono opacity-80">({visibleChatMessages.length})</span>
+          <MessageCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+          <span className="truncate">Live Chat</span>
+          <span className="text-[10px] font-mono opacity-80 hidden xs:inline">
+            ({visibleChatMessages.length})
+          </span>
+        </button>
+
+        <button
+          onClick={() => {
+            setActiveTab('leaderboard');
+            setSelectedPostId(null);
+          }}
+          className={`py-2.5 px-2.5 sm:px-4 rounded-xl text-[11px] sm:text-sm font-semibold transition-all flex items-center justify-center gap-1.5 sm:gap-2 cursor-pointer ${
+            activeTab === 'leaderboard'
+              ? 'bg-[#d4af37] text-[#080d1a] shadow-sm font-bold'
+              : 'text-[#cbd5e1] hover:text-[#fbf9f4] hover:bg-[#131b2e]'
+          }`}
+        >
+          <Trophy className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+          <span className="truncate">Leaderboard</span>
+          <span className="text-[10px] font-mono opacity-80 hidden xs:inline">
+            ({leaderboardEntries.length})
+          </span>
         </button>
       </div>
 
@@ -1763,6 +1958,330 @@ export const CommunitySection: React.FC<CommunitySectionProps> = React.memo(({
               <span>Send</span>
             </button>
           </form>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* VIEW 3: COMMUNITY LEADERBOARD & MILESTONES PROGRESS                       */}
+      {/* ========================================================================= */}
+      {activeTab === 'leaderboard' && (
+        <div className="space-y-6">
+          {/* Student's Personal Standing & Next Rank Progress Banner */}
+          {(() => {
+            const myPosition =
+              leaderboardEntries.findIndex((e) => e.userId === myRankEntry.userId) + 1;
+            const rankInfo = getVPRankInfo(myRankEntry.vpPoints);
+            const unlockedCount = myMilestones.filter((m) => m.unlocked).length;
+
+            return (
+              <div className="p-5 sm:p-6 rounded-2xl sm:rounded-3xl bg-gradient-to-br from-[#0e1932] via-[#0a1224] to-[#060b18] border border-[#d4af37]/40 shadow-xl space-y-5">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                  <div className="flex items-center gap-3.5">
+                    <div className="w-14 h-14 rounded-full bg-[#131b2e] border-2 border-[#d4af37] overflow-hidden flex items-center justify-center text-[#d4af37] font-display font-bold text-lg shrink-0 shadow-md">
+                      {myRankEntry.profilePhotoUrl ? (
+                        <img
+                          src={myRankEntry.profilePhotoUrl}
+                          alt={myRankEntry.displayName}
+                          className="w-full h-full object-cover rounded-full"
+                        />
+                      ) : (
+                        <User className="w-6 h-6 text-[#d4af37]" />
+                      )}
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="px-2.5 py-0.5 rounded-md bg-[#d4af37] text-[#080d1a] font-mono font-bold text-[11px]">
+                          RANK #{myPosition || 1}
+                        </span>
+                        <span className="px-2.5 py-0.5 rounded-md bg-[#131b2e] border border-[#d4af37]/35 text-[#d4af37] font-mono font-semibold text-[11px]">
+                          LVL {rankInfo.currentTier.level} • {rankInfo.currentTier.title}
+                        </span>
+                      </div>
+                      <h2 className="font-display text-lg sm:text-xl font-bold text-[#fbf9f4] mt-1">
+                        {myRankEntry.displayName}{' '}
+                        <span className="text-xs font-mono text-[#d4af37] font-normal">
+                          (Your Standing)
+                        </span>
+                      </h2>
+                      <p className="text-xs text-[#9ca3af]">
+                        Real-time score combining your study sessions, chapter mastery, and peer community contributions.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3 sm:gap-4 self-start md:self-center">
+                    <div className="px-4 py-2.5 rounded-2xl bg-[#070c18] border border-[#d4af37]/35 text-center">
+                      <p className="text-[10px] font-mono uppercase tracking-wider text-[#9ca3af]">
+                        Total Vault Points
+                      </p>
+                      <p className="font-display text-xl sm:text-2xl font-bold text-[#d4af37] font-mono">
+                        {myRankEntry.vpPoints.toLocaleString()} VP
+                      </p>
+                    </div>
+                    <div className="px-4 py-2.5 rounded-2xl bg-[#070c18] border border-emerald-500/30 text-center">
+                      <p className="text-[10px] font-mono uppercase tracking-wider text-[#9ca3af]">
+                        Milestones
+                      </p>
+                      <p className="font-display text-xl sm:text-2xl font-bold text-emerald-400 font-mono">
+                        {unlockedCount}/{myMilestones.length}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Progress to Next Rank Tier */}
+                <div className="p-3.5 sm:p-4 rounded-xl bg-[#070c18]/90 border border-[#1e293b] space-y-2">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-semibold text-[#cbd5e1] flex items-center gap-1.5">
+                      <Sparkles className="w-3.5 h-3.5 text-[#d4af37]" />
+                      {rankInfo.nextTier
+                        ? `Next Tier: ${rankInfo.nextTier.title} (Level ${rankInfo.nextTier.level})`
+                        : 'Maximum Grandmaster Tier Achieved!'}
+                    </span>
+                    <span className="font-mono font-bold text-[#d4af37]">
+                      {rankInfo.nextTier
+                        ? `${rankInfo.vpNeededForNext.toLocaleString()} VP to rank up (${rankInfo.progressPercent}%)`
+                        : '100% Complete'}
+                    </span>
+                  </div>
+                  <div className="w-full h-2.5 rounded-full bg-[#131b2e] overflow-hidden p-0.5">
+                    <div
+                      className="h-full rounded-full bg-gradient-to-r from-[#d4af37] via-[#f3e5ab] to-[#aa7c11] transition-all duration-500"
+                      style={{ width: `${rankInfo.progressPercent}%` }}
+                    />
+                  </div>
+                  <div className="pt-1 flex flex-wrap items-center justify-between gap-2 text-[11px] text-[#9ca3af]">
+                    <span>
+                      Study &amp; Practice VP:{' '}
+                      <strong className="text-[#fbf9f4] font-mono">
+                        {myVPBreakdown.totalVP} VP
+                      </strong>
+                    </span>
+                    <span>
+                      Community Bonus:{' '}
+                      <strong className="text-[#d4af37] font-mono">
+                        +
+                        {myRankEntry.postsCount * 20 +
+                          myRankEntry.repliesCount * 35 +
+                          Math.min(200, (myRankEntry.chatCount || 0) * 5)}{' '}
+                        VP
+                      </strong>{' '}
+                      (+20/doubt, +35/solution reply, +5/chat)
+                    </span>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Left 2 Columns: Real Community Rankings List */}
+            <div className="lg:col-span-2 p-5 sm:p-6 rounded-2xl sm:rounded-3xl bg-[#0b1324] border border-[#d4af37]/30 shadow-lg space-y-4">
+              <div className="flex items-center justify-between gap-2 border-b border-[#1e293b] pb-3.5">
+                <div className="flex items-center gap-2.5">
+                  <Trophy className="w-5 h-5 text-[#d4af37]" />
+                  <div>
+                    <h3 className="font-display text-base sm:text-lg font-bold text-[#fbf9f4]">
+                      Active Student Standings
+                    </h3>
+                    <p className="text-xs text-[#9ca3af]">
+                      Ranked by real Vault Points (VP) &amp; verified peer solutions
+                    </p>
+                  </div>
+                </div>
+                <span className="text-xs font-mono px-2.5 py-1 rounded-lg bg-[#131b2e] border border-[#d4af37]/25 text-[#d4af37]">
+                  {leaderboardEntries.length}{' '}
+                  {leaderboardEntries.length === 1 ? 'Scholar' : 'Scholars'}
+                </span>
+              </div>
+
+              <div className="space-y-3">
+                {leaderboardEntries.map((entry, idx) => {
+                  const rankPos = idx + 1;
+                  const isCurrentUser = entry.userId === myRankEntry.userId;
+                  const tierInfo = getVPRankInfo(entry.vpPoints);
+
+                  const rankBadgeStyle =
+                    rankPos === 1
+                      ? 'bg-gradient-to-br from-[#d4af37] to-[#aa7c11] text-[#080d1a] font-extrabold shadow-md shadow-[#d4af37]/20'
+                      : rankPos === 2
+                      ? 'bg-slate-300 text-slate-950 font-bold'
+                      : rankPos === 3
+                      ? 'bg-amber-700 text-amber-50 font-bold'
+                      : 'bg-[#131b2e] text-[#cbd5e1] border border-[#d4af37]/25 font-mono';
+
+                  return (
+                    <div
+                      key={entry.userId}
+                      className={`p-3.5 sm:p-4 rounded-2xl border transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3.5 ${
+                        isCurrentUser
+                          ? 'bg-gradient-to-r from-[#13203d] to-[#0d172c] border-[#d4af37]/60 shadow-md'
+                          : 'bg-[#091020] border-[#1e293b] hover:border-[#d4af37]/35'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div
+                          className={`w-8 h-8 rounded-xl flex items-center justify-center text-xs shrink-0 ${rankBadgeStyle}`}
+                        >
+                          #{rankPos}
+                        </div>
+
+                        <div className="w-10 h-10 rounded-full bg-[#131b2e] border border-[#d4af37]/40 overflow-hidden flex items-center justify-center text-[#d4af37] font-display font-bold text-sm shrink-0">
+                          {entry.profilePhotoUrl ? (
+                            <img
+                              src={entry.profilePhotoUrl}
+                              alt={entry.displayName}
+                              className="w-full h-full object-cover rounded-full"
+                            />
+                          ) : (
+                            <User className="w-5 h-5 text-[#d4af37]" />
+                          )}
+                        </div>
+
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-display font-bold text-sm sm:text-base text-[#fbf9f4] truncate">
+                              {entry.displayName}
+                            </span>
+                            {isCurrentUser && (
+                              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-[#d4af37]/20 text-[#d4af37] border border-[#d4af37]/40">
+                                You
+                              </span>
+                            )}
+                            <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-[#131b2e] text-[#d4af37] border border-[#d4af37]/20">
+                              Lvl {tierInfo.currentTier.level} • {tierInfo.currentTier.title}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-3 text-[11px] text-[#9ca3af] mt-1 flex-wrap">
+                            <span>
+                              Doubts Asked:{' '}
+                              <strong className="text-[#cbd5e1] font-mono">
+                                {entry.postsCount}
+                              </strong>
+                            </span>
+                            <span>•</span>
+                            <span>
+                              Solutions Shared:{' '}
+                              <strong className="text-emerald-400 font-mono">
+                                {entry.repliesCount}
+                              </strong>
+                            </span>
+                            <span>•</span>
+                            <span>
+                              Milestones:{' '}
+                              <strong className="text-[#d4af37] font-mono">
+                                {entry.milestonesUnlocked}
+                              </strong>
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex sm:flex-col items-center sm:items-end justify-between sm:justify-center gap-1 border-t sm:border-t-0 border-[#1e293b] pt-2.5 sm:pt-0 shrink-0">
+                        <span className="font-mono font-bold text-base sm:text-lg text-[#d4af37]">
+                          {entry.vpPoints.toLocaleString()} VP
+                        </span>
+                        <div className="w-24 h-1.5 rounded-full bg-[#131b2e] overflow-hidden">
+                          <div
+                            className="h-full bg-[#d4af37]"
+                            style={{ width: `${tierInfo.progressPercent}%` }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Right Column: Live Milestone Progress & How to Earn VP */}
+            <div className="space-y-5">
+              <div className="p-5 rounded-2xl sm:rounded-3xl bg-[#0b1324] border border-[#d4af37]/30 shadow-lg space-y-4">
+                <div className="flex items-center gap-2 border-b border-[#1e293b] pb-3">
+                  <Award className="w-5 h-5 text-[#d4af37]" />
+                  <div>
+                    <h3 className="font-display text-base font-bold text-[#fbf9f4]">
+                      Your Milestone Progress
+                    </h3>
+                    <p className="text-[11px] text-[#9ca3af]">
+                      Unlock badges to boost your Vault Points
+                    </p>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  {myMilestones.slice(0, 6).map((m) => (
+                    <div
+                      key={m.id}
+                      className={`p-3 rounded-xl border space-y-1.5 ${
+                        m.unlocked
+                          ? 'bg-[#101c35] border-[#d4af37]/45'
+                          : 'bg-[#080e1c] border-[#1e293b]'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-xs font-bold text-[#fbf9f4] flex items-center gap-1.5">
+                          {m.unlocked ? (
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                          ) : (
+                            <Flame className="w-3.5 h-3.5 text-[#d4af37]/70 shrink-0" />
+                          )}
+                          <span>{m.title}</span>
+                        </span>
+                        <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-[#131b2e] text-[#d4af37]">
+                          +{m.vpReward} VP
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-[#9ca3af]">{m.description}</p>
+                      <div className="space-y-1 pt-0.5">
+                        <div className="flex items-center justify-between text-[10px] font-mono text-[#cbd5e1]">
+                          <span>
+                            {m.currentValue}/{m.targetValue} {m.unit}
+                          </span>
+                          <span className={m.unlocked ? 'text-emerald-400' : 'text-[#d4af37]'}>
+                            {m.progressPercent}%
+                          </span>
+                        </div>
+                        <div className="w-full h-1.5 rounded-full bg-[#131b2e] overflow-hidden">
+                          <div
+                            className={`h-full rounded-full transition-all duration-500 ${
+                              m.unlocked ? 'bg-emerald-400' : 'bg-[#d4af37]'
+                            }`}
+                            style={{ width: `${m.progressPercent}%` }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* How Community & Study VP Works Card */}
+              <div className="p-5 rounded-2xl bg-[#091020] border border-[#d4af37]/25 space-y-2.5 text-xs">
+                <div className="flex items-center gap-2 text-[#d4af37] font-bold">
+                  <BookOpen className="w-4 h-4" />
+                  <span>How Vault Points (VP) Work</span>
+                </div>
+                <ul className="space-y-1.5 text-[#cbd5e1] text-[11px] leading-relaxed">
+                  <li>
+                    • <strong className="text-[#fbf9f4]">+35 VP</strong> per chapter mastered &amp;{' '}
+                    <strong className="text-[#fbf9f4]">+25 VP</strong> per study task completed
+                  </li>
+                  <li>
+                    • <strong className="text-[#fbf9f4]">+35 VP</strong> for each helpful solution reply in Community Discussions
+                  </li>
+                  <li>
+                    • <strong className="text-[#fbf9f4]">+20 VP</strong> for posting an academic doubt or textbook problem
+                  </li>
+                  <li>
+                    • <strong className="text-[#fbf9f4]">+15 VP</strong> per daily streak day &amp;{' '}
+                    <strong className="text-[#fbf9f4]">+2 VP</strong> per focused study minute
+                  </li>
+                </ul>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 

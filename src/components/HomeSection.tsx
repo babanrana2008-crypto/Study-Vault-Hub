@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import {
   BookOpen,
   FileText,
@@ -21,6 +21,7 @@ import {
   Edit3,
   X,
   Compass,
+  Trophy,
 } from 'lucide-react';
 import {
   ActiveSection,
@@ -39,6 +40,7 @@ import {
   PRESET_GOALS,
 } from '../data/sampleData';
 import { PWAInstallButton } from './PWAInstallButton';
+import { calculateUserVPBreakdown } from '../utils/vpPoints';
 
 interface HomeSectionProps {
   userStats: UserStats;
@@ -67,6 +69,114 @@ export const HomeSection: React.FC<HomeSectionProps> = React.memo(({
   onOpenFocusMode,
 }) => {
   const [goalDropdownOpen, setGoalDropdownOpen] = useState(false);
+  const [isVpPopupOpen, setIsVpPopupOpen] = useState(false);
+  const vpBadgeButtonRef = useRef<HTMLButtonElement | null>(null);
+  const vpPopupPanelRef = useRef<HTMLDivElement | null>(null);
+  const [vpPopupCoords, setVpPopupCoords] = useState<{
+    top: number;
+    left: number;
+    width: number;
+    maxHeight: number;
+    placement: 'below' | 'above';
+    arrowLeft: number;
+  }>({
+    top: 72,
+    left: 16,
+    width: 340,
+    maxHeight: 420,
+    placement: 'below',
+    arrowLeft: 280,
+  });
+
+  const vpBreakdown = useMemo(() => {
+    return calculateUserVPBreakdown(userStats);
+  }, [userStats]);
+
+  const updateVpPopupPosition = useCallback(() => {
+    const btn = vpBadgeButtonRef.current;
+    if (!btn || typeof window === 'undefined') return;
+    const rect = btn.getBoundingClientRect();
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const margin = 12;
+    const desiredWidth = Math.min(356, vw - margin * 2);
+
+    // Align right edge of popup with right edge of badge when possible, clamped to viewport
+    let left = rect.right - desiredWidth;
+    if (left < margin) left = margin;
+    if (left + desiredWidth > vw - margin) {
+      left = Math.max(margin, vw - margin - desiredWidth);
+    }
+
+    const badgeCenter = rect.left + rect.width / 2;
+    const arrowLeft = Math.max(20, Math.min(desiredWidth - 28, badgeCenter - left));
+
+    const spaceBelow = vh - rect.bottom - margin - 12;
+    const spaceAbove = rect.top - margin - 12;
+    const preferAbove = spaceBelow < 250 && spaceAbove > spaceBelow;
+
+    if (preferAbove) {
+      const maxHeight = Math.max(200, Math.min(430, spaceAbove));
+      const top = Math.max(margin, rect.top - 8);
+      setVpPopupCoords({
+        top,
+        left,
+        width: desiredWidth,
+        maxHeight,
+        placement: 'above',
+        arrowLeft,
+      });
+    } else {
+      const maxHeight = Math.max(220, Math.min(440, spaceBelow));
+      const top = Math.min(vh - margin - 180, Math.max(margin, rect.bottom + 8));
+      setVpPopupCoords({
+        top,
+        left,
+        width: desiredWidth,
+        maxHeight,
+        placement: 'below',
+        arrowLeft,
+      });
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!isVpPopupOpen) return;
+    updateVpPopupPosition();
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setIsVpPopupOpen(false);
+      }
+    };
+    const handleReposition = () => {
+      updateVpPopupPosition();
+    };
+    const handlePointerDownOutside = (e: MouseEvent | TouchEvent) => {
+      const target = e.target as Node | null;
+      if (!target) return;
+      if (vpPopupPanelRef.current?.contains(target)) return;
+      if (vpBadgeButtonRef.current?.contains(target)) return;
+      setIsVpPopupOpen(false);
+    };
+
+    const scrollContainer = document.getElementById('main-scroll-container');
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('resize', handleReposition, { passive: true });
+    window.addEventListener('scroll', handleReposition, { passive: true, capture: true });
+    scrollContainer?.addEventListener('scroll', handleReposition, { passive: true });
+    document.addEventListener('mousedown', handlePointerDownOutside);
+    document.addEventListener('touchstart', handlePointerDownOutside, { passive: true });
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('resize', handleReposition);
+      window.removeEventListener('scroll', handleReposition, true);
+      scrollContainer?.removeEventListener('scroll', handleReposition);
+      document.removeEventListener('mousedown', handlePointerDownOutside);
+      document.removeEventListener('touchstart', handlePointerDownOutside);
+    };
+  }, [isVpPopupOpen, updateVpPopupPosition]);
 
   // Exam Countdown Editor State
   const [isEditingCountdown, setIsEditingCountdown] = useState(false);
@@ -371,7 +481,7 @@ export const HomeSection: React.FC<HomeSectionProps> = React.memo(({
                 </h1>
                 <div className="flex flex-col items-start justify-center text-left mt-0.5 leading-snug min-w-0 max-w-full">
                   <span className="text-[10px] sm:text-xs text-[#cbd5e1] font-mono tracking-wide truncate max-w-full">
-                    Founded &amp; Created by
+                    Developed by
                   </span>
                   <span className="text-xs sm:text-base font-display font-bold text-[#d4af37] tracking-wide truncate max-w-full">
                     Soumyadip Rana
@@ -380,11 +490,40 @@ export const HomeSection: React.FC<HomeSectionProps> = React.memo(({
               </div>
             </div>
 
-            <div className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full bg-[#131b2e] border border-[#d4af37]/30 text-[11px] sm:text-xs font-semibold text-[#fbf9f4] shrink-0">
-              <Flame className="w-3.5 h-3.5 text-amber-400 fill-amber-400 shrink-0" />
-              <span className="text-amber-300 tabular-nums whitespace-nowrap">
-                {realStreakDays > 0 ? `${realStreakDays}d Streak` : 'No streak yet'}
-              </span>
+            <div className="flex flex-wrap items-center gap-2 shrink-0">
+              <div className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full bg-[#131b2e] border border-[#d4af37]/30 text-[11px] sm:text-xs font-semibold text-[#fbf9f4] shrink-0">
+                <Flame className="w-3.5 h-3.5 text-amber-400 fill-amber-400 shrink-0" />
+                <span className="text-amber-300 tabular-nums whitespace-nowrap">
+                  {realStreakDays > 0 ? `${realStreakDays}d Streak` : 'No streak yet'}
+                </span>
+              </div>
+
+              <button
+                ref={vpBadgeButtonRef}
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (!isVpPopupOpen) {
+                    updateVpPopupPosition();
+                    setIsVpPopupOpen(true);
+                  } else {
+                    setIsVpPopupOpen(false);
+                  }
+                }}
+                aria-expanded={isVpPopupOpen}
+                aria-haspopup="dialog"
+                aria-label="Open VP Points Details"
+                title="Tap to view your real VP Points balance and how you earn VP"
+                className={`flex items-center gap-1.5 px-2.5 sm:px-3.5 py-1.5 rounded-full bg-[#131b2e] hover:bg-[#19243d] border ${
+                  isVpPopupOpen ? 'border-[#d4af37] ring-2 ring-[#d4af37]/30' : 'border-[#d4af37]/40 hover:border-[#d4af37]'
+                } text-[11px] sm:text-xs font-semibold text-[#fbf9f4] shrink-0 transition-all cursor-pointer shadow-sm`}
+              >
+                <Trophy className="w-3.5 h-3.5 text-[#d4af37] shrink-0" />
+                <span className="text-[#cbd5e1] font-medium whitespace-nowrap">VP Points</span>
+                <span className="text-[#d4af37] font-mono font-bold tabular-nums whitespace-nowrap">
+                  {vpBreakdown.totalVP} VP
+                </span>
+              </button>
             </div>
           </div>
 
@@ -1523,8 +1662,175 @@ export const HomeSection: React.FC<HomeSectionProps> = React.memo(({
 
       {/* Independent Platform & Academic Attribution Notice */}
       <footer className="px-4 py-3 rounded-2xl bg-[#090e1c] border border-[#1e293b] text-[11px] text-[#9ca3af] text-center leading-relaxed">
-        Study Vault Hub is an independent educational study platform created by Soumyadip Rana and is not affiliated with or endorsed by NCERT, NTA, CBSE, or any examination authority. In-app guides and practice questions are original study resources; official NCERT textbook links open the public NCERT portal (ncert.nic.in).
+        Study Vault Hub is an independent educational study platform developed by Soumyadip Rana and is not affiliated with or endorsed by NCERT, NTA, CBSE, or any examination authority. In-app guides and practice questions are original study resources; official NCERT textbook links open the public NCERT portal (ncert.nic.in).
       </footer>
+
+      {/* ===================================================================== */}
+      {/* COMPACT PREMIUM VP POINTS POPUP ANCHORED ADJACENT TO VP BADGE         */}
+      {/* ===================================================================== */}
+      {isVpPopupOpen && (
+        <div
+          ref={vpPopupPanelRef}
+          role="dialog"
+          aria-modal="false"
+          aria-label="VP Points Details"
+          style={{
+            position: 'fixed',
+            top:
+              vpPopupCoords.placement === 'above'
+                ? undefined
+                : `${vpPopupCoords.top}px`,
+            bottom:
+              vpPopupCoords.placement === 'above'
+                ? `${Math.max(12, window.innerHeight - vpPopupCoords.top)}px`
+                : undefined,
+            left: `${vpPopupCoords.left}px`,
+            width: `${vpPopupCoords.width}px`,
+            zIndex: 70,
+          }}
+          className="svh-popup-card rounded-2xl bg-[#eef3fa] border border-[#b8c7dc] text-[#1e293b] shadow-[0_18px_48px_rgba(15,23,42,0.28)] overflow-hidden"
+        >
+          {/* Visual Anchor Pointer */}
+          <div
+            style={{ left: `${vpPopupCoords.arrowLeft}px` }}
+            className={`fixed w-3 h-3 bg-[#e2eaf5] border-[#b8c7dc] rotate-45 pointer-events-none ${
+              vpPopupCoords.placement === 'above'
+                ? '-bottom-1.5 border-b border-r'
+                : '-top-1.5 border-t border-l'
+            }`}
+          />
+
+          {/* Compact Header with X Close Button */}
+          <div className="px-4 py-3 bg-[#e2eaf5] border-b border-[#cbd5e1] flex items-center justify-between gap-2.5">
+            <div className="flex items-center gap-2 min-w-0">
+              <div className="w-8 h-8 rounded-xl bg-[#d5e2f2] border border-[#b8c7dc] flex items-center justify-center text-[#1e293b] shrink-0">
+                <Trophy className="w-4 h-4 text-[#9a6f0a]" />
+              </div>
+              <div className="min-w-0">
+                <h3 className="font-display text-xs sm:text-sm font-bold tracking-wider text-[#1e293b] uppercase truncate">
+                  VP POINTS
+                </h3>
+                <p className="text-[10px] text-[#475569] truncate">
+                  {vpBreakdown.currentTier.title}
+                </p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsVpPopupOpen(false);
+              }}
+              aria-label="Close VP Points Popup"
+              className="w-7 h-7 rounded-xl bg-[#d5e2f2] hover:bg-[#c5d6ec] border border-[#b8c7dc] text-[#1e293b] flex items-center justify-center transition-colors cursor-pointer shrink-0"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
+          {/* Internal Scrollable Content */}
+          <div
+            style={{ maxHeight: `${vpPopupCoords.maxHeight}px` }}
+            className="p-3.5 space-y-3 overflow-y-auto overscroll-contain"
+          >
+            {/* Current Balance Card */}
+            <div className="p-3 rounded-xl bg-[#f7f9fc] border border-[#cbd5e1] flex items-center justify-between gap-2">
+              <div>
+                <span className="text-[10px] font-mono uppercase tracking-wider text-[#475569] block">
+                  Current Balance
+                </span>
+                <span className="font-display text-xl sm:text-2xl font-extrabold text-[#1e293b] tabular-nums">
+                  {vpBreakdown.totalVP} VP
+                </span>
+              </div>
+              <div className="text-right">
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-[#e2eaf5] border border-[#b8c7dc] text-[11px] font-semibold text-[#1e293b]">
+                  <Award className="w-3 h-3 text-[#9a6f0a]" />
+                  <span>{vpBreakdown.currentTier.title}</span>
+                </span>
+                {vpBreakdown.nextTier && (
+                  <span className="text-[10px] text-[#475569] block mt-1 font-mono">
+                    {vpBreakdown.vpNeededForNextTier} VP to {vpBreakdown.nextTier.title}
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* How you earn VP */}
+            <div className="p-3 rounded-xl bg-[#f7f9fc] border border-[#cbd5e1] space-y-2">
+              <h4 className="text-[11px] font-bold uppercase tracking-wider text-[#1e293b]">
+                How you earn VP:
+              </h4>
+              <ul className="space-y-1.5 text-[11px] text-[#334155]">
+                <li className="flex items-center justify-between gap-2 py-1 border-b border-[#e2e8f0]">
+                  <span>• <strong>10 VP</strong> — every 5 minutes of focused study</span>
+                  <span className="font-mono font-bold text-[#1e293b] shrink-0">
+                    +{vpBreakdown.studyTimeVP} VP
+                  </span>
+                </li>
+                <li className="flex items-center justify-between gap-2 py-1 border-b border-[#e2e8f0]">
+                  <span>• <strong>2 VP</strong> — every normal question solved</span>
+                  <span className="font-mono font-bold text-[#1e293b] shrink-0">
+                    +{vpBreakdown.normalQuestionVP} VP
+                  </span>
+                </li>
+                <li className="flex items-center justify-between gap-2 py-1 border-b border-[#e2e8f0]">
+                  <span>• <strong>5 VP</strong> — every correct Test Mode question</span>
+                  <span className="font-mono font-bold text-[#1e293b] shrink-0">
+                    +{vpBreakdown.testModeQuestionVP} VP
+                  </span>
+                </li>
+                <li className="flex items-center justify-between gap-2 pt-0.5">
+                  <span>• <strong>20 VP</strong> — every 5-day study streak</span>
+                  <span className="font-mono font-bold text-[#1e293b] shrink-0">
+                    +{vpBreakdown.streakMilestoneVP} VP
+                  </span>
+                </li>
+              </ul>
+            </div>
+
+            {/* Your Real Activity */}
+            <div className="p-3 rounded-xl bg-[#f7f9fc] border border-[#cbd5e1] space-y-2">
+              <div className="flex items-center justify-between">
+                <h4 className="text-[11px] font-bold uppercase tracking-wider text-[#1e293b]">
+                  Your Activity
+                </h4>
+                <span className="text-[10px] font-mono text-[#475569]">
+                  Verified Records
+                </span>
+              </div>
+
+              {vpBreakdown.recentActivities.length === 0 ? (
+                <p className="text-xs text-[#64748b] py-1.5 text-center">
+                  No user activity yet
+                </p>
+              ) : (
+                <div className="space-y-1.5">
+                  {vpBreakdown.recentActivities.slice(0, 4).map((act) => (
+                    <div
+                      key={act.id}
+                      className="p-2 rounded-lg bg-[#eef3fa] border border-[#cbd5e1] flex items-center justify-between gap-2"
+                    >
+                      <div className="min-w-0">
+                        <p className="text-[11px] font-semibold text-[#1e293b] truncate">
+                          {act.title}
+                        </p>
+                        <p className="text-[10px] text-[#475569] truncate">
+                          {act.subtitle} · {act.timestamp}
+                        </p>
+                      </div>
+                      <span className="px-1.5 py-0.5 rounded-md bg-[#d5e2f2] border border-[#b8c7dc] font-mono text-[10px] font-bold text-[#1e293b] shrink-0">
+                        +{act.vpEarned} VP
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 });

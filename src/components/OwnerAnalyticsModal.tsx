@@ -16,6 +16,8 @@ import {
   Ban,
   CheckCircle2,
   Flag,
+  Search,
+  ArrowUpDown,
 } from 'lucide-react';
 import { apiFetch } from '../services/nativeApiBridge';
 
@@ -28,11 +30,27 @@ interface RegisteredAccountItem {
   displayName: string;
   role?: 'owner' | 'student';
   accountStatus?: 'active' | 'suspended';
+  activeSessionStatus?: 'online_active' | 'signed_out';
   activeGoal: string | null;
   questionsAttempted: number;
+  correctAnswers?: number;
   totalStudyMinutes: number;
+  vpPoints?: number;
+  streakDays?: number;
+  streakLastActiveDate?: string | null;
+  totalLoginCount?: number;
+  totalSessionCount?: number;
+  firstSeenAt?: string;
   createdAt: string;
+  lastLoginAt?: string | null;
+  lastLogoutAt?: string | null;
   lastSeenAt: string;
+  devicePlatform?: string | null;
+  loginHistory?: Array<{
+    event: 'login' | 'logout';
+    timestamp: string;
+    devicePlatform?: string | null;
+  }>;
 }
 
 interface ModerationReportItem {
@@ -87,6 +105,65 @@ export const OwnerAnalyticsModal: React.FC<OwnerAnalyticsModalProps> = ({
   const [analyticsError, setAnalyticsError] = useState<string | null>(null);
   const [actionBusyId, setActionBusyId] = useState<string | null>(null);
   const [confirmDeleteUserId, setConfirmDeleteUserId] = useState<string | null>(null);
+  const [selectedDetailUserId, setSelectedDetailUserId] = useState<string | null>(null);
+  const [userSearchQuery, setUserSearchQuery] = useState<string>('');
+  const [userStatusFilter, setUserStatusFilter] = useState<
+    'all' | 'online_active' | 'signed_out' | 'suspended'
+  >('all');
+  const [userSortBy, setUserSortBy] = useState<
+    'lastActive' | 'latestLogin' | 'loginCount' | 'vpPoints' | 'streak' | 'questions' | 'minutes'
+  >('lastActive');
+
+  const filteredAndSortedAccounts = React.useMemo(() => {
+    const rawList = metrics?.registeredAccounts || [];
+    const q = userSearchQuery.trim().toLowerCase();
+    const filtered = rawList.filter((acct) => {
+      if (userStatusFilter === 'online_active' && acct.activeSessionStatus !== 'online_active') {
+        return false;
+      }
+      if (userStatusFilter === 'signed_out' && acct.activeSessionStatus === 'online_active') {
+        return false;
+      }
+      if (userStatusFilter === 'suspended' && acct.accountStatus !== 'suspended') {
+        return false;
+      }
+      if (!q) return true;
+      return (
+        (acct.displayName || '').toLowerCase().includes(q) ||
+        (acct.username || '').toLowerCase().includes(q) ||
+        (acct.userId || '').toLowerCase().includes(q) ||
+        (acct.activeGoal || '').toLowerCase().includes(q) ||
+        (acct.devicePlatform || '').toLowerCase().includes(q)
+      );
+    });
+
+    return [...filtered].sort((a, b) => {
+      if (userSortBy === 'vpPoints') return (b.vpPoints || 0) - (a.vpPoints || 0);
+      if (userSortBy === 'streak') return (b.streakDays || 0) - (a.streakDays || 0);
+      if (userSortBy === 'loginCount') return (b.totalLoginCount || 0) - (a.totalLoginCount || 0);
+      if (userSortBy === 'questions') return (b.questionsAttempted || 0) - (a.questionsAttempted || 0);
+      if (userSortBy === 'minutes') return (b.totalStudyMinutes || 0) - (a.totalStudyMinutes || 0);
+      if (userSortBy === 'latestLogin') {
+        return (b.lastLoginAt || b.lastSeenAt || '').localeCompare(
+          a.lastLoginAt || a.lastSeenAt || ''
+        );
+      }
+      return (b.lastSeenAt || '').localeCompare(a.lastSeenAt || '');
+    });
+  }, [metrics?.registeredAccounts, userSearchQuery, userStatusFilter, userSortBy]);
+
+  const formatDateTime = (iso?: string | null) => {
+    if (!iso) return 'Not recorded yet';
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return 'Not recorded yet';
+    return d.toLocaleString(undefined, {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  };
 
   const getActiveBearerToken = useCallback((): string => {
     try {
@@ -279,7 +356,7 @@ export const OwnerAnalyticsModal: React.FC<OwnerAnalyticsModalProps> = ({
                 Study Vault Hub — Owner &amp; Admin Management
               </h2>
               <p className="text-[11px] text-[#cbd5e1] truncate">
-                Founded &amp; Created by Soumyadip Rana · Verified Owner Session
+                Developed by Soumyadip Rana · Verified Owner Session
               </p>
             </div>
           </div>
@@ -518,148 +595,478 @@ export const OwnerAnalyticsModal: React.FC<OwnerAnalyticsModalProps> = ({
 
                 {/* 4. Registered Users Directory & Access Management (Owner-Only) */}
                 {Array.isArray(metrics.registeredAccounts) && (
-                  <div className="p-4 sm:p-5 rounded-2xl bg-[#0f172a] border border-[#d4af37]/30 space-y-3">
-                    <div className="flex items-center justify-between">
+                  <div className="p-4 sm:p-5 rounded-2xl bg-[#0f172a] border border-[#d4af37]/30 space-y-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                       <div className="flex items-center gap-2">
                         <Users className="w-4 h-4 text-[#d4af37]" />
                         <h4 className="font-display text-sm font-bold text-[#fbf9f4]">
-                          Registered Users Directory &amp; Account Access Management
+                          Real User Analytics, Directory &amp; Account Management
                         </h4>
                       </div>
                       <span className="text-[11px] font-mono text-[#9ca3af]">
-                        {metrics.registeredAccounts.length} Account(s)
+                        {filteredAndSortedAccounts.length} of {metrics.registeredAccounts.length} Registered User(s) · Tap any user for full detail view
                       </span>
+                    </div>
+
+                    {/* Search, Status Filter & Sorting Toolbar */}
+                    <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-2.5 pt-1">
+                      <div className="relative flex-1">
+                        <Search className="w-3.5 h-3.5 text-[#9ca3af] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                        <input
+                          type="text"
+                          value={userSearchQuery}
+                          onChange={(e) => setUserSearchQuery(e.target.value)}
+                          placeholder="Search by name, @username, User ID, goal, or device..."
+                          className="w-full pl-8 pr-8 py-1.5 rounded-xl bg-[#090e1c] border border-[#1e293b] focus:border-[#d4af37] text-xs text-[#fbf9f4] placeholder:text-[#6b7280] outline-none transition-colors"
+                        />
+                        {userSearchQuery && (
+                          <button
+                            type="button"
+                            onClick={() => setUserSearchQuery('')}
+                            aria-label="Clear search"
+                            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#9ca3af] hover:text-white cursor-pointer"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-2">
+                        <div className="inline-flex items-center rounded-xl bg-[#090e1c] border border-[#1e293b] p-0.5 text-[11px]">
+                          {(
+                            [
+                              { id: 'all', label: 'All' },
+                              { id: 'online_active', label: 'Active' },
+                              { id: 'signed_out', label: 'Signed Out' },
+                              { id: 'suspended', label: 'Suspended' },
+                            ] as const
+                          ).map((tab) => (
+                            <button
+                              key={tab.id}
+                              type="button"
+                              onClick={() => setUserStatusFilter(tab.id)}
+                              className={`px-2.5 py-1 rounded-lg font-medium transition-colors cursor-pointer ${
+                                userStatusFilter === tab.id
+                                  ? 'bg-[#172544] text-[#d4af37] font-semibold'
+                                  : 'text-[#9ca3af] hover:text-[#fbf9f4]'
+                              }`}
+                            >
+                              {tab.label}
+                            </button>
+                          ))}
+                        </div>
+
+                        <div className="flex items-center gap-1.5 bg-[#090e1c] border border-[#1e293b] rounded-xl px-2.5 py-1">
+                          <ArrowUpDown className="w-3.5 h-3.5 text-[#d4af37] shrink-0" />
+                          <select
+                            value={userSortBy}
+                            onChange={(e) =>
+                              setUserSortBy(
+                                e.target.value as
+                                  | 'lastActive'
+                                  | 'latestLogin'
+                                  | 'loginCount'
+                                  | 'vpPoints'
+                                  | 'streak'
+                                  | 'questions'
+                                  | 'minutes'
+                              )
+                            }
+                            aria-label="Sort registered users"
+                            className="bg-transparent text-xs text-[#fbf9f4] outline-none cursor-pointer"
+                          >
+                            <option value="lastActive" className="bg-[#0b1324]">
+                              Sort: Last Active
+                            </option>
+                            <option value="latestLogin" className="bg-[#0b1324]">
+                              Sort: Latest Login
+                            </option>
+                            <option value="loginCount" className="bg-[#0b1324]">
+                              Sort: Login Count
+                            </option>
+                            <option value="vpPoints" className="bg-[#0b1324]">
+                              Sort: VP Points
+                            </option>
+                            <option value="streak" className="bg-[#0b1324]">
+                              Sort: Streak Days
+                            </option>
+                            <option value="questions" className="bg-[#0b1324]">
+                              Sort: Questions Solved
+                            </option>
+                            <option value="minutes" className="bg-[#0b1324]">
+                              Sort: Study Minutes
+                            </option>
+                          </select>
+                        </div>
+                      </div>
                     </div>
 
                     {metrics.registeredAccounts.length === 0 ? (
                       <div className="py-6 text-center text-xs text-[#9ca3af]">
-                        No accounts registered yet.
+                        No user activity yet
+                      </div>
+                    ) : filteredAndSortedAccounts.length === 0 ? (
+                      <div className="py-6 text-center text-xs text-[#9ca3af]">
+                        No registered users match your current search or filter.
                       </div>
                     ) : (
-                      <div className="overflow-x-auto max-h-80 overflow-y-auto">
-                        <table className="w-full text-left border-collapse text-xs">
-                          <thead>
-                            <tr className="border-b border-[#1e293b] text-[10px] uppercase tracking-wider text-[#9ca3af]">
-                              <th className="py-2 pr-3 font-semibold">User / Role</th>
-                              <th className="py-2 px-3 font-semibold">Username</th>
-                              <th className="py-2 px-3 font-semibold">User ID</th>
-                              <th className="py-2 px-3 font-semibold">Goal</th>
-                              <th className="py-2 px-3 font-semibold text-right">Solved / Time</th>
-                              <th className="py-2 px-3 font-semibold">Status</th>
-                              <th className="py-2 pl-3 font-semibold text-right">Management</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-[#1e293b]/60">
-                            {metrics.registeredAccounts.map((acc) => {
-                              const isAccOwner = acc.role === 'owner';
-                              const isSuspended = acc.accountStatus === 'suspended';
-                              const isBusy = actionBusyId === acc.userId;
+                      <>
+                        <div className="overflow-x-auto max-h-80 overflow-y-auto">
+                          <table className="w-full text-left border-collapse text-xs">
+                            <thead>
+                              <tr className="border-b border-[#1e293b] text-[10px] uppercase tracking-wider text-[#9ca3af]">
+                                <th className="py-2 pr-3 font-semibold">User / Role</th>
+                                <th className="py-2 px-3 font-semibold">Username</th>
+                                <th className="py-2 px-3 font-semibold">Device / Platform</th>
+                                <th className="py-2 px-3 font-semibold text-right">VP / Streak</th>
+                                <th className="py-2 px-3 font-semibold text-right">Solved / Time</th>
+                                <th className="py-2 px-3 font-semibold text-right">Logins / Latest</th>
+                                <th className="py-2 px-3 font-semibold">Session / Status</th>
+                                <th className="py-2 pl-3 font-semibold text-right">Details &amp; Actions</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-[#1e293b]/60">
+                              {filteredAndSortedAccounts.map((acc) => {
+                                const isAccOwner = acc.role === 'owner';
+                                const isSuspended = acc.accountStatus === 'suspended';
+                                const isBusy = actionBusyId === acc.userId;
+                                const isSelected = selectedDetailUserId === acc.userId;
 
-                              return (
-                                <tr key={acc.userId} className="hover:bg-[#131b2e]/50">
-                                  <td className="py-2.5 pr-3">
-                                    <div className="flex items-center gap-1.5">
-                                      <span className="font-semibold text-[#fbf9f4] truncate max-w-[130px]">
-                                        {acc.displayName}
-                                      </span>
-                                      {isAccOwner && (
-                                        <span className="px-1.5 py-0.5 rounded bg-[#d4af37]/20 border border-[#d4af37]/40 text-[9px] font-mono font-bold text-[#d4af37] uppercase">
-                                          Owner
-                                        </span>
-                                      )}
-                                    </div>
-                                  </td>
-                                  <td className="py-2.5 px-3 font-mono text-[11px] text-[#d4af37]">
-                                    {acc.username ? `@${acc.username}` : 'Anonymous'}
-                                  </td>
-                                  <td className="py-2.5 px-3 font-mono text-[10px] text-[#9ca3af]">
-                                    {acc.userId}
-                                  </td>
-                                  <td className="py-2.5 px-3 text-[#cbd5e1] truncate max-w-[110px]">
-                                    {acc.activeGoal || 'General'}
-                                  </td>
-                                  <td className="py-2.5 px-3 text-right font-mono tabular-nums text-[#fbf9f4]">
-                                    {acc.questionsAttempted}Q · {acc.totalStudyMinutes}m
-                                  </td>
-                                  <td className="py-2.5 px-3">
-                                    {isSuspended ? (
-                                      <span className="px-2 py-0.5 rounded-full bg-rose-950/80 border border-rose-500/40 text-[10px] font-semibold text-rose-300">
-                                        Suspended
-                                      </span>
-                                    ) : (
-                                      <span className="px-2 py-0.5 rounded-full bg-emerald-950/80 border border-emerald-500/40 text-[10px] font-semibold text-emerald-300">
-                                        Active
-                                      </span>
-                                    )}
-                                  </td>
-                                  <td className="py-2.5 pl-3 text-right">
-                                    {isAccOwner ? (
-                                      <span className="text-[10px] font-mono text-[#9ca3af]">
-                                        Protected
-                                      </span>
-                                    ) : confirmDeleteUserId === acc.userId ? (
-                                      <div className="inline-flex items-center gap-1.5">
-                                        <button
-                                          type="button"
-                                          disabled={isBusy}
-                                          onClick={() => handleRemoveUserAccount(acc.userId)}
-                                          className="px-2 py-1 rounded bg-rose-600 text-white text-[10px] font-bold hover:bg-rose-500 cursor-pointer"
-                                        >
-                                          Confirm Delete
-                                        </button>
-                                        <button
-                                          type="button"
-                                          disabled={isBusy}
-                                          onClick={() => setConfirmDeleteUserId(null)}
-                                          className="px-2 py-1 rounded bg-[#131b2e] text-[#cbd5e1] text-[10px] cursor-pointer"
-                                        >
-                                          Cancel
-                                        </button>
-                                      </div>
-                                    ) : (
-                                      <div className="inline-flex items-center gap-1.5">
-                                        <button
-                                          type="button"
-                                          disabled={isBusy}
-                                          onClick={() =>
-                                            handleToggleUserStatus(acc.userId, acc.accountStatus)
-                                          }
-                                          className={`px-2 py-1 rounded border text-[10px] font-semibold flex items-center gap-1 cursor-pointer ${
-                                            isSuspended
-                                              ? 'bg-emerald-950/60 border-emerald-500/40 text-emerald-200 hover:bg-emerald-900/70'
-                                              : 'bg-amber-950/60 border-amber-500/40 text-amber-200 hover:bg-amber-900/70'
-                                          }`}
-                                        >
-                                          {isSuspended ? (
-                                            <>
-                                              <CheckCircle2 className="w-3 h-3" />
-                                              <span>Activate</span>
-                                            </>
-                                          ) : (
-                                            <>
-                                              <Ban className="w-3 h-3" />
-                                              <span>Suspend</span>
-                                            </>
+                                return (
+                                  <tr
+                                    key={acc.userId}
+                                    onClick={() =>
+                                      setSelectedDetailUserId((prev) =>
+                                        prev === acc.userId ? null : acc.userId
+                                      )
+                                    }
+                                    className={`cursor-pointer transition-colors ${
+                                      isSelected
+                                        ? 'bg-[#172544] border-l-2 border-l-[#d4af37]'
+                                        : 'hover:bg-[#131b2e]/50'
+                                    }`}
+                                  >
+                                    <td className="py-2.5 pr-3">
+                                      <div className="flex flex-col">
+                                        <div className="flex items-center gap-1.5">
+                                          <span className="font-semibold text-[#fbf9f4] truncate max-w-[130px]">
+                                            {acc.displayName}
+                                          </span>
+                                          {isAccOwner && (
+                                            <span className="px-1.5 py-0.5 rounded bg-[#d4af37]/20 border border-[#d4af37]/40 text-[9px] font-mono font-bold text-[#d4af37] uppercase">
+                                              Owner
+                                            </span>
                                           )}
-                                        </button>
+                                        </div>
+                                        <span className="font-mono text-[10px] text-[#9ca3af] truncate max-w-[140px]">
+                                          {acc.userId}
+                                        </span>
+                                      </div>
+                                    </td>
+                                    <td className="py-2.5 px-3 font-mono text-[11px] text-[#d4af37]">
+                                      {acc.username ? `@${acc.username}` : 'Registered'}
+                                    </td>
+                                    <td className="py-2.5 px-3 font-mono text-[11px] text-[#cbd5e1]">
+                                      <span className="block truncate max-w-[130px]">
+                                        {acc.devicePlatform || 'Web Browser'}
+                                      </span>
+                                      <span className="text-[10px] text-[#9ca3af] block">
+                                        Active: {formatDateTime(acc.lastSeenAt)}
+                                      </span>
+                                    </td>
+                                    <td className="py-2.5 px-3 text-right font-mono tabular-nums text-[#d4af37] font-bold">
+                                      {acc.vpPoints || 0} VP · {acc.streakDays || 0}d
+                                    </td>
+                                    <td className="py-2.5 px-3 text-right font-mono tabular-nums text-[#fbf9f4]">
+                                      {acc.questionsAttempted}Q · {acc.totalStudyMinutes}m
+                                    </td>
+                                    <td className="py-2.5 px-3 text-right font-mono tabular-nums text-[#cbd5e1]">
+                                      <span className="font-bold text-[#fbf9f4] block">
+                                        {acc.totalLoginCount || 0} login(s)
+                                      </span>
+                                      <span className="text-[10px] text-[#9ca3af] block">
+                                        {formatDateTime(acc.lastLoginAt || acc.lastSeenAt)}
+                                      </span>
+                                    </td>
+                                    <td className="py-2.5 px-3">
+                                      <div className="flex items-center gap-1.5 flex-wrap">
+                                        {isSuspended ? (
+                                          <span className="px-2 py-0.5 rounded-full bg-rose-950/80 border border-rose-500/40 text-[10px] font-semibold text-rose-300">
+                                            Suspended
+                                          </span>
+                                        ) : acc.activeSessionStatus === 'online_active' ? (
+                                          <span className="px-2 py-0.5 rounded-full bg-emerald-950/80 border border-emerald-500/40 text-[10px] font-semibold text-emerald-300">
+                                            Active Session
+                                          </span>
+                                        ) : (
+                                          <span className="px-2 py-0.5 rounded-full bg-slate-900 border border-slate-600/40 text-[10px] font-semibold text-slate-300">
+                                            Signed Out
+                                          </span>
+                                        )}
+                                      </div>
+                                    </td>
+                                    <td
+                                      className="py-2.5 pl-3 text-right"
+                                      onClick={(e) => e.stopPropagation()}
+                                    >
+                                      <div className="inline-flex items-center gap-1.5">
                                         <button
                                           type="button"
-                                          disabled={isBusy}
-                                          onClick={() => setConfirmDeleteUserId(acc.userId)}
-                                          title="Remove User Account"
-                                          className="p-1 rounded bg-rose-950/60 border border-rose-500/40 text-rose-200 hover:bg-rose-900/70 cursor-pointer"
+                                          onClick={() =>
+                                            setSelectedDetailUserId((prev) =>
+                                              prev === acc.userId ? null : acc.userId
+                                            )
+                                          }
+                                          className="px-2 py-1 rounded border border-[#d4af37]/35 bg-[#131b2e] hover:bg-[#192540] text-[#d4af37] text-[10px] font-semibold cursor-pointer"
                                         >
-                                          <Trash2 className="w-3 h-3" />
+                                          {isSelected ? 'Hide Details' : 'Inspect'}
                                         </button>
+                                        {isAccOwner ? (
+                                          <span className="text-[10px] font-mono text-[#9ca3af] px-1">
+                                            Protected
+                                          </span>
+                                        ) : confirmDeleteUserId === acc.userId ? (
+                                          <div className="inline-flex items-center gap-1.5">
+                                            <button
+                                              type="button"
+                                              disabled={isBusy}
+                                              onClick={() => handleRemoveUserAccount(acc.userId)}
+                                              className="px-2 py-1 rounded bg-rose-600 text-white text-[10px] font-bold hover:bg-rose-500 cursor-pointer"
+                                            >
+                                              Confirm Delete
+                                            </button>
+                                            <button
+                                              type="button"
+                                              disabled={isBusy}
+                                              onClick={() => setConfirmDeleteUserId(null)}
+                                              className="px-2 py-1 rounded bg-[#131b2e] text-[#cbd5e1] text-[10px] cursor-pointer"
+                                            >
+                                              Cancel
+                                            </button>
+                                          </div>
+                                        ) : (
+                                          <>
+                                            <button
+                                              type="button"
+                                              disabled={isBusy}
+                                              onClick={() =>
+                                                handleToggleUserStatus(acc.userId, acc.accountStatus)
+                                              }
+                                              className={`px-2 py-1 rounded border text-[10px] font-semibold flex items-center gap-1 cursor-pointer ${
+                                                isSuspended
+                                                  ? 'bg-emerald-950/60 border-emerald-500/40 text-emerald-200 hover:bg-emerald-900/70'
+                                                  : 'bg-amber-950/60 border-amber-500/40 text-amber-200 hover:bg-amber-900/70'
+                                              }`}
+                                            >
+                                              {isSuspended ? (
+                                                <>
+                                                  <CheckCircle2 className="w-3 h-3" />
+                                                  <span>Activate</span>
+                                                </>
+                                              ) : (
+                                                <>
+                                                  <Ban className="w-3 h-3" />
+                                                  <span>Suspend</span>
+                                                </>
+                                              )}
+                                            </button>
+                                            <button
+                                              type="button"
+                                              disabled={isBusy}
+                                              onClick={() => setConfirmDeleteUserId(acc.userId)}
+                                              title="Remove User Account"
+                                              className="p-1 rounded bg-rose-950/60 border border-rose-500/40 text-rose-200 hover:bg-rose-900/70 cursor-pointer"
+                                            >
+                                              <Trash2 className="w-3 h-3" />
+                                            </button>
+                                          </>
+                                        )}
                                       </div>
-                                    )}
-                                  </td>
-                                </tr>
-                              );
-                            })}
-                          </tbody>
-                        </table>
-                      </div>
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+
+                        {/* Detailed User Inspection View (Requirement 9 & 10) */}
+                        {selectedDetailUserId && (() => {
+                          const detailUser = metrics.registeredAccounts.find(
+                            (u) => u.userId === selectedDetailUserId
+                          );
+                          if (!detailUser) return null;
+                          const accuracyPct =
+                            detailUser.questionsAttempted > 0
+                              ? Math.round(
+                                  ((detailUser.correctAnswers || 0) / detailUser.questionsAttempted) *
+                                    100
+                                )
+                              : 0;
+
+                          return (
+                            <div className="p-4 sm:p-5 rounded-2xl bg-[#131d33] border border-[#d4af37]/45 space-y-4">
+                              <div className="flex items-center justify-between gap-2 border-b border-[#1e293b] pb-3">
+                                <div>
+                                  <span className="text-[10px] font-mono uppercase tracking-widest text-[#d4af37] font-bold block">
+                                    Real User-Detail Record
+                                  </span>
+                                  <h5 className="font-display text-base font-bold text-[#fbf9f4]">
+                                    {detailUser.displayName}{' '}
+                                    <span className="text-xs font-mono text-[#d4af37]">
+                                      ({detailUser.username ? `@${detailUser.username}` : 'Anonymous Session'})
+                                    </span>
+                                  </h5>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => setSelectedDetailUserId(null)}
+                                  className="px-2.5 py-1 rounded-lg bg-[#0b1324] border border-[#d4af37]/30 text-xs text-[#cbd5e1] hover:text-white cursor-pointer"
+                                >
+                                  Close Detail
+                                </button>
+                              </div>
+
+                              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs">
+                                <div className="p-3 rounded-xl bg-[#0b1324] border border-[#1e293b]">
+                                  <span className="text-[10px] text-[#9ca3af] block">Username</span>
+                                  <span className="font-mono font-bold text-[#d4af37] mt-0.5 block truncate">
+                                    {detailUser.username ? `@${detailUser.username}` : 'Anonymous'}
+                                  </span>
+                                </div>
+                                <div className="p-3 rounded-xl bg-[#0b1324] border border-[#1e293b]">
+                                  <span className="text-[10px] text-[#9ca3af] block">User ID</span>
+                                  <span className="font-mono text-[11px] text-[#fbf9f4] mt-0.5 block break-all">
+                                    {detailUser.userId}
+                                  </span>
+                                </div>
+                                <div className="p-3 rounded-xl bg-[#0b1324] border border-[#1e293b]">
+                                  <span className="text-[10px] text-[#9ca3af] block">Account Created</span>
+                                  <span className="font-mono text-[11px] text-[#fbf9f4] mt-0.5 block">
+                                    {formatDateTime(detailUser.createdAt)}
+                                  </span>
+                                </div>
+                                <div className="p-3 rounded-xl bg-[#0b1324] border border-[#1e293b]">
+                                  <span className="text-[10px] text-[#9ca3af] block">First Seen</span>
+                                  <span className="font-mono text-[11px] text-[#fbf9f4] mt-0.5 block">
+                                    {formatDateTime(detailUser.firstSeenAt || detailUser.createdAt)}
+                                  </span>
+                                </div>
+
+                                <div className="p-3 rounded-xl bg-[#0b1324] border border-[#1e293b]">
+                                  <span className="text-[10px] text-[#9ca3af] block">Total Successful Logins</span>
+                                  <span className="font-display text-base font-bold text-[#fbf9f4] mt-0.5 block tabular-nums">
+                                    {detailUser.totalLoginCount ?? 0}
+                                  </span>
+                                </div>
+                                <div className="p-3 rounded-xl bg-[#0b1324] border border-[#1e293b]">
+                                  <span className="text-[10px] text-[#9ca3af] block">Total Session Count</span>
+                                  <span className="font-display text-base font-bold text-[#fbf9f4] mt-0.5 block tabular-nums">
+                                    {detailUser.totalSessionCount ?? 0}
+                                  </span>
+                                </div>
+                                <div className="p-3 rounded-xl bg-[#0b1324] border border-[#1e293b]">
+                                  <span className="text-[10px] text-[#9ca3af] block">Last Login Date/Time</span>
+                                  <span className="font-mono text-[11px] text-[#fbf9f4] mt-0.5 block">
+                                    {formatDateTime(detailUser.lastLoginAt || detailUser.lastSeenAt)}
+                                  </span>
+                                </div>
+                                <div className="p-3 rounded-xl bg-[#0b1324] border border-[#1e293b]">
+                                  <span className="text-[10px] text-[#9ca3af] block">Latest Logout Date/Time</span>
+                                  <span className="font-mono text-[11px] text-[#fbf9f4] mt-0.5 block">
+                                    {detailUser.lastLogoutAt
+                                      ? formatDateTime(detailUser.lastLogoutAt)
+                                      : 'No logout recorded yet'}
+                                  </span>
+                                </div>
+
+                                <div className="p-3 rounded-xl bg-[#0b1324] border border-[#1e293b]">
+                                  <span className="text-[10px] text-[#9ca3af] block">Current Session Status</span>
+                                  <span className="font-semibold text-[#fbf9f4] mt-0.5 block">
+                                    {detailUser.accountStatus === 'suspended'
+                                      ? 'Suspended'
+                                      : detailUser.activeSessionStatus === 'online_active'
+                                      ? 'Active Session'
+                                      : 'Signed Out'}
+                                  </span>
+                                </div>
+                                <div className="p-3 rounded-xl bg-[#0b1324] border border-[#1e293b]">
+                                  <span className="text-[10px] text-[#9ca3af] block">Last Active Date/Time</span>
+                                  <span className="font-mono text-[11px] text-[#fbf9f4] mt-0.5 block">
+                                    {formatDateTime(detailUser.lastSeenAt)}
+                                  </span>
+                                </div>
+                                <div className="p-3 rounded-xl bg-[#0b1324] border border-[#1e293b]">
+                                  <span className="text-[10px] text-[#9ca3af] block">Device / Platform</span>
+                                  <span className="font-mono text-[11px] text-[#fbf9f4] mt-0.5 block">
+                                    {detailUser.devicePlatform || 'Web / Standard Client'}
+                                  </span>
+                                </div>
+                                <div className="p-3 rounded-xl bg-[#0b1324] border border-[#d4af37]/35">
+                                  <span className="text-[10px] text-[#d4af37] block">Real VP Points Balance</span>
+                                  <span className="font-display text-base font-bold text-[#d4af37] mt-0.5 block tabular-nums">
+                                    {detailUser.vpPoints ?? 0} VP
+                                  </span>
+                                </div>
+
+                                <div className="p-3 rounded-xl bg-[#0b1324] border border-[#1e293b] col-span-2">
+                                  <span className="text-[10px] text-[#9ca3af] block">Real Study Activity</span>
+                                  <span className="font-mono text-[11px] text-[#fbf9f4] mt-0.5 block">
+                                    {detailUser.questionsAttempted} Questions Attempted ({detailUser.correctAnswers ?? 0} Correct · {accuracyPct}% Accuracy) · {detailUser.totalStudyMinutes} Focus Minutes
+                                  </span>
+                                </div>
+                                <div className="p-3 rounded-xl bg-[#0b1324] border border-[#1e293b] col-span-2">
+                                  <span className="text-[10px] text-[#9ca3af] block">Real Streak Information</span>
+                                  <span className="font-mono text-[11px] text-[#fbf9f4] mt-0.5 block">
+                                    {detailUser.streakDays ?? 0} Day(s) Active Streak
+                                    {detailUser.streakLastActiveDate
+                                      ? ` (Last streak date: ${detailUser.streakLastActiveDate})`
+                                      : ''}
+                                  </span>
+                                </div>
+                              </div>
+
+                              {/* Recent Real Login / Logout Activity Log */}
+                              <div className="space-y-1.5">
+                                <span className="text-[10px] font-mono uppercase tracking-wider text-[#d4af37] font-bold block">
+                                  Real Login / Logout Event Log
+                                </span>
+                                {Array.isArray(detailUser.loginHistory) &&
+                                detailUser.loginHistory.length > 0 ? (
+                                  <div className="max-h-36 overflow-y-auto space-y-1 pr-1">
+                                    {detailUser.loginHistory.map((ev, i) => (
+                                      <div
+                                        key={`${ev.timestamp}_${i}`}
+                                        className="px-3 py-1.5 rounded-lg bg-[#0b1324] border border-[#1e293b] flex items-center justify-between gap-2 text-[11px]"
+                                      >
+                                        <span
+                                          className={
+                                            ev.event === 'login'
+                                              ? 'text-emerald-400 font-semibold uppercase font-mono'
+                                              : 'text-amber-300 font-semibold uppercase font-mono'
+                                          }
+                                        >
+                                          {ev.event === 'login' ? 'LOGIN' : 'LOGOUT'}
+                                        </span>
+                                        <span className="text-[#cbd5e1] truncate">
+                                          {ev.devicePlatform || 'Web / Client'}
+                                        </span>
+                                        <span className="font-mono text-[#9ca3af] shrink-0">
+                                          {formatDateTime(ev.timestamp)}
+                                        </span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                ) : (
+                                  <div className="p-3 rounded-xl bg-[#0b1324] border border-[#1e293b] text-[11px] text-[#9ca3af]">
+                                    No user activity yet
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })()}
+                      </>
                     )}
                   </div>
                 )}

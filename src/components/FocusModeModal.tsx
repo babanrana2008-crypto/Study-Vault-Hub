@@ -62,6 +62,7 @@ export const FocusModeModal: React.FC<FocusModeModalProps> = ({
   const [isRunning, setIsRunning] = useState<boolean>(false);
   const [elapsedSeconds, setElapsedSeconds] = useState<number>(0);
   const [statusNotice, setStatusNotice] = useState<string | null>(null);
+  const [isSavingSession, setIsSavingSession] = useState<boolean>(false);
 
   useEffect(() => {
     if (activeSubjects.length > 0 && !subjectChoices.includes(selectedSubject)) {
@@ -69,10 +70,13 @@ export const FocusModeModal: React.FC<FocusModeModalProps> = ({
     }
   }, [activeSubjects, subjectChoices, selectedSubject]);
 
-  // Real-time 1-second tick ONLY when session is actively running
+  // Real-time 1-second tick ONLY when session is actively running AND app tab/window is visible
   useEffect(() => {
     if (!isRunning) return;
     const interval = setInterval(() => {
+      if (typeof document !== 'undefined' && document.hidden) {
+        return;
+      }
       setElapsedSeconds((prev) => prev + 1);
     }, 1000);
     return () => clearInterval(interval);
@@ -173,6 +177,7 @@ export const FocusModeModal: React.FC<FocusModeModalProps> = ({
   };
 
   const handleEndAndSaveSession = () => {
+    if (isSavingSession) return;
     setIsRunning(false);
     if (elapsedSeconds < 60) {
       setStatusNotice(
@@ -181,6 +186,7 @@ export const FocusModeModal: React.FC<FocusModeModalProps> = ({
       return;
     }
 
+    setIsSavingSession(true);
     const finalSubject = (customSubject.trim() || selectedSubject || 'General').trim();
     const finalTopic =
       chapterOrTopic.trim() ||
@@ -210,6 +216,7 @@ export const FocusModeModal: React.FC<FocusModeModalProps> = ({
     setHasStarted(false);
     setElapsedSeconds(0);
     setStatusNotice(null);
+    setIsSavingSession(false);
     onClose();
   };
 

@@ -21,6 +21,7 @@ import { FocusModeModal } from './components/FocusModeModal';
 import { OwnerAnalyticsModal } from './components/OwnerAnalyticsModal';
 import { StudySession } from './types';
 import { apiFetch } from './services/nativeApiBridge';
+import { calculateUserVPBreakdown } from './utils/vpPoints';
 
 const STORAGE_KEY = 'study_vault_hub_data_v3';
 const THEME_STORAGE_KEY = 'study_vault_theme_preference_v1';
@@ -590,6 +591,10 @@ export default function App() {
     return GOAL_SUBJECTS_MAP[activeGoal] || ['General Studies', 'Core Sciences', 'Mathematics'];
   }, [activeGoal]);
 
+  const vpBreakdown = useMemo(() => {
+    return calculateUserVPBreakdown(userStats);
+  }, [userStats]);
+
   const handleSelectActiveGoal = useCallback((goal: string) => {
     setUserStats((prev) => ({
       ...prev,
@@ -649,18 +654,26 @@ export default function App() {
           nextStreak = 1;
         }
 
-        return {
+        const nextFiveDayMilestone = Math.max(
+          prev.highestFiveDayStreakMilestone || 0,
+          Math.floor(nextStreak / 5)
+        );
+
+        const nextState: UserStats = {
           ...prev,
           questionsAttempted: newAttempted,
           correctAnswers: newCorrect,
           incorrectAnswers: newIncorrect,
           topicsStudied: topicList,
           chapterProgress: updatedProgress,
+          highestFiveDayStreakMilestone: nextFiveDayMilestone,
           streak: {
             current: nextStreak,
             lastActiveDate: today,
           },
         };
+        nextState.vpPoints = calculateUserVPBreakdown(nextState).totalVP;
+        return nextState;
       });
     },
     []
@@ -669,17 +682,42 @@ export default function App() {
   // Record a completed timed test sprint
   const handleRecordTestCompleted = useCallback((entry: PracticeHistoryEntry) => {
     const today = new Date().toISOString().split('T')[0];
-    setUserStats((prev) => ({
-      ...prev,
-      questionsAttempted: prev.questionsAttempted + entry.totalQuestions,
-      correctAnswers: prev.correctAnswers + entry.correctCount,
-      incorrectAnswers: prev.incorrectAnswers + entry.wrongCount,
-      practiceHistory: [entry, ...prev.practiceHistory],
-      streak: {
-        current: Math.max(1, prev.streak?.current || 0),
-        lastActiveDate: today,
-      },
-    }));
+    setUserStats((prev) => {
+      const prevStreak = prev.streak?.current || 0;
+      const prevLastDate = prev.streak?.lastActiveDate || '';
+      let nextStreak = prevStreak;
+      if (prevLastDate !== today) {
+        const diff = prevLastDate
+          ? Math.round(
+              (new Date(today).getTime() - new Date(prevLastDate).getTime()) /
+                (1000 * 60 * 60 * 24)
+            )
+          : 0;
+        nextStreak = diff === 1 ? prevStreak + 1 : 1;
+      } else if (nextStreak === 0) {
+        nextStreak = 1;
+      }
+
+      const nextFiveDayMilestone = Math.max(
+        prev.highestFiveDayStreakMilestone || 0,
+        Math.floor(nextStreak / 5)
+      );
+
+      const nextState: UserStats = {
+        ...prev,
+        questionsAttempted: prev.questionsAttempted + entry.totalQuestions,
+        correctAnswers: prev.correctAnswers + entry.correctCount,
+        incorrectAnswers: prev.incorrectAnswers + entry.wrongCount,
+        practiceHistory: [entry, ...prev.practiceHistory],
+        highestFiveDayStreakMilestone: nextFiveDayMilestone,
+        streak: {
+          current: nextStreak,
+          lastActiveDate: today,
+        },
+      };
+      nextState.vpPoints = calculateUserVPBreakdown(nextState).totalVP;
+      return nextState;
+    });
   }, []);
 
   // Save a real study focus session from FocusModeModal
@@ -715,18 +753,26 @@ export default function App() {
           nextStreak = 1;
         }
 
-        return {
+        const nextFiveDayMilestone = Math.max(
+          prev.highestFiveDayStreakMilestone || 0,
+          Math.floor(nextStreak / 5)
+        );
+
+        const nextState: UserStats = {
           ...prev,
           totalStudyMinutes: updatedTotalMin,
           subjectsStudied: updatedSubjectsStudied,
           topicsStudied: updatedTopics,
           studySessions: [session, ...prev.studySessions],
           tasks: updatedTasks,
+          highestFiveDayStreakMilestone: nextFiveDayMilestone,
           streak: {
             current: nextStreak,
             lastActiveDate: today,
           },
         };
+        nextState.vpPoints = calculateUserVPBreakdown(nextState).totalVP;
+        return nextState;
       });
     },
     []
@@ -935,6 +981,8 @@ export default function App() {
         onNavigate={handleNavigate}
         onOpenSearch={handleOpenSearch}
         streakDays={userStats.streak?.current || 0}
+        vpPoints={vpBreakdown.totalVP}
+        userStats={userStats}
         userName={userStats.name || 'Student'}
         userProfilePhotoUrl={userStats.profilePhotoUrl}
         isFloatingTopDock={isMobileOrTabletPortrait}
@@ -1026,6 +1074,7 @@ export default function App() {
             <CommunitySection
               userName={userStats.name || 'Student'}
               userProfilePhotoUrl={userStats.profilePhotoUrl}
+              userStats={userStats}
               activeGoal={activeGoal}
               activeSubjects={activeSubjects}
               isOwnerAuthenticated={isOwnerAuthenticated}
@@ -1038,6 +1087,7 @@ export default function App() {
               activeSubjects={activeSubjects}
               onNavigateToPracticeWithSubject={handleOpenPracticeWithSubject}
               onNavigateToNotes={() => handleNavigate('notes')}
+              onNavigateToTracker={() => handleNavigate('tracker')}
             />
           )}
 

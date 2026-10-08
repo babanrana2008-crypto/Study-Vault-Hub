@@ -5,7 +5,7 @@ import fs from 'fs';
 import crypto from 'crypto';
 import { WebSocketServer, WebSocket } from 'ws';
 import { createServer as createViteServer } from 'vite';
-import { GoogleGenAI } from '@google/genai';
+import { GoogleGenAI, Type } from '@google/genai';
 
 interface StoredUser {
   userId: string;
@@ -26,6 +26,16 @@ interface StoredUser {
   userStats?: Record<string, unknown>;
   createdAt: string;
   lastSeenAt: string;
+  firstSeenAt?: string;
+  lastLoginAt?: string | null;
+  lastLogoutAt?: string | null;
+  loginCount?: number;
+  devicePlatform?: string | null;
+  loginHistory?: Array<{
+    event: 'login' | 'logout';
+    timestamp: string;
+    devicePlatform?: string | null;
+  }>;
 }
 
 export interface CommunityPostRecord {
@@ -548,6 +558,64 @@ async function startServer() {
   // API ROUTES FOR REAL ACCOUNT SYSTEM, AUTHENTICATION & CROSS-DEVICE SYNC
   // ============================================================================
 
+  function detectRequestDevicePlatform(req: express.Request): string {
+    const bodyPlatform =
+      typeof req.body?.devicePlatform === 'string' && req.body.devicePlatform.trim()
+        ? req.body.devicePlatform.trim().slice(0, 80)
+        : '';
+    if (bodyPlatform) return bodyPlatform;
+
+    const ua = String(req.headers['user-agent'] || '');
+    if (!ua) return 'Unknown Device';
+    if (/Capacitor/i.test(ua)) return 'Android APK (Capacitor)';
+    if (/Android/i.test(ua)) return 'Android Browser';
+    if (/iPhone|iPad|iPod/i.test(ua)) return 'iOS Web';
+    if (/Win/i.test(ua)) return 'Windows Desktop Web';
+    if (/Mac/i.test(ua)) return 'macOS Desktop Web';
+    if (/Linux/i.test(ua)) return 'Linux Desktop Web';
+    return 'Web Browser';
+  }
+
+  function recordUserLoginEvent(user: StoredUser, nowIso: string, devicePlatform: string) {
+    user.firstSeenAt = user.firstSeenAt || user.createdAt || nowIso;
+    user.lastLoginAt = nowIso;
+    user.lastSeenAt = nowIso;
+    user.loginCount = (typeof user.loginCount === 'number' ? user.loginCount : 0) + 1;
+    if (devicePlatform && devicePlatform !== 'Unknown Device') {
+      user.devicePlatform = devicePlatform;
+    }
+    if (!Array.isArray(user.loginHistory)) {
+      user.loginHistory = [];
+    }
+    user.loginHistory.unshift({
+      event: 'login',
+      timestamp: nowIso,
+      devicePlatform: user.devicePlatform || devicePlatform,
+    });
+    if (user.loginHistory.length > 50) {
+      user.loginHistory = user.loginHistory.slice(0, 50);
+    }
+  }
+
+  function recordUserLogoutEvent(user: StoredUser, nowIso: string, devicePlatform: string) {
+    user.lastLogoutAt = nowIso;
+    user.lastSeenAt = nowIso;
+    if (devicePlatform && devicePlatform !== 'Unknown Device') {
+      user.devicePlatform = devicePlatform;
+    }
+    if (!Array.isArray(user.loginHistory)) {
+      user.loginHistory = [];
+    }
+    user.loginHistory.unshift({
+      event: 'logout',
+      timestamp: nowIso,
+      devicePlatform: user.devicePlatform || devicePlatform,
+    });
+    if (user.loginHistory.length > 50) {
+      user.loginHistory = user.loginHistory.slice(0, 50);
+    }
+  }
+
   // Register a new Student account (or upgrade an existing anonymous session to a permanent Student account)
   app.post('/api/auth/register', (req, res) => {
     const rawName = sanitizeDisplayName(req.body?.name);
@@ -669,6 +737,7 @@ async function startServer() {
     targetUser.userStats = mergedStats;
 
     const authToken = issueUserSessionToken(targetUser);
+    recordUserLoginEvent(targetUser, nowIso, detectRequestDevicePlatform(req));
     if (req.body?.deviceId) {
       registerAnonymousDevice(req.body.deviceId, targetUser.userId, nowIso);
     }
@@ -791,6 +860,7 @@ async function startServer() {
       ownerUser.userStats = resolvedOwnerStats;
 
       const authToken = issueUserSessionToken(ownerUser);
+      recordUserLoginEvent(ownerUser, nowIso, detectRequestDevicePlatform(req));
       const tokenHash = hashToken(authToken);
 
       if (!db.ownerAuth) {
@@ -874,6 +944,7 @@ async function startServer() {
     foundUser.userStats = resolvedStats;
 
     const authToken = issueUserSessionToken(foundUser);
+    recordUserLoginEvent(foundUser, nowIso, detectRequestDevicePlatform(req));
     if (req.body?.deviceId) {
       registerAnonymousDevice(req.body.deviceId, foundUser.userId, nowIso);
     }
@@ -1070,6 +1141,7 @@ async function startServer() {
         const targetHash = hashToken(rawToken);
         const user = authenticateRequest(req);
         if (user) {
+          recordUserLogoutEvent(user, new Date().toISOString(), detectRequestDevicePlatform(req));
           if (Array.isArray(user.sessionTokenHashes)) {
             user.sessionTokenHashes = user.sessionTokenHashes.filter(
               (s) => s.tokenHash !== targetHash
@@ -1382,12 +1454,173 @@ async function startServer() {
     });
   });
 
-  // 3. Get full Community state (posts, replies, chat messages, online count)
+  // Helper to compute real VP Points for any user record using the exact activity-based rules:
+  // • 10 VP — every 5 minutes of genuine active study/focus time
+  // • 2 VP — for every normal question successfully solved
+  // • 5 VP — for every correctly answered question in Test Mode
+  // • 20 VP — after maintaining a 5-day study streak
+  function computeUserRealVPPoints(stats: Record<string, unknown>): {
+    vpPoints: number;
+    focusBlocksCount: number;
+    normalSolvedCount: number;
+    testModeCorrectCount: number;
+    fiveDayMilestonesCount: number;
+  } {
+    const questionsAttempted = Math.max(0, Number(stats.questionsAttempted) || 0);
+    const correctAnswers = Math.max(0, Number(stats.correctAnswers) || 0);
+    const totalStudyMinutes = Math.max(0, Number(stats.totalStudyMinutes) || 0);
+    const streakObj = (stats.streak || {}) as { current?: number };
+    const streakDays = Math.max(0, Number(streakObj.current) || 0);
+    const practiceHistory = Array.isArray(stats.practiceHistory)
+      ? (stats.practiceHistory as Array<{ correctAnswers?: number }>)
+      : [];
+
+    const testModeCorrectCount = practiceHistory.reduce(
+      (sum, entry) => sum + Math.max(0, Number(entry?.correctAnswers) || 0),
+      0
+    );
+    const totalSuccessfulCount = Math.max(correctAnswers, testModeCorrectCount);
+    const normalSolvedCount = Math.max(0, totalSuccessfulCount - testModeCorrectCount);
+    const focusBlocksCount = Math.floor(totalStudyMinutes / 5);
+    const persistedMilestone = Math.max(0, Number(stats.highestFiveDayStreakMilestone) || 0);
+    const fiveDayMilestonesCount = Math.max(persistedMilestone, Math.floor(streakDays / 5));
+
+    const computedVP =
+      focusBlocksCount * 10 +
+      normalSolvedCount * 2 +
+      testModeCorrectCount * 5 +
+      fiveDayMilestonesCount * 20;
+
+    const storedVP = Math.max(0, Number(stats.vpPoints) || 0);
+    return {
+      vpPoints: Math.max(computedVP, storedVP),
+      focusBlocksCount,
+      normalSolvedCount,
+      testModeCorrectCount,
+      fiveDayMilestonesCount,
+    };
+  }
+
+  // Helper to compute real Community Leaderboard entries from real users & community activity (zero fake data)
+  const buildRealCommunityLeaderboard = () => {
+    const postCountByAuthor: Record<string, number> = {};
+    const replyCountByAuthor: Record<string, number> = {};
+
+    for (const p of db.posts || []) {
+      if (p.authorId) {
+        postCountByAuthor[p.authorId] = (postCountByAuthor[p.authorId] || 0) + 1;
+      }
+    }
+    for (const r of db.replies || []) {
+      if (r.authorId) {
+        replyCountByAuthor[r.authorId] = (replyCountByAuthor[r.authorId] || 0) + 1;
+      }
+    }
+
+    const entries = Object.values(db.users || {})
+      .filter((u) => u && u.userId && u.accountStatus !== 'suspended')
+      .map((u) => {
+        const stats = (u.userStats || {}) as Record<string, unknown>;
+        const questionsAttempted = Math.max(0, Number(stats.questionsAttempted) || 0);
+        const correctAnswers = Math.max(0, Number(stats.correctAnswers) || 0);
+        const totalStudyMinutes = Math.max(0, Number(stats.totalStudyMinutes) || 0);
+        const streakObj = (stats.streak || {}) as { current?: number };
+        const streakDays = Math.max(0, Number(streakObj.current) || 0);
+        const tasksList = Array.isArray(stats.tasks) ? stats.tasks : [];
+        const completedTasks = tasksList.filter(
+          (t: unknown) => Boolean(t && typeof t === 'object' && (t as { completed?: boolean }).completed)
+        ).length;
+        const completedNotes = Array.isArray(stats.completedNoteIds) ? stats.completedNoteIds.length : 0;
+        const postsCount = postCountByAuthor[u.userId] || 0;
+        const repliesCount = replyCountByAuthor[u.userId] || 0;
+
+        const accuracy =
+          questionsAttempted > 0 ? Math.round((correctAnswers / questionsAttempted) * 100) : 0;
+
+        const { vpPoints } = computeUserRealVPPoints(stats);
+
+        let milestonesUnlocked = 0;
+        if (questionsAttempted >= 1 || totalStudyMinutes >= 5) milestonesUnlocked += 1;
+        if (questionsAttempted >= 10) milestonesUnlocked += 1;
+        if (questionsAttempted >= 50) milestonesUnlocked += 1;
+        if (questionsAttempted >= 100) milestonesUnlocked += 1;
+        if (questionsAttempted >= 10 && accuracy >= 80) milestonesUnlocked += 1;
+        if (totalStudyMinutes >= 60) milestonesUnlocked += 1;
+        if (totalStudyMinutes >= 300) milestonesUnlocked += 1;
+        if (streakDays >= 5) milestonesUnlocked += 1;
+        if (streakDays >= 10) milestonesUnlocked += 1;
+        if (completedTasks + completedNotes + postsCount + repliesCount >= 5) milestonesUnlocked += 1;
+
+        let rankTitle = 'Novice Scholar';
+        let rankBadgeColor = 'text-slate-300 border-slate-500/40 bg-slate-900/80';
+        let nextMilestoneVp = 100;
+        if (vpPoints >= 3000) {
+          rankTitle = 'Grandmaster Legend';
+          rankBadgeColor = 'text-emerald-300 border-emerald-400/60 bg-emerald-950/80';
+          nextMilestoneVp = 3000;
+        } else if (vpPoints >= 1500) {
+          rankTitle = 'Diamond Topper';
+          rankBadgeColor = 'text-indigo-200 border-indigo-400/60 bg-indigo-950/80';
+          nextMilestoneVp = 3000;
+        } else if (vpPoints >= 700) {
+          rankTitle = 'Gold Vault Master';
+          rankBadgeColor = 'text-[#fce09b] border-[#d4af37] bg-[#2a2008]';
+          nextMilestoneVp = 1500;
+        } else if (vpPoints >= 300) {
+          rankTitle = 'Silver Strategist';
+          rankBadgeColor = 'text-cyan-200 border-cyan-400/50 bg-cyan-950/80';
+          nextMilestoneVp = 700;
+        } else if (vpPoints >= 100) {
+          rankTitle = 'Bronze Aspirant';
+          rankBadgeColor = 'text-amber-200 border-amber-500/50 bg-amber-950/80';
+          nextMilestoneVp = 300;
+        }
+
+        return {
+          userId: u.userId,
+          displayName: u.displayName || (stats.name as string) || 'Student',
+          profilePhotoUrl: u.profilePhotoUrl || (stats.profilePhotoUrl as string | null) || null,
+          activeGoal: typeof stats.activeGoal === 'string' && stats.activeGoal ? stats.activeGoal : null,
+          vpPoints,
+          rankTitle,
+          rankBadgeColor,
+          questionsAttempted,
+          correctAnswers,
+          totalStudyMinutes,
+          streakDays,
+          postsCount,
+          repliesCount,
+          milestonesUnlocked,
+          totalMilestones: 10,
+          nextMilestoneVp,
+        };
+      })
+      .filter(
+        (entry) =>
+          entry.vpPoints > 0 ||
+          entry.questionsAttempted > 0 ||
+          entry.totalStudyMinutes > 0 ||
+          entry.postsCount > 0 ||
+          entry.repliesCount > 0 ||
+          entry.displayName !== 'Student'
+      )
+      .sort((a, b) => {
+        if (b.vpPoints !== a.vpPoints) return b.vpPoints - a.vpPoints;
+        if (b.questionsAttempted !== a.questionsAttempted) return b.questionsAttempted - a.questionsAttempted;
+        return b.totalStudyMinutes - a.totalStudyMinutes;
+      })
+      .slice(0, 100);
+
+    return entries;
+  };
+
+  // 3. Get full Community state (posts, replies, chat messages, leaderboard, online count)
   app.get('/api/community/state', (_req, res) => {
     return res.json({
       posts: db.posts,
       replies: db.replies,
       chatMessages: db.chatMessages,
+      leaderboard: buildRealCommunityLeaderboard(),
       onlineCount: Math.max(1, connectedClients.size),
     });
   });
@@ -1723,7 +1956,13 @@ async function startServer() {
   });
 
   // Send a message to SVH AI and receive a real personalized Gemini response (supports both unary and SSE streaming)
-  const SVH_AI_MODELS = ['gemini-3-flash-preview', 'gemini-3.1-flash-lite-preview', 'gemini-2.5-flash'];
+  const SVH_AI_MODELS = [
+    'gemini-3.8-flash',
+    'gemini-flash-latest',
+    'gemini-3.1-flash-lite',
+    'gemini-3-flash-preview',
+    'gemini-2.5-flash',
+  ];
 
   const prepareSVHAIConversationTurn = (req: express.Request) => {
     const user = authenticateRequest(req);
@@ -1889,13 +2128,24 @@ async function startServer() {
       saveDatabase(db);
     }
 
-    const systemInstruction = `You are SVH AI, the official personal AI study assistant inside Study Vault Hub (Founded & Created by Soumyadip Rana).
+    const systemInstruction = `You are SVH AI, the official personal AI study assistant and academic tutor inside Study Vault Hub (Developed by Soumyadip Rana).
+
+QUESTION-SPECIFIC ACADEMIC RESPONSE RULES (HIGHEST PRIORITY):
+1. Directly, accurately, and thoroughly answer the exact question, problem, concept, derivation, formula, MCQ request, or doubt the student just asked. Never give a generic or off-topic reply.
+2. When solving numerical problems, physics/chemistry/math derivations, or mechanism questions:
+   - State the Core Concept / Principle clearly.
+   - List Given Data & Required Formula(s).
+   - Provide a clear Step-by-Step Solution with units and intermediate steps.
+   - Highlight the Final Answer and a "High-Yield Exam Tip / Common Mistake to Avoid".
+3. When asked for practice MCQs or quizzes on a topic:
+   - Generate high-yield, exam-accurate multiple-choice questions with options (A), (B), (C), (D), the Correct Answer key, and a concise conceptual explanation for each question.
+4. When explaining theory, chapters, or NCERT concepts:
+   - Structure your explanation with clear headings, bullet points, key reactions/formulas, memory mnemonics where helpful, and exam weightage relevance.
 
 STRICT PERSONALIZATION & HONESTY RULES:
-1. Use ONLY the real student data provided below. NEVER invent, guess, or fabricate statistics, weak topics, test scores, study hours, target exam dates, or past activity.
-2. If the student asks about their weak topics, mistake analysis, or performance AND their real questionsAttempted is 0 (or weakTopics list is empty), state honestly that they have not attempted enough practice questions yet to detect weak topics, and ask which subject or chapter they would like to practice or revise first.
-3. If the student asks for a personalized study plan or timetable and required details (such as their exam date, daily available study hours, or current class/chapter progress) are missing from the real data below, ask the student for those specific details or offer a structured plan tailored to their known active goal and subjects while asking how many hours per day they can dedicate.
-4. Keep explanations clear, academically rigorous, encouraging, and structured with clean headings, bullet points, key formulas/mechanisms, and NCERT/exam relevance where appropriate.
+5. Use ONLY the real student data provided below when referencing the student's personal progress. NEVER invent, guess, or fabricate statistics, weak topics, test scores, study hours, target exam dates, or past activity.
+6. If the student specifically asks about their weak topics, mistake analysis, or performance AND their real questionsAttempted is 0 (or weakTopics list is empty), state honestly that they have not attempted enough practice questions yet to detect weak topics, and offer to start a quick diagnostic practice or revise a specific chapter.
+7. If the student asks for a personalized study plan or timetable, tailor it directly to their activeGoal, subjects, and any timeframe/hours they mention.
 
 REAL STUDENT APP DATA SNAPSHOT:
 ${JSON.stringify(studentContext, null, 2)}`;
@@ -2125,6 +2375,405 @@ ${JSON.stringify(studentContext, null, 2)}`;
         userMessage: userMsgRecord,
       });
     }
+  });
+
+  // AI Voice Tutor Text-to-Speech Endpoint (uses Gemini TTS model gemini-3.8-flash-lite-tts)
+  app.post('/api/svh-ai/tts', async (req, res) => {
+    const user = authenticateRequest(req);
+    if (!user) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const rawText = typeof req.body?.text === 'string' ? req.body.text.trim() : '';
+    const requestedVoice = typeof req.body?.voiceName === 'string' ? req.body.voiceName.trim() : 'Kore';
+    const allowedVoices = ['Kore', 'Puck', 'Zephyr', 'Charon', 'Fenrir'];
+    const voiceName = allowedVoices.includes(requestedVoice) ? requestedVoice : 'Kore';
+
+    if (!rawText) {
+      return res.status(400).json({ error: 'Text is required for speech synthesis.' });
+    }
+
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      return res.status(500).json({ error: 'Gemini API key is not configured.' });
+    }
+
+    // Clean markdown symbols for natural spoken narration and cap length for low latency
+    const cleanSpokenText = rawText
+      .replace(/```[\s\S]*?```/g, ' See code or formula block on screen. ')
+      .replace(/[#*_`~>-]+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 1800);
+
+    try {
+      const ai = new GoogleGenAI({
+        apiKey,
+        httpOptions: {
+          headers: {
+            'User-Agent': 'aistudio-build',
+          },
+        },
+      });
+
+      const ttsModels = ['gemini-2.5-flash-preview-tts', 'gemini-3.8-flash-lite-tts'];
+      let inlineData: { data?: string; mimeType?: string } | undefined;
+
+      for (const ttsModel of ttsModels) {
+        try {
+          const response = await ai.models.generateContent({
+            model: ttsModel,
+            contents: [
+              {
+                role: 'user',
+                parts: [
+                  {
+                    text: cleanSpokenText,
+                  },
+                ],
+              },
+            ],
+            config: {
+              responseModalities: ['AUDIO'],
+              speechConfig: {
+                voiceConfig: {
+                  prebuiltVoiceConfig: { voiceName },
+                },
+              },
+            },
+          });
+          const candidateAudio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData;
+          if (candidateAudio?.data) {
+            inlineData = candidateAudio;
+            break;
+          }
+        } catch {
+          // try next TTS model
+        }
+      }
+
+      if (!inlineData?.data) {
+        return res.status(502).json({ error: 'No audio returned from TTS model.' });
+      }
+
+      return res.json({
+        audioBase64: inlineData.data,
+        mimeType: inlineData.mimeType || 'audio/wav',
+        voiceName,
+      });
+    } catch (err) {
+      console.error('SVH AI TTS error:', err);
+      return res.status(500).json({
+        error: 'Voice synthesis fallback triggered.',
+      });
+    }
+  });
+
+  // AI Smart Revision Plan & AI Study Planner Generator Endpoint (uses real Google Gemini structured JSON)
+  app.post('/api/svh-ai/study-plan', async (req, res) => {
+    const user = authenticateRequest(req);
+    if (!user) {
+      return res.status(401).json({ error: 'Unauthorized: Please refresh your session.' });
+    }
+
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      return res.status(500).json({ error: 'SVH AI service key is not configured on the server.' });
+    }
+
+    const goal = typeof req.body?.goal === 'string' && req.body.goal.trim() ? req.body.goal.trim() : 'General Study';
+    const subjects = Array.isArray(req.body?.subjects) && req.body.subjects.length > 0
+      ? req.body.subjects.filter((s: unknown) => typeof s === 'string')
+      : ['Physics', 'Chemistry', 'Biology'];
+    const dailyHours = Math.max(1, Math.min(16, Number(req.body?.dailyHours) || 4));
+    const timeframe = typeof req.body?.timeframe === 'string' && req.body.timeframe.trim()
+      ? req.body.timeframe.trim()
+      : '7-Day Smart Revision Sprint';
+    const focusMode = typeof req.body?.focusMode === 'string' && req.body.focusMode.trim()
+      ? req.body.focusMode.trim()
+      : 'High-Weightage Chapters + MCQ Practice';
+    const customTopics = typeof req.body?.customTopics === 'string' ? req.body.customTopics.trim() : '';
+    const studentStatsSummary = req.body?.studentStats || {};
+
+    const ai = new GoogleGenAI({
+      apiKey,
+      httpOptions: {
+        headers: {
+          'User-Agent': 'aistudio-build',
+        },
+      },
+    });
+
+    const prompt = `Create a structured, realistic, and high-yield AI Smart Revision Plan & Study Schedule for a student preparing for "${goal}".
+Subjects to cover: ${subjects.join(', ')}.
+Available study time per day: ${dailyHours} hours (${dailyHours * 60} minutes/day).
+Plan Timeframe: ${timeframe}.
+Primary Strategy / Focus Mode: ${focusMode}.
+${customTopics ? `Specific Chapters/Topics requested by student: ${customTopics}` : ''}
+Real Student Progress Context (do not invent fake stats): ${JSON.stringify(studentStatsSummary)}
+
+Generate 6 to 8 concrete, actionable study blocks distributed logically across the subjects and timeframe, plus 4 high-impact exam revision tips.`;
+
+    const responseSchema = {
+      type: Type.OBJECT,
+      properties: {
+        planTitle: {
+          type: Type.STRING,
+          description: 'Title of the personalized study & revision plan.',
+        },
+        strategySummary: {
+          type: Type.STRING,
+          description: '2-3 sentence executive summary of how this plan optimizes the student’s revision and practice.',
+        },
+        studyBlocks: {
+          type: Type.ARRAY,
+          items: {
+            type: Type.OBJECT,
+            properties: {
+              dayOrPhase: {
+                type: Type.STRING,
+                description: 'e.g. Day 1 - Morning Slot, Day 2, Phase 1, etc.',
+              },
+              subject: {
+                type: Type.STRING,
+                description: 'Subject name (e.g., Physics, Chemistry, Biology, Mathematics).',
+              },
+              chapterOrTopic: {
+                type: Type.STRING,
+                description: 'Specific high-yield chapter or topic name.',
+              },
+              activityType: {
+                type: Type.STRING,
+                description: 'One of: Concept Revision, MCQ Practice, NCERT Reading, Formula & Short Notes, Mock & Mistake Review',
+              },
+              durationMinutes: {
+                type: Type.INTEGER,
+                description: 'Recommended duration in minutes (e.g. 45, 60, 90).',
+              },
+              priority: {
+                type: Type.STRING,
+                description: 'One of: High, Medium, Normal',
+              },
+              actionableTip: {
+                type: Type.STRING,
+                description: 'Specific study instructions or what to focus on during this block.',
+              },
+            },
+            required: [
+              'dayOrPhase',
+              'subject',
+              'chapterOrTopic',
+              'activityType',
+              'durationMinutes',
+              'priority',
+              'actionableTip',
+            ],
+          },
+        },
+        keyRevisionTips: {
+          type: Type.ARRAY,
+          items: {
+            type: Type.STRING,
+          },
+          description: '3 to 5 high-yield revision and exam execution tips.',
+        },
+      },
+      required: ['planTitle', 'strategySummary', 'studyBlocks', 'keyRevisionTips'],
+    };
+
+    let parsedPlan: Record<string, unknown> | null = null;
+    let lastError: unknown = null;
+
+    for (const modelName of SVH_AI_MODELS) {
+      try {
+        const response = await ai.models.generateContent({
+          model: modelName,
+          contents: prompt,
+          config: {
+            responseMimeType: 'application/json',
+            responseSchema,
+          },
+        });
+        const rawJson = response?.text?.trim();
+        if (rawJson) {
+          parsedPlan = JSON.parse(rawJson);
+          if (parsedPlan && Array.isArray(parsedPlan.studyBlocks)) {
+            break;
+          }
+        }
+      } catch (err) {
+        lastError = err;
+      }
+    }
+
+    if (!parsedPlan || !Array.isArray(parsedPlan.studyBlocks)) {
+      console.error('Failed to generate AI study plan:', lastError);
+      return res.status(500).json({
+        error: 'SVH AI could not generate the study plan right now. Please try again in a moment.',
+      });
+    }
+
+    const validActivities = [
+      'Concept Revision',
+      'MCQ Practice',
+      'NCERT Reading',
+      'Formula & Short Notes',
+      'Mock & Mistake Review',
+    ];
+    const validPriorities = ['High', 'Medium', 'Normal'];
+
+    const normalizedPlan = {
+      id: `plan_${crypto.randomUUID()}`,
+      generatedAt: new Date().toISOString(),
+      goal,
+      timeframe,
+      dailyHours,
+      focusMode,
+      planTitle:
+        typeof parsedPlan.planTitle === 'string' && parsedPlan.planTitle.trim()
+          ? parsedPlan.planTitle.trim()
+          : `${goal} Smart Revision & Study Plan`,
+      strategySummary:
+        typeof parsedPlan.strategySummary === 'string'
+          ? parsedPlan.strategySummary.trim()
+          : `Tailored ${dailyHours}h/day ${timeframe} plan for ${goal}.`,
+      studyBlocks: (parsedPlan.studyBlocks as Array<Record<string, unknown>>).map((b, idx) => ({
+        id: `blk_${Date.now()}_${idx}`,
+        dayOrPhase: typeof b.dayOrPhase === 'string' ? b.dayOrPhase : `Block ${idx + 1}`,
+        subject: typeof b.subject === 'string' ? b.subject : subjects[idx % subjects.length] || 'General',
+        chapterOrTopic: typeof b.chapterOrTopic === 'string' ? b.chapterOrTopic : 'High-Yield Chapter Revision',
+        activityType: validActivities.includes(String(b.activityType))
+          ? String(b.activityType)
+          : 'Concept Revision',
+        durationMinutes: Math.max(15, Math.min(240, Number(b.durationMinutes) || 45)),
+        priority: validPriorities.includes(String(b.priority)) ? String(b.priority) : 'High',
+        actionableTip:
+          typeof b.actionableTip === 'string'
+            ? b.actionableTip
+            : 'Focus on core concepts, formulas, and previous year questions.',
+      })),
+      keyRevisionTips: Array.isArray(parsedPlan.keyRevisionTips)
+        ? parsedPlan.keyRevisionTips.filter((t): t is string => typeof t === 'string')
+        : [],
+    };
+
+    return res.json({ plan: normalizedPlan });
+  });
+
+  // ============================================================================
+  // AI CHAPTER QUESTION GENERATOR ENDPOINT (/api/mcq/generate)
+  // Generates curriculum-accurate, non-duplicated MCQs for Exam + Class + Subject + Chapter + Topic
+  // ============================================================================
+  app.post('/api/mcq/generate', async (req, res) => {
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      return res.status(503).json({
+        error: 'AI question synthesis unavailable; using verified curriculum question bank.',
+      });
+    }
+
+    const exam = typeof req.body?.exam === 'string' && req.body.exam.trim() ? req.body.exam.trim().slice(0, 60) : 'NEET';
+    const classLevel = typeof req.body?.classLevel === 'string' && req.body.classLevel.trim() ? req.body.classLevel.trim().slice(0, 40) : 'Class 12';
+    const subject = typeof req.body?.subject === 'string' && req.body.subject.trim() ? req.body.subject.trim().slice(0, 60) : 'Physics';
+    const chapterName = typeof req.body?.chapterName === 'string' && req.body.chapterName.trim() ? req.body.chapterName.trim().slice(0, 120) : subject;
+    const topicName = typeof req.body?.topicName === 'string' && req.body.topicName.trim() && req.body.topicName !== 'All Topics'
+      ? req.body.topicName.trim().slice(0, 120)
+      : '';
+    const difficultyRaw = req.body?.difficulty;
+    const difficulty: 'Easy' | 'Moderate' | 'Hard' =
+      difficultyRaw === 'Easy' || difficultyRaw === 'Moderate' || difficultyRaw === 'Hard'
+        ? difficultyRaw
+        : 'Moderate';
+    const count = Math.max(1, Math.min(20, Number(req.body?.count) || 10));
+
+    const ai = new GoogleGenAI({
+      apiKey,
+      httpOptions: {
+        headers: {
+          'User-Agent': 'aistudio-build',
+        },
+      },
+    });
+
+    const prompt = `Generate ${count} strictly accurate, exam-grade multiple-choice questions (MCQs) for:
+- Target Exam / Board: ${exam}
+- Class / Standard: ${classLevel}
+- Subject: ${subject}
+- Chapter: ${chapterName}
+${topicName ? `- Specific Topic Focus: ${topicName}` : '- Coverage: High-yield concepts across this chapter'}
+- Difficulty Level: ${difficulty}
+
+STRICT QUALITY & ACCURACY RULES:
+1. Every question must be 100% scientifically/academically accurate and aligned with NCERT and ${exam} syllabus standards.
+2. Each question MUST have exactly 4 distinct, non-empty options.
+3. Exactly ONE option must be unambiguously correct (correctIndex: 0, 1, 2, or 3). Distribute correctIndex across 0, 1, 2, 3.
+4. Provide a clear, step-by-step academic explanation proving why the correct option is right.
+5. Provide a concise conceptual hint without giving away the answer letter directly.
+6. Do NOT repeat questions or create near-duplicates.`;
+
+    const responseSchema = {
+      type: Type.OBJECT,
+      properties: {
+        questions: {
+          type: Type.ARRAY,
+          items: {
+            type: Type.OBJECT,
+            properties: {
+              question: { type: Type.STRING },
+              options: {
+                type: Type.ARRAY,
+                items: { type: Type.STRING },
+              },
+              correctIndex: { type: Type.INTEGER },
+              explanation: { type: Type.STRING },
+              hint: { type: Type.STRING },
+              topic: { type: Type.STRING },
+            },
+            required: ['question', 'options', 'correctIndex', 'explanation', 'hint'],
+          },
+        },
+      },
+      required: ['questions'],
+    };
+
+    for (const modelName of SVH_AI_MODELS) {
+      try {
+        const response = await ai.models.generateContent({
+          model: modelName,
+          contents: prompt,
+          config: {
+            responseMimeType: 'application/json',
+            responseSchema,
+          },
+        });
+        const rawText = response?.text?.trim();
+        if (!rawText) continue;
+        const parsed = JSON.parse(rawText);
+        if (parsed && Array.isArray(parsed.questions) && parsed.questions.length > 0) {
+          const ts = Date.now();
+          const formatted = parsed.questions.map((q: Record<string, unknown>, idx: number) => ({
+            id: `ai-mcq-${subject.toLowerCase().slice(0, 3)}-${ts}-${idx}`,
+            subject,
+            targetStreams: [exam],
+            topic: typeof q.topic === 'string' && q.topic.trim() ? q.topic.trim() : (topicName || chapterName),
+            difficulty,
+            year: `${exam} ${classLevel} AI Verified`,
+            question: typeof q.question === 'string' ? q.question.trim() : '',
+            options: Array.isArray(q.options) ? q.options.map((o) => String(o).trim()).slice(0, 4) : [],
+            correctIndex: typeof q.correctIndex === 'number' ? q.correctIndex : 0,
+            explanation: typeof q.explanation === 'string' ? q.explanation.trim() : '',
+            hint: typeof q.hint === 'string' ? q.hint.trim() : '',
+          }));
+          return res.json({ questions: formatted });
+        }
+      } catch {
+        // try next model in fallback list
+      }
+    }
+
+    return res.status(503).json({
+      error: 'AI question synthesis temporarily busy; using verified curriculum question bank.',
+    });
   });
 
   // ============================================================================
@@ -2462,26 +3111,143 @@ ${JSON.stringify(studentContext, null, 2)}`;
       .slice(-30)
       .map(([date, count]) => ({ date, count }));
 
-    // Registered user accounts summary for authorized Admin/Owner only (never includes password hashes/salts/tokens)
-    const registeredAccounts = allUsers
+    // Registered user accounts summary for authorized Admin/Owner only (strictly real registered users with a username; never includes password hashes/salts/tokens)
+    const registeredUsersOnly = allUsers.filter(
+      (u) => Boolean(u.username) || u.role === 'owner'
+    );
+
+    const registeredAccounts = registeredUsersOnly
       .map((u) => {
         const stats = (u.userStats || {}) as Record<string, unknown>;
         const isUserOwner = Boolean(
           u.role === 'owner' && isConfiguredOwnerUsername(u.username || '')
         );
+        const questionsAttempted = Math.max(0, Number(stats.questionsAttempted) || 0);
+        const correctAnswers = Math.max(0, Number(stats.correctAnswers) || 0);
+        const totalStudyMinutes = Math.max(0, Number(stats.totalStudyMinutes) || 0);
+        const streakObj = (stats.streak || {}) as { current?: number; lastActiveDate?: string };
+        const streakDays = Math.max(0, Number(streakObj.current) || 0);
+        const streakLastActiveDate =
+          typeof streakObj.lastActiveDate === 'string' && streakObj.lastActiveDate
+            ? streakObj.lastActiveDate
+            : null;
+        const { vpPoints } = computeUserRealVPPoints(stats);
+
+        const userSessions = allSessions.filter((s) => s.userId === u.userId);
+        const hasActiveToken = Boolean(
+          u.tokenHash || (Array.isArray(u.sessionTokenHashes) && u.sessionTokenHashes.length > 0)
+        );
+
+        // Merge real login/logout history from both user.loginHistory and userStats.loginHistory
+        const rawTopHistory = Array.isArray(u.loginHistory) ? u.loginHistory : [];
+        const rawStatsHistory = Array.isArray(stats.loginHistory)
+          ? (stats.loginHistory as Array<{
+              loginAt?: string;
+              logoutAt?: string;
+              devicePlatform?: string;
+            }>)
+          : [];
+
+        const normalizedEvents: Array<{
+          event: 'login' | 'logout';
+          timestamp: string;
+          devicePlatform?: string;
+        }> = [];
+
+        for (const item of rawTopHistory) {
+          if (item && typeof item.timestamp === 'string' && (item.event === 'login' || item.event === 'logout')) {
+            normalizedEvents.push({
+              event: item.event,
+              timestamp: item.timestamp,
+              devicePlatform: item.devicePlatform || u.devicePlatform || undefined,
+            });
+          }
+        }
+
+        for (const item of rawStatsHistory) {
+          if (item && typeof item.loginAt === 'string' && item.loginAt) {
+            const exists = normalizedEvents.some(
+              (ev) => ev.event === 'login' && Math.abs(new Date(ev.timestamp).getTime() - new Date(item.loginAt!).getTime()) < 5000
+            );
+            if (!exists) {
+              normalizedEvents.push({
+                event: 'login',
+                timestamp: item.loginAt,
+                devicePlatform: item.devicePlatform || (stats.lastDevicePlatform as string) || undefined,
+              });
+            }
+          }
+          if (item && typeof item.logoutAt === 'string' && item.logoutAt) {
+            const exists = normalizedEvents.some(
+              (ev) => ev.event === 'logout' && Math.abs(new Date(ev.timestamp).getTime() - new Date(item.logoutAt!).getTime()) < 5000
+            );
+            if (!exists) {
+              normalizedEvents.push({
+                event: 'logout',
+                timestamp: item.logoutAt,
+                devicePlatform: item.devicePlatform || (stats.lastDevicePlatform as string) || undefined,
+              });
+            }
+          }
+        }
+
+        normalizedEvents.sort((a, b) => b.timestamp.localeCompare(a.timestamp));
+
+        const loginEventsCount = normalizedEvents.filter((e) => e.event === 'login').length;
+        const statsLoginCount = Math.max(0, Number(stats.loginCount) || 0);
+        const loginCount = Math.max(
+          typeof u.loginCount === 'number' ? u.loginCount : 0,
+          statsLoginCount,
+          loginEventsCount,
+          u.username ? 1 : 0
+        );
+
+        const resolvedDevicePlatform =
+          u.devicePlatform ||
+          (typeof stats.lastDevicePlatform === 'string' && stats.lastDevicePlatform ? stats.lastDevicePlatform : null) ||
+          (normalizedEvents.find((e) => e.devicePlatform)?.devicePlatform ?? null);
+
+        const resolvedLastLoginAt =
+          u.lastLoginAt ||
+          (typeof stats.lastLoginAt === 'string' && stats.lastLoginAt ? stats.lastLoginAt : null) ||
+          normalizedEvents.find((e) => e.event === 'login')?.timestamp ||
+          u.lastSeenAt ||
+          u.createdAt;
+
+        const resolvedLastLogoutAt =
+          u.lastLogoutAt ||
+          (typeof stats.lastLogoutAt === 'string' && stats.lastLogoutAt ? stats.lastLogoutAt : null) ||
+          normalizedEvents.find((e) => e.event === 'logout')?.timestamp ||
+          null;
+
+        const resolvedFirstSeenAt =
+          u.firstSeenAt ||
+          (typeof stats.firstSeenAt === 'string' && stats.firstSeenAt ? stats.firstSeenAt : null) ||
+          u.createdAt;
+
         return {
           userId: u.userId,
           username: u.username || null,
           displayName: u.displayName || 'Student',
           role: isUserOwner ? ('owner' as const) : ('student' as const),
           accountStatus: u.accountStatus === 'suspended' ? ('suspended' as const) : ('active' as const),
+          activeSessionStatus: hasActiveToken ? ('online_active' as const) : ('signed_out' as const),
           activeGoal: typeof stats.activeGoal === 'string' ? stats.activeGoal : null,
-          questionsAttempted:
-            typeof stats.questionsAttempted === 'number' ? stats.questionsAttempted : 0,
-          totalStudyMinutes:
-            typeof stats.totalStudyMinutes === 'number' ? stats.totalStudyMinutes : 0,
+          questionsAttempted,
+          correctAnswers,
+          totalStudyMinutes,
+          vpPoints,
+          streakDays,
+          streakLastActiveDate,
+          totalLoginCount: loginCount,
+          totalSessionCount: Math.max(userSessions.length, loginCount),
+          firstSeenAt: resolvedFirstSeenAt,
           createdAt: u.createdAt,
+          lastLoginAt: resolvedLastLoginAt,
+          lastLogoutAt: resolvedLastLogoutAt,
           lastSeenAt: u.lastSeenAt,
+          devicePlatform: resolvedDevicePlatform,
+          loginHistory: normalizedEvents.slice(0, 30),
         };
       })
       .sort((a, b) => (b.lastSeenAt || '').localeCompare(a.lastSeenAt || ''))

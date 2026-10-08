@@ -120,7 +120,8 @@ export interface StudyTask {
   id: string;
   text: string;
   completed: boolean;
-  createdAt: string;
+  createdAt?: string;
+  category?: string;
   subject?: string;
   chapter?: string;
   targetMinutes?: number;
@@ -225,6 +226,125 @@ export interface SVHAIButtonPosition {
 
 export type UserRole = 'student' | 'owner';
 
+export interface AISmartStudyBlock {
+  id: string;
+  dayOrPhase: string;
+  subject: string;
+  chapterOrTopic: string;
+  activityType: 'Concept Revision' | 'MCQ Practice' | 'NCERT Reading' | 'Formula & Short Notes' | 'Mock & Mistake Review' | string;
+  durationMinutes: number;
+  priority: 'High' | 'Medium' | 'Normal';
+  keyTakeawayOrTip?: string;
+  actionableTip?: string;
+  completed?: boolean;
+}
+
+export interface AISmartRevisionPlan {
+  id: string;
+  title: string;
+  examGoal: string;
+  dailyTargetMinutes: number;
+  focusSummary: string;
+  createdAt: string;
+  blocks: AISmartStudyBlock[];
+  generatedAt?: string;
+  goal?: string;
+  timeframe?: string;
+  dailyHours?: number;
+  focusMode?: string;
+  planTitle?: string;
+  strategySummary?: string;
+  studyBlocks?: AISmartStudyBlock[];
+  keyRevisionTips?: string[];
+}
+
+export interface CommunityLeaderboardEntry {
+  userId: string;
+  displayName: string;
+  profilePhotoUrl?: string | null;
+  activeGoal?: string | null;
+  vpPoints: number;
+  rankTitle: string;
+  rankLevel?: number;
+  rankBadgeColor?: string;
+  questionsAttempted?: number;
+  correctAnswers?: number;
+  totalStudyMinutes?: number;
+  streakDays?: number;
+  postsCount: number;
+  repliesCount: number;
+  chatCount?: number;
+  milestonesUnlocked: number;
+  totalMilestones?: number;
+  nextMilestoneVp?: number;
+  lastActiveAt?: string;
+}
+
+export interface VPTransaction {
+  id: string;
+  userId?: string;
+  amount: number;
+  reason: string;
+  timestamp: string;
+  category?: string;
+  relatedId?: string;
+  subject?: string;
+  topic?: string;
+}
+
+export interface LoginSessionRecord {
+  sessionId?: string;
+  event?: 'login' | 'logout';
+  timestamp?: string;
+  loginAt?: string;
+  logoutAt?: string | null;
+  devicePlatform?: string | null;
+  deviceId?: string;
+}
+
+export interface LeaderboardEntry {
+  rank: number;
+  userId: string;
+  username?: string | null;
+  displayName: string;
+  profilePhotoUrl?: string | null;
+  activeGoal?: string | null;
+  vaultPoints: number;
+  questionsSolved: number;
+  studyMinutes: number;
+  streakDays: number;
+}
+
+export interface AchievementRecord {
+  id: string;
+  title: string;
+  description: string;
+  category?: 'practice' | 'focus' | 'streak' | 'vp' | string;
+  unlocked?: boolean;
+  unlockedAt?: string | null;
+  progressCurrent?: number;
+  progressTarget?: number;
+  vpReward?: number;
+}
+
+export interface RevisionItem {
+  id: string;
+  subject: string;
+  topic: string;
+  dueDate?: string;
+  completed?: boolean;
+  intervalDays?: number;
+  reason?: string;
+  mistakesCount?: number;
+  accuracy?: number;
+  questionsSolved?: number;
+  repetitionStage?: number;
+  lastStudiedAt?: string;
+  lastRevisedAt?: string | null;
+  nextReviewAt?: string;
+  status?: 'Due Now' | 'Scheduled' | 'Mastered' | string;
+}
+
 export interface UserStats {
   userId?: string;
   username?: string;
@@ -246,6 +366,34 @@ export interface UserStats {
   correctAnswers: number;
   incorrectAnswers: number;
   totalStudyMinutes: number;
+  vpPoints?: number;
+  vaultPoints?: number;
+  questionVp?: number;
+  focusMinuteVp?: number;
+  focusBonusVp?: number;
+  examBonusVp?: number;
+  dailyUsageVp?: number;
+  sixtyMinBonusCount?: number;
+  svhAiUsageCount?: number;
+  highestFiveDayStreakMilestone?: number;
+  aiRevisionPlan?: AISmartRevisionPlan | null;
+  aiSmartRevisionPlan?: AISmartRevisionPlan | null;
+  activeStudyPlan?: AISmartRevisionPlan | null;
+  vpTransactions?: VPTransaction[];
+  dailyActivity?: Record<string, { questionsSolved: number; studyMinutes: number; vpEarned?: number }>;
+  seenQuestionIds?: string[];
+  revisionSchedule?: RevisionItem[];
+  unlockedAchievements?: Record<string, string>;
+  recentMistakes?: Array<{ id?: string; subject: string; topic: string; question: string; timestamp?: string; date?: string }>;
+  subjectPerformance?: Record<string, { attempted?: number; correct?: number; accuracy?: number }>;
+  topicPerformance?: Record<string, { attempted: number; correct?: number; accuracy: number }>;
+  lastLoginAt?: string | null;
+  lastLogoutAt?: string | null;
+  loginCount?: number;
+  logoutCount?: number;
+  loginHistory?: LoginSessionRecord[];
+  lastDevicePlatform?: string | null;
+  devicesUsed?: string[];
   streak: {
     current: number;
     lastActiveDate: string;
@@ -255,6 +403,7 @@ export interface UserStats {
     studyMinutes: number;
     questionCount: number;
     taskCount: number;
+    minutes?: number;
   };
   // History collections
   tasks: StudyTask[];
@@ -267,6 +416,7 @@ export interface UserStats {
   // Bookmarks
   bookmarkedItemIds: string[];
   completedNoteIds: string[];
+  completedChapterIds?: string[];
   readBookIds: string[];
   savedNCERTBookIds?: string[];
 }

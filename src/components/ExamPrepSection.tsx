@@ -8,7 +8,8 @@ import {
   Target,
   Sparkles,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  Calendar,
 } from 'lucide-react';
 import { HIGH_YIELD_TOPICS, MNEMONICS_BANK, GOAL_SUBJECTS_MAP } from '../data/sampleData';
 import { HighYieldTopic, MnemonicItem } from '../types';
@@ -18,13 +19,15 @@ interface ExamPrepSectionProps {
   activeSubjects: string[];
   onNavigateToPracticeWithSubject: (subject: string) => void;
   onNavigateToNotes: () => void;
+  onNavigateToTracker?: () => void;
 }
 
 export const ExamPrepSection: React.FC<ExamPrepSectionProps> = React.memo(({
   activeGoal,
   activeSubjects,
   onNavigateToPracticeWithSubject,
-  onNavigateToNotes
+  onNavigateToNotes,
+  onNavigateToTracker,
 }) => {
   // Live Target Exam Clock (Days, Hours, Minutes, Seconds)
   const [timeLeft, setTimeLeft] = useState({
@@ -270,6 +273,32 @@ export const ExamPrepSection: React.FC<ExamPrepSectionProps> = React.memo(({
         </h2>
         {renderBlueprint()}
       </section>
+
+      {/* 2.5 AI Smart Revision Plan Banner */}
+      {onNavigateToTracker && (
+        <section className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-[#0e1932] via-[#0a1326] to-[#080f1e] border border-[#d4af37]/35 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-lg">
+          <div className="space-y-1">
+            <div className="flex items-center gap-1.5 text-xs font-semibold text-[#d4af37]">
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>SVH AI Study Planner</span>
+            </div>
+            <h3 className="font-display text-base sm:text-lg font-bold text-[#fbf9f4]">
+              Need a Custom {activeGoal} Smart Revision Schedule?
+            </h3>
+            <p className="text-xs text-[#cbd5e1]">
+              Generate a personalized day-by-day revision plan with Google Gemini and sync study blocks directly to your Daily Planner.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onNavigateToTracker}
+            className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-[#d4af37] to-[#aa7c11] text-[#080d1a] font-bold text-xs sm:text-sm flex items-center justify-center gap-2 shrink-0 hover:brightness-110 transition-all cursor-pointer"
+          >
+            <Calendar className="w-4 h-4" />
+            <span>Open AI Study Planner →</span>
+          </button>
+        </section>
+      )}
 
       {/* 3. High-Yield Chapters Matrix */}
       <section className="space-y-3">

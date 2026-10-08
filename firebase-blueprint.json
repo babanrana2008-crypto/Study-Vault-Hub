@@ -1,0 +1,128 @@
+{
+  "entities": {
+    "Account": {
+      "title": "Account",
+      "description": "Registered student or owner account with salted password hash, profile stats, and VP balance",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "username": { "type": "string" },
+        "usernameLower": { "type": "string" },
+        "displayName": { "type": "string" },
+        "passwordHash": { "type": "string" },
+        "role": { "type": "string", "enum": ["student", "owner"] },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" },
+        "lastLoginAt": { "type": "string" },
+        "lastLogoutAt": { "type": "string" },
+        "lastSeenAt": { "type": "string" },
+        "loginCount": { "type": "number" },
+        "logoutCount": { "type": "number" },
+        "vaultPoints": { "type": "number" },
+        "questionVp": { "type": "number" },
+        "focusMinuteVp": { "type": "number" },
+        "focusBonusVp": { "type": "number" },
+        "svhAiUsageCount": { "type": "number" }
+      },
+      "required": ["userId", "usernameLower", "displayName", "role", "createdAt"]
+    },
+    "UserSession": {
+      "title": "UserSession",
+      "description": "User telemetry, study stats, VP summary, login/logout records, and device info",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "username": { "type": "string" },
+        "displayName": { "type": "string" },
+        "role": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "lastSeenAt": { "type": "string" },
+        "vaultPoints": { "type": "number" }
+      },
+      "required": ["userId", "displayName", "createdAt"]
+    },
+    "VPTransaction": {
+      "title": "VPTransaction",
+      "description": "Idempotent Vault Points (VP) reward transaction record",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "timestamp": { "type": "string" },
+        "amount": { "type": "number" },
+        "reason": { "type": "string" },
+        "category": { "type": "string", "enum": ["question", "focus_minutes", "focus_bonus_60m"] },
+        "relatedId": { "type": "string" }
+      },
+      "required": ["id", "userId", "timestamp", "amount", "reason", "category", "relatedId"]
+    },
+    "CommunityPost": {
+      "title": "CommunityPost",
+      "description": "Student doubt or discussion post shared across Web and APK",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "authorId": { "type": "string" },
+        "authorName": { "type": "string" },
+        "subject": { "type": "string" },
+        "content": { "type": "string" },
+        "replyCount": { "type": "number" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "authorId", "authorName", "subject", "createdAt"]
+    },
+    "CommunityReply": {
+      "title": "CommunityReply",
+      "description": "Reply or step-by-step solution to a community post",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "postId": { "type": "string" },
+        "authorId": { "type": "string" },
+        "authorName": { "type": "string" },
+        "content": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "postId", "authorId", "authorName", "createdAt"]
+    },
+    "CommunityChatMessage": {
+      "title": "CommunityChatMessage",
+      "description": "Real-time study chat message shared across Web and APK",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "authorId": { "type": "string" },
+        "authorName": { "type": "string" },
+        "content": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "authorId", "authorName", "content", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/svh_accounts/{usernameLower}": {
+      "schema": { "$ref": "#/entities/Account" },
+      "description": "Registered accounts indexed by lowercase username"
+    },
+    "/svh_users/{userId}": {
+      "schema": { "$ref": "#/entities/UserSession" },
+      "description": "Active user profiles, study telemetry, login/logout records, and VP balances"
+    },
+    "/svh_vp_transactions/{txId}": {
+      "schema": { "$ref": "#/entities/VPTransaction" },
+      "description": "Idempotent Vault Points (VP) ledger entries"
+    },
+    "/svh_posts/{postId}": {
+      "schema": { "$ref": "#/entities/CommunityPost" },
+      "description": "Community doubt and discussion posts"
+    },
+    "/svh_replies/{replyId}": {
+      "schema": { "$ref": "#/entities/CommunityReply" },
+      "description": "Community post replies and solutions"
+    },
+    "/svh_chat/{msgId}": {
+      "schema": { "$ref": "#/entities/CommunityChatMessage" },
+      "description": "Community live study chat messages"
+    }
+  }
+}

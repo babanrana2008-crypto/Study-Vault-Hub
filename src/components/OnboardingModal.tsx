@@ -132,6 +132,23 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
     }
   };
 
+  const getDevicePlatformInfo = (): string => {
+    if (typeof window === 'undefined' || typeof navigator === 'undefined') return 'Web Browser';
+    const ua = navigator.userAgent || '';
+    const isCapacitor = Boolean(
+      (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor?.isNativePlatform?.() ||
+        ua.includes('Capacitor')
+    );
+    if (isCapacitor || /Android/i.test(ua)) {
+      return isCapacitor ? 'Android APK (Capacitor)' : 'Android Web Browser';
+    }
+    if (/iPhone|iPad|iPod/i.test(ua)) return 'iOS Safari / Web';
+    if (/Win/i.test(ua)) return 'Windows Desktop Web';
+    if (/Mac/i.test(ua)) return 'macOS Desktop Web';
+    if (/Linux/i.test(ua)) return 'Linux Desktop Web';
+    return 'Web Browser';
+  };
+
   const handleRegisterSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isSubmitting) return;
@@ -176,6 +193,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
           selectedGoals,
           activeGoal: selectedGoals[0],
           deviceId: getDeviceId(),
+          devicePlatform: getDevicePlatformInfo(),
           userStats: currentStats || {},
         }),
       });
@@ -233,6 +251,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
           username: cleanUsername,
           password: loginPassword,
           deviceId: getDeviceId(),
+          devicePlatform: getDevicePlatformInfo(),
         }),
       });
 
@@ -304,7 +323,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
             </h1>
             <div className="flex flex-col items-center justify-center text-center pt-0.5 leading-snug">
               <span className="text-[11px] text-[#cbd5e1] font-mono tracking-wide whitespace-nowrap">
-                Founded &amp; Created by
+                Developed by
               </span>
               <span className="text-sm font-display font-bold text-[#d4af37] tracking-wide whitespace-nowrap">
                 Soumyadip Rana

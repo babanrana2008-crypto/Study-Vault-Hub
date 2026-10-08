@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   CheckCircle2,
   Clock,
@@ -16,7 +16,8 @@ import {
   Bookmark,
   Layers,
   Filter,
-  Play
+  Play,
+  Loader2
 } from 'lucide-react';
 import { MCQQuestion, PracticeHistoryEntry, SyllabusChapter } from '../types';
 import { SAMPLE_MCQS } from '../data/sampleData';
@@ -27,7 +28,11 @@ import {
   getSubjectsForExamAndClass,
   getChaptersForSubjectAndClass
 } from '../data/syllabusData';
-import { generateDynamicQuestions } from '../data/questionGenerator';
+import {
+  generateDynamicQuestions,
+  validateAndSanitizeQuestions,
+} from '../data/questionGenerator';
+import { apiFetch } from '../services/nativeApiBridge';
 
 interface MCQSectionProps {
   activeGoal: string;
@@ -116,27 +121,54 @@ export const MCQSection: React.FC<MCQSectionProps> = React.memo(({
   const [selectedCount, setSelectedCount] = useState<number>(10);
   const [isFilterPanelOpen, setIsFilterPanelOpen] = useState<boolean>(true);
 
-  // Active Questions Pool (Default to SAMPLE_MCQS filtered or generated)
+  // Active Questions Pool (Automatically aligned with selected Exam, Class, Subject, Chapter, Topic, Difficulty & Count)
   const [customGeneratedQuestions, setCustomGeneratedQuestions] = useState<MCQQuestion[] | null>(null);
   const [generationFeedback, setGenerationFeedback] = useState<string | null>(null);
+  const [isGeneratingQuiz, setIsGeneratingQuiz] = useState<boolean>(false);
 
-  // Build current questions array
+  // Clear custom AI override whenever the student switches hierarchy filters so questions immediately reflect the new selection
+  useEffect(() => {
+    setCustomGeneratedQuestions(null);
+    setCurrentPracticeIndex(0);
+    setShowHint(false);
+  }, [selectedExam, selectedClass, selectedSubject, selectedChapterId, selectedTopicName, selectedDifficulty, selectedCount]);
+
+  // Build current validated & de-duplicated questions array tailored to active filters
   const questions: MCQQuestion[] = useMemo(() => {
     if (customGeneratedQuestions && customGeneratedQuestions.length > 0) {
-      return customGeneratedQuestions;
+      const validatedCustom = validateAndSanitizeQuestions(customGeneratedQuestions);
+      if (validatedCustom.length > 0) return validatedCustom;
     }
 
-    // Fallback to sample MCQs filtered by selectedSubject or goal
-    const matched = SAMPLE_MCQS.filter((q) => {
-      const matchesSub = selectedSubject === 'All' ? true : q.subject.toLowerCase() === selectedSubject.toLowerCase();
-      const matchesGoal = q.targetStreams.includes(selectedExam) || activeSubjects.includes(q.subject);
-      return matchesSub && matchesGoal;
+    const chapterName = activeChapterObj?.name || selectedSubject;
+    const dynamicPool = generateDynamicQuestions({
+      exam: selectedExam,
+      classLevel: selectedClass,
+      subject: selectedSubject,
+      chapterName,
+      topicName: selectedTopicName === 'All Topics' ? undefined : selectedTopicName,
+      difficulty: selectedDifficulty,
+      count: selectedCount,
     });
 
-    if (matched.length > 0) return matched;
-    const subMatch = SAMPLE_MCQS.filter((q) => q.subject.toLowerCase() === selectedSubject.toLowerCase());
-    return subMatch.length > 0 ? subMatch : SAMPLE_MCQS;
-  }, [customGeneratedQuestions, selectedSubject, selectedExam, activeSubjects]);
+    if (dynamicPool.length > 0) {
+      return dynamicPool;
+    }
+
+    // Final safety fallback to sample MCQs filtered by selectedSubject, strictly validated
+    const validatedSamples = validateAndSanitizeQuestions(SAMPLE_MCQS);
+    const subMatch = validatedSamples.filter((q) => q.subject.toLowerCase() === selectedSubject.toLowerCase());
+    return subMatch.length > 0 ? subMatch : validatedSamples;
+  }, [
+    customGeneratedQuestions,
+    activeChapterObj,
+    selectedExam,
+    selectedClass,
+    selectedSubject,
+    selectedTopicName,
+    selectedDifficulty,
+    selectedCount,
+  ]);
 
   // Practice Mode State
   const [currentPracticeIndex, setCurrentPracticeIndex] = useState(0);
@@ -210,20 +242,23 @@ export const MCQSection: React.FC<MCQSectionProps> = React.memo(({
     }
   }, [testActive, testCompleted, testTimeLeft, handleCompleteTest]);
 
-  // Handle Dynamic Question Generation
-  const handleGenerateQuestions = () => {
+  // Handle Dynamic & AI-Enhanced Question Generation
+  const handleGenerateQuestions = useCallback(async () => {
     const chapterName = activeChapterObj?.name || selectedSubject;
-    const generated = generateDynamicQuestions({
+    const topicParam = selectedTopicName === 'All Topics' ? undefined : selectedTopicName;
+
+    // 1. Immediately build verified curriculum-aligned questions so the UI is instant
+    const verifiedCurriculumPool = generateDynamicQuestions({
       exam: selectedExam,
       classLevel: selectedClass,
       subject: selectedSubject,
       chapterName,
-      topicName: selectedTopicName === 'All Topics' ? undefined : selectedTopicName,
+      topicName: topicParam,
       difficulty: selectedDifficulty,
-      count: selectedCount
+      count: selectedCount,
     });
 
-    setCustomGeneratedQuestions(generated);
+    setCustomGeneratedQuestions(verifiedCurriculumPool);
     setCurrentPracticeIndex(0);
     setPracticeAnswers({});
     setShowHint(false);
@@ -231,11 +266,61 @@ export const MCQSection: React.FC<MCQSectionProps> = React.memo(({
     setTestCompleted(false);
     setTestActive(false);
 
+    // 2. Also attempt fresh AI synthesis via /api/mcq/generate and merge/validate
+    setIsGeneratingQuiz(true);
+    try {
+      const response = await apiFetch('/api/mcq/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          exam: selectedExam,
+          classLevel: selectedClass,
+          subject: selectedSubject,
+          chapterName,
+          topicName: topicParam,
+          difficulty: selectedDifficulty,
+          count: selectedCount,
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data && Array.isArray(data.questions)) {
+          const validatedAi = validateAndSanitizeQuestions(data.questions as MCQQuestion[]);
+          if (validatedAi.length > 0) {
+            // Combine AI-generated questions with curriculum questions to reach exact requested count without duplicates
+            const combined = validateAndSanitizeQuestions([...validatedAi, ...verifiedCurriculumPool]).slice(
+              0,
+              selectedCount
+            );
+            setCustomGeneratedQuestions(combined);
+            setGenerationFeedback(
+              `Generated ${combined.length} verified questions for ${chapterName} (${selectedDifficulty})`
+            );
+            setIsGeneratingQuiz(false);
+            setTimeout(() => setGenerationFeedback(null), 4000);
+            return;
+          }
+        }
+      }
+    } catch {
+      // Fallback gracefully to verifiedCurriculumPool already set
+    }
+
+    setIsGeneratingQuiz(false);
     setGenerationFeedback(
-      `Generated ${generated.length} original questions for ${chapterName} (${selectedDifficulty})`
+      `Loaded ${verifiedCurriculumPool.length} verified questions for ${chapterName} (${selectedDifficulty})`
     );
     setTimeout(() => setGenerationFeedback(null), 4000);
-  };
+  }, [
+    activeChapterObj,
+    selectedSubject,
+    selectedTopicName,
+    selectedExam,
+    selectedClass,
+    selectedDifficulty,
+    selectedCount,
+  ]);
 
   const activeQuestion = questions[currentPracticeIndex] || questions[0];
 
@@ -567,10 +652,15 @@ export const MCQSection: React.FC<MCQSectionProps> = React.memo(({
 
                 <button
                   onClick={handleGenerateQuestions}
-                  className="px-4 py-2 rounded-xl bg-gradient-to-r from-[#d4af37] to-[#b88c1b] text-[#080d1a] hover:brightness-110 font-bold text-xs sm:text-sm flex items-center gap-2 shadow-md transition-all ml-auto"
+                  disabled={isGeneratingQuiz}
+                  className="px-4 py-2 rounded-xl bg-gradient-to-r from-[#d4af37] to-[#b88c1b] text-[#080d1a] hover:brightness-110 disabled:opacity-75 font-bold text-xs sm:text-sm flex items-center gap-2 shadow-md transition-all ml-auto"
                 >
-                  <Sparkles className="w-4 h-4 fill-[#080d1a]" />
-                  <span>Generate Custom Chapter Quiz</span>
+                  {isGeneratingQuiz ? (
+                    <Loader2 className="w-4 h-4 animate-spin text-[#080d1a]" />
+                  ) : (
+                    <Sparkles className="w-4 h-4 fill-[#080d1a]" />
+                  )}
+                  <span>{isGeneratingQuiz ? 'Synthesizing Chapter Quiz...' : 'Generate Custom Chapter Quiz'}</span>
                 </button>
               </div>
             </div>
@@ -672,11 +762,21 @@ export const MCQSection: React.FC<MCQSectionProps> = React.memo(({
                 </button>
 
                 {practiceAnswers[activeQuestion.id] !== undefined && (
-                  <span className="text-xs font-mono text-[#d4af37]">
+                  <span className="text-xs font-mono text-[#d4af37] inline-flex items-center gap-2">
                     {practiceAnswers[activeQuestion.id] === activeQuestion.correctIndex ? (
-                      <span className="text-emerald-400 font-bold">Correct (+4)</span>
+                      <>
+                        <span className="text-emerald-400 font-bold">Correct (+4 Marks)</span>
+                        <span className="px-2 py-0.5 rounded-full bg-[#d4af37]/15 border border-[#d4af37]/40 text-[#d4af37] font-bold text-[10px]">
+                          +4 VP
+                        </span>
+                      </>
                     ) : (
-                      <span className="text-rose-400 font-bold">Incorrect (-1)</span>
+                      <>
+                        <span className="text-rose-400 font-bold">Incorrect (-1 Mark)</span>
+                        <span className="px-2 py-0.5 rounded-full bg-[#d4af37]/15 border border-[#d4af37]/40 text-[#d4af37] font-bold text-[10px]">
+                          +1 VP
+                        </span>
+                      </>
                     )}
                   </span>
                 )}

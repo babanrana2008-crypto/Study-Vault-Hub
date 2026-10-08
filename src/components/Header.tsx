@@ -1,13 +1,16 @@
-import React from 'react';
-import { Search, Flame, User, BookOpen } from 'lucide-react';
-import { ActiveSection } from '../types';
-import { APP_LOGO } from '../data/sampleData';
+import React, { useState, useCallback } from 'react';
+import { Search, Flame, User, Trophy } from 'lucide-react';
+import { ActiveSection, UserStats } from '../types';
+import { APP_LOGO, INITIAL_USER_STATS } from '../data/sampleData';
+import { VaultPointsPopup } from './VaultPointsPopup';
 
 interface HeaderProps {
   activeSection: ActiveSection;
   onNavigate: (section: ActiveSection) => void;
   onOpenSearch: () => void;
   streakDays: number;
+  vpPoints?: number;
+  userStats?: UserStats;
   userName: string;
   userProfilePhotoUrl?: string | null;
   isFloatingTopDock?: boolean;
@@ -18,10 +21,14 @@ export const Header: React.FC<HeaderProps> = React.memo(({
   onNavigate,
   onOpenSearch,
   streakDays,
+  vpPoints = 0,
+  userStats,
   userName,
   userProfilePhotoUrl,
   isFloatingTopDock = false,
 }) => {
+  const [isVpPopupOpen, setIsVpPopupOpen] = useState(false);
+  const handleCloseVpPopup = useCallback(() => setIsVpPopupOpen(false), []);
   const sectionTitles: Record<ActiveSection, string> = {
     home: 'Vault Home',
     books: 'Books Library',
@@ -53,8 +60,8 @@ export const Header: React.FC<HeaderProps> = React.memo(({
       <div
         className={
           isFloatingTopDock
-            ? 'pointer-events-auto max-w-5xl mx-auto px-3 sm:px-5 h-14 rounded-2xl bg-[#060b18]/95 backdrop-blur-xl border border-[#d4af37]/35 shadow-[0_10px_30px_rgba(0,0,0,0.65),0_0_20px_rgba(212,175,55,0.14)] flex items-center justify-between gap-2 sm:gap-3 min-w-0 overflow-hidden'
-            : 'max-w-5xl mx-auto px-3 sm:px-6 h-14 flex items-center justify-between gap-2 sm:gap-3 min-w-0'
+            ? 'pointer-events-auto max-w-5xl mx-auto px-3 sm:px-5 h-14 rounded-2xl bg-[#060b18]/95 backdrop-blur-xl border border-[#d4af37]/35 shadow-[0_10px_30px_rgba(0,0,0,0.65),0_0_20px_rgba(212,175,55,0.14)] flex items-center justify-between gap-2 sm:gap-3 min-w-0 overflow-visible'
+            : 'max-w-5xl mx-auto px-3 sm:px-6 h-14 flex items-center justify-between gap-2 sm:gap-3 min-w-0 overflow-visible'
         }
       >
         {/* Zone 1: Main App Logo & Title using the official Study Vault Hub logo */}
@@ -83,7 +90,7 @@ export const Header: React.FC<HeaderProps> = React.memo(({
                 showApkDesktopNav ? 'lg:flex-row lg:items-center lg:gap-1' : 'sm:flex-row sm:items-center sm:gap-1'
               } min-w-0`}
             >
-              <span className="truncate">Founded &amp; Created by</span>
+              <span className="truncate">Developed by</span>
               <span className="text-[#d4af37]/95 font-semibold truncate">Soumyadip Rana</span>
             </span>
           </div>
@@ -158,6 +165,24 @@ export const Header: React.FC<HeaderProps> = React.memo(({
           >
             <Search className="w-3.5 h-3.5" />
           </button>
+
+          {/* VP Points Pill + Anchored VaultPointsPopup */}
+          <div className="relative shrink-0">
+            <button
+              onClick={() => setIsVpPopupOpen((prev) => !prev)}
+              className="flex items-center gap-1 px-1.5 sm:px-2.5 py-0.5 sm:py-1 rounded-lg border border-[#d4af37]/35 bg-[#0f172a] hover:border-[#d4af37] text-[10px] sm:text-xs font-medium text-[#fbf9f4] shrink-0 transition-colors cursor-pointer"
+              title={`${vpPoints} Vault Points (VP) — Click to view Rank & Milestones`}
+            >
+              <Trophy className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-[#d4af37] shrink-0" />
+              <span className="tabular-nums font-bold text-[#d4af37]">{vpPoints}</span>
+              <span className="text-[9px] sm:text-[10px] font-mono text-[#cbd5e1] hidden xs:inline">VP</span>
+            </button>
+            <VaultPointsPopup
+              isOpen={isVpPopupOpen}
+              onClose={handleCloseVpPopup}
+              userStats={userStats || INITIAL_USER_STATS}
+            />
+          </div>
 
           {/* Daily Streak */}
           <div

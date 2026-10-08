@@ -13,17 +13,17 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({ onFinish }) => {
     // Stage 1: Gentle logo + identity reveal
     const identityTimer = setTimeout(() => {
       setStage('identity');
-    }, 50);
+    }, 60);
 
-    // Stage 2: Smooth exit transition into Home
+    // Stage 2: Smooth exit transition into Home (~3.1s hold)
     const exitTimer = setTimeout(() => {
       setStage('exit');
-    }, 1450);
+    }, 3100);
 
-    // Stage 3: Unmount cleanly
+    // Stage 3: Unmount cleanly (~3.45s total splash duration)
     const finishTimer = setTimeout(() => {
       onFinish();
-    }, 1820);
+    }, 3480);
 
     return () => {
       clearTimeout(identityTimer);
@@ -73,14 +73,14 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({ onFinish }) => {
         </h1>
       </div>
 
-      {/* Official Founder & Creator Attribution (Large, centered, two-line layout, never truncated) */}
+      {/* Official Developer Attribution (Large, centered, two-line layout, never truncated) */}
       <div
         className={`relative z-10 flex flex-col items-center justify-center text-center px-4 transition-all duration-700 ease-out pointer-events-none ${
           stage === 'enter' ? 'opacity-0 translate-y-1' : 'opacity-100 translate-y-0'
         }`}
       >
         <span className="text-xs sm:text-sm uppercase tracking-[0.18em] text-[#d4af37] font-mono font-semibold whitespace-nowrap">
-          Founded &amp; Created by
+          Developed by
         </span>
         <span className="text-lg sm:text-xl md:text-2xl font-display font-bold text-[#fbf9f4] tracking-wide mt-1 whitespace-nowrap">
           Soumyadip Rana

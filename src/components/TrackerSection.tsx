@@ -14,7 +14,8 @@ import {
   Check,
   TrendingUp,
 } from 'lucide-react';
-import { UserStats, StudyTask, StudySession } from '../types';
+import { UserStats, StudyTask, StudySession, AISmartRevisionPlan, AISmartStudyBlock } from '../types';
+import { apiFetch } from '../services/nativeApiBridge';
 
 interface TrackerSectionProps {
   activeGoal: string;
@@ -248,6 +249,158 @@ export const TrackerSection: React.FC<TrackerSectionProps> = React.memo(({
   const [newTaskChapter, setNewTaskChapter] = useState('');
   const [newTaskMinutes, setNewTaskMinutes] = useState('');
   const [newTaskDeadline, setNewTaskDeadline] = useState('');
+
+  // AI Smart Revision Plan & AI Study Planner state
+  const [aiPlanDailyHours, setAiPlanDailyHours] = useState<number>(3);
+  const [aiPlanDaysCount, setAiPlanDaysCount] = useState<number>(5);
+  const [aiPlanFocusInput, setAiPlanFocusInput] = useState<string>('');
+  const [isGeneratingAIPlan, setIsGeneratingAIPlan] = useState<boolean>(false);
+  const [aiPlanError, setAiPlanError] = useState<string | null>(null);
+
+  const handleGenerateAISmartPlan = async () => {
+    if (isGeneratingAIPlan) return;
+    setIsGeneratingAIPlan(true);
+    setAiPlanError(null);
+
+    try {
+      let authToken = '';
+      try {
+        const raw = localStorage.getItem('study_vault_community_identity_v1');
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          authToken = parsed?.authToken || '';
+        }
+      } catch {
+        // ignore
+      }
+
+      if (!authToken) {
+        const sessRes = await apiFetch('/api/community/auth/session', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ displayName: userStats.name || 'Student' }),
+        });
+        if (sessRes.ok) {
+          const sessData = await sessRes.json();
+          authToken = sessData.authToken || '';
+          if (sessData.userId && authToken) {
+            localStorage.setItem(
+              'study_vault_community_identity_v1',
+              JSON.stringify({ userId: sessData.userId, authToken })
+            );
+          }
+        }
+      }
+
+      const res = await apiFetch('/api/svh-ai/study-plan', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+        },
+        body: JSON.stringify({
+          goal: activeGoal || 'CBSE Class 12',
+          subjects:
+            activeSubjects.length > 0
+              ? activeSubjects
+              : ['Physics', 'Chemistry', 'Mathematics'],
+          dailyHours: aiPlanDailyHours,
+          daysCount: aiPlanDaysCount,
+          focusNotes:
+            aiPlanFocusInput.trim() ||
+            'High-weightage NCERT chapters, concept clarity, and exam-focused numerical/MCQ mastery',
+          studentContext: {
+            studentName: userStats.name,
+            activeGoal,
+            activeSubjects,
+            totalStudyMinutes: userStats.totalStudyMinutes,
+            questionsAttempted: userStats.questionsAttempted,
+            correctAnswers: userStats.correctAnswers,
+            completedChaptersCount: userStats.completedChapterIds?.length || 0,
+          },
+        }),
+      });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(
+          errData.error || 'Could not generate AI Smart Revision Plan right now.'
+        );
+      }
+
+      const data = await res.json();
+      const generatedPlan: AISmartRevisionPlan = data.plan;
+      if (generatedPlan && Array.isArray(generatedPlan.blocks)) {
+        onUpdateStats({
+          aiSmartRevisionPlan: generatedPlan,
+        });
+        setLogToast(
+          'AI Smart Revision Plan generated! You can sync any block or the entire schedule into your Daily Planner.'
+        );
+      }
+    } catch (err) {
+      setAiPlanError(
+        err instanceof Error
+          ? err.message
+          : 'Failed to generate AI Smart Revision Plan.'
+      );
+    } finally {
+      setIsGeneratingAIPlan(false);
+    }
+  };
+
+  const handleToggleAIPlanBlock = (blockId: string) => {
+    const currentPlan = userStats.aiSmartRevisionPlan;
+    if (!currentPlan) return;
+    const updatedBlocks = currentPlan.blocks.map((b) =>
+      b.id === blockId ? { ...b, completed: !b.completed } : b
+    );
+    onUpdateStats({
+      aiSmartRevisionPlan: {
+        ...currentPlan,
+        blocks: updatedBlocks,
+      },
+    });
+  };
+
+  const handleAddAIBlockToDailyTasks = (block: AISmartStudyBlock) => {
+    const taskTitle = `[${block.dayOrPhase}] ${block.subject}: ${block.chapterOrTopic} (${block.activityType})`;
+    const newTask: StudyTask = {
+      id: `task_ai_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+      text: taskTitle,
+      completed: false,
+      category: 'Study',
+      subject: block.subject,
+      chapter: block.chapterOrTopic,
+      targetMinutes: block.durationMinutes,
+      priority: block.priority,
+    };
+    onUpdateStats({
+      tasks: [newTask, ...userStats.tasks],
+    });
+    setLogToast(`Added "${block.chapterOrTopic}" to your Smart Daily Planner!`);
+  };
+
+  const handleSyncAllAIBlocksToTasks = () => {
+    const currentPlan = userStats.aiSmartRevisionPlan;
+    if (!currentPlan || !currentPlan.blocks.length) return;
+    const newTasks: StudyTask[] = currentPlan.blocks.map((block, idx) => ({
+      id: `task_ai_all_${Date.now()}_${idx}`,
+      text: `[${block.dayOrPhase}] ${block.subject}: ${block.chapterOrTopic} (${block.activityType})`,
+      completed: Boolean(block.completed),
+      category: 'Study',
+      subject: block.subject,
+      chapter: block.chapterOrTopic,
+      targetMinutes: block.durationMinutes,
+      priority: block.priority,
+    }));
+    onUpdateStats({
+      tasks: [...newTasks, ...userStats.tasks],
+    });
+    setLogToast(
+      `Synced all ${newTasks.length} AI Revision blocks into your Smart Daily Planner!`
+    );
+  };
   const [newTaskPriority, setNewTaskPriority] = useState<
     'High' | 'Medium' | 'Normal'
   >('Normal');
@@ -613,6 +766,206 @@ export const TrackerSection: React.FC<TrackerSectionProps> = React.memo(({
             </div>
           </div>
         </div>
+      </section>
+
+      {/* 2.5 AI Smart Revision Plan & AI Study Planner */}
+      <section className="p-5 sm:p-6 rounded-2xl sm:rounded-3xl bg-gradient-to-br from-[#0d162c] via-[#091122] to-[#060b16] border border-[#d4af37]/35 shadow-xl space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2 text-xs font-semibold text-[#d4af37] uppercase tracking-wider">
+              <Sparkles className="w-4 h-4 shrink-0" />
+              <span>SVH AI Study Planner</span>
+            </div>
+            <h2 className="font-display text-lg sm:text-xl font-bold text-[#fbf9f4]">
+              AI Smart Revision Plan
+            </h2>
+            <p className="text-xs text-[#cbd5e1]">
+              Generate a personalized, day-by-day revision schedule powered by Google Gemini for{' '}
+              <span className="text-[#d4af37] font-semibold">{activeGoal}</span> based on your real study progress.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleGenerateAISmartPlan}
+            disabled={isGeneratingAIPlan}
+            className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-[#d4af37] via-[#e5c158] to-[#aa7c11] text-[#080d1a] font-bold text-xs sm:text-sm hover:brightness-110 flex items-center justify-center gap-2 shadow-lg shadow-[#d4af37]/20 transition-all shrink-0 cursor-pointer disabled:opacity-50"
+          >
+            <Sparkles className={`w-4 h-4 ${isGeneratingAIPlan ? 'animate-spin' : ''}`} />
+            <span>
+              {isGeneratingAIPlan
+                ? 'Generating Smart Plan...'
+                : userStats.aiSmartRevisionPlan
+                ? 'Regenerate AI Revision Plan'
+                : 'Generate AI Revision Plan'}
+            </span>
+          </button>
+        </div>
+
+        {/* Customizer Controls */}
+        <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 p-3.5 rounded-2xl bg-[#080e1c] border border-[#1e293b] text-xs">
+          <div>
+            <label className="text-[11px] text-[#9ca3af] block mb-1">
+              Daily Study Hours
+            </label>
+            <select
+              value={aiPlanDailyHours}
+              onChange={(e) => setAiPlanDailyHours(Number(e.target.value))}
+              className="w-full px-3 py-2 rounded-xl bg-[#0f172a] border border-[#d4af37]/25 text-[#fbf9f4] focus:outline-none focus:border-[#d4af37]"
+            >
+              {[1, 2, 3, 4, 5, 6, 8, 10].map((h) => (
+                <option key={h} value={h}>
+                  {h} {h === 1 ? 'Hour / Day' : 'Hours / Day'}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="text-[11px] text-[#9ca3af] block mb-1">
+              Plan Horizon (Days)
+            </label>
+            <select
+              value={aiPlanDaysCount}
+              onChange={(e) => setAiPlanDaysCount(Number(e.target.value))}
+              className="w-full px-3 py-2 rounded-xl bg-[#0f172a] border border-[#d4af37]/25 text-[#fbf9f4] focus:outline-none focus:border-[#d4af37]"
+            >
+              {[3, 5, 7, 10, 14].map((d) => (
+                <option key={d} value={d}>
+                  {d}-Day Smart Sprint
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="sm:col-span-2">
+            <label className="text-[11px] text-[#9ca3af] block mb-1">
+              Weak Chapters / Specific Exam Focus (Optional)
+            </label>
+            <input
+              type="text"
+              value={aiPlanFocusInput}
+              onChange={(e) => setAiPlanFocusInput(e.target.value)}
+              placeholder="e.g. Ray Optics, Organic Chemistry Reactions, Integration..."
+              className="w-full px-3 py-2 rounded-xl bg-[#0f172a] border border-[#d4af37]/25 text-[#fbf9f4] placeholder-[#6b7280] focus:outline-none focus:border-[#d4af37]"
+            />
+          </div>
+        </div>
+
+        {aiPlanError && (
+          <div className="p-3 rounded-xl bg-rose-950/80 border border-rose-500/40 text-rose-200 text-xs">
+            {aiPlanError}
+          </div>
+        )}
+
+        {/* Active AI Smart Revision Plan Display */}
+        {userStats.aiSmartRevisionPlan &&
+          Array.isArray(userStats.aiSmartRevisionPlan.blocks) &&
+          userStats.aiSmartRevisionPlan.blocks.length > 0 && (
+            <div className="space-y-3.5 pt-1">
+              <div className="p-3.5 rounded-2xl bg-[#0f1930] border border-[#d4af37]/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="space-y-0.5">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-display font-bold text-sm sm:text-base text-[#fbf9f4]">
+                      {userStats.aiSmartRevisionPlan.title}
+                    </span>
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-[#d4af37]/20 text-[#d4af37] border border-[#d4af37]/30">
+                      {userStats.aiSmartRevisionPlan.dailyTargetMinutes}m / day
+                    </span>
+                  </div>
+                  <p className="text-xs text-[#cbd5e1]">
+                    {userStats.aiSmartRevisionPlan.focusSummary}
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleSyncAllAIBlocksToTasks}
+                  className="px-3.5 py-2 rounded-xl bg-[#131b2e] hover:bg-[#d4af37] text-[#d4af37] hover:text-[#080d1a] border border-[#d4af37]/40 font-bold text-xs flex items-center gap-1.5 shrink-0 transition-colors cursor-pointer"
+                >
+                  <Calendar className="w-3.5 h-3.5" />
+                  <span>Sync All to Daily Planner</span>
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {userStats.aiSmartRevisionPlan.blocks.map((block) => (
+                  <div
+                    key={block.id}
+                    className={`p-3.5 rounded-2xl border transition-all flex flex-col justify-between gap-3 ${
+                      block.completed
+                        ? 'bg-[#091120]/60 border-emerald-500/35 text-[#9ca3af]'
+                        : 'bg-[#0a1326] border-[#d4af37]/25 hover:border-[#d4af37]/50 text-[#fbf9f4]'
+                    }`}
+                  >
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-[#131b2e] text-[#d4af37] border border-[#d4af37]/25">
+                            {block.dayOrPhase}
+                          </span>
+                          <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-[#0f172a] text-[#cbd5e1]">
+                            {block.subject}
+                          </span>
+                          <span
+                            className={`text-[10px] font-mono px-1.5 py-0.5 rounded ${
+                              block.priority === 'High'
+                                ? 'bg-amber-950/70 text-amber-300 border border-amber-500/30'
+                                : 'bg-[#131b2e] text-[#9ca3af]'
+                            }`}
+                          >
+                            {block.priority}
+                          </span>
+                        </div>
+                        <span className="text-xs font-mono font-bold text-[#d4af37]">
+                          {block.durationMinutes} min
+                        </span>
+                      </div>
+
+                      <div>
+                        <h4
+                          className={`font-display text-xs sm:text-sm font-bold ${
+                            block.completed ? 'line-through text-[#6b7280]' : 'text-[#fbf9f4]'
+                          }`}
+                        >
+                          {block.chapterOrTopic}
+                        </h4>
+                        <p className="text-[11px] text-[#d4af37] font-medium mt-0.5">
+                          {block.activityType}
+                        </p>
+                      </div>
+
+                      <p className="text-[11px] text-[#cbd5e1] leading-relaxed bg-[#070c18] p-2.5 rounded-xl border border-[#1e293b]">
+                        {block.keyTakeawayOrTip}
+                      </p>
+                    </div>
+
+                    <div className="flex items-center justify-between gap-2 pt-2 border-t border-[#1e293b] text-[11px]">
+                      <button
+                        type="button"
+                        onClick={() => handleToggleAIPlanBlock(block.id)}
+                        className={`flex items-center gap-1.5 font-semibold cursor-pointer ${
+                          block.completed ? 'text-emerald-400' : 'text-[#cbd5e1] hover:text-[#d4af37]'
+                        }`}
+                      >
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        <span>{block.completed ? 'Completed' : 'Mark Complete'}</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleAddAIBlockToDailyTasks(block)}
+                        className="px-2.5 py-1 rounded-lg bg-[#131b2e] hover:bg-[#192540] border border-[#d4af37]/25 text-[#d4af37] font-semibold flex items-center gap-1 cursor-pointer"
+                      >
+                        <Plus className="w-3 h-3" />
+                        <span>Add to Tasks</span>
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
       </section>
 
       {/* 3. Smart Daily Planner */}
