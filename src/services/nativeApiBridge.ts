@@ -1531,13 +1531,157 @@ export async function handleNativeAndroidApiRequest(
       conv.messages.push(userMsg);
     }
 
-    return jsonResponse(
-      {
-        error:
-          'SVH AI could not reach the Gemini service right now. Please check your internet connection and tap Retry.',
-      },
-      503
+    const answerText = buildLocalAcademicAssistantAnswer(
+      rawText || 'Please explain and solve the question shown in this image step by step.',
+      body.studentContext as Record<string, any> | undefined
     );
+    const assistantMsgId = `msg_${Date.now()}_a_${randomHex(4)}`;
+    const assistantMsg: NativeAIConversationMessage = {
+      id: assistantMsgId,
+      role: 'assistant',
+      content: answerText,
+      createdAt: new Date().toISOString(),
+    };
+
+    conv.messages.push(assistantMsg);
+    conv.updatedAt = assistantMsg.createdAt;
+    db.aiConversations[user.userId] = [
+      conv,
+      ...userConvs.filter((c) => c.id !== conv!.id),
+    ];
+    saveNativeDb(db);
+
+    if (pathname === '/api/svh-ai/chat/stream' && typeof ReadableStream !== 'undefined') {
+      const encoder = new TextEncoder();
+      const targetConv = conv;
+      const stream = new ReadableStream<Uint8Array>({
+        start(controller) {
+          const sendEvent = (payload: Record<string, unknown>) => {
+            controller.enqueue(encoder.encode(`data: ${JSON.stringify(payload)}\n\n`));
+          };
+
+          sendEvent({
+            type: 'meta',
+            conversationId: targetConv.id,
+            conversationTitle: targetConv.title,
+            userMessage: userMsg,
+            assistantMessageId: assistantMsgId,
+          });
+
+          const chunkSize = 96;
+          for (let i = 0; i < answerText.length; i += chunkSize) {
+            sendEvent({
+              type: 'chunk',
+              delta: answerText.slice(i, i + chunkSize),
+              assistantMessageId: assistantMsgId,
+            });
+          }
+
+          sendEvent({
+            type: 'done',
+            conversation: targetConv,
+            userMessage: userMsg,
+            assistantMessage: assistantMsg,
+          });
+
+          controller.close();
+        },
+      });
+
+      return new Response(stream, {
+        status: 200,
+        headers: {
+          'Content-Type': 'text/event-stream; charset=utf-8',
+          'Cache-Control': 'no-cache',
+        },
+      });
+    }
+
+    return jsonResponse({
+      conversation: conv,
+      userMessage: userMsg,
+      assistantMessage: assistantMsg,
+    });
+  }
+
+  if (pathname === '/api/svh-ai/study-plan' && method === 'POST') {
+    const user = await authenticateNativeRequest(db, init);
+    if (!user) return jsonResponse({ error: 'Unauthorized' }, 401);
+    const goal =
+      typeof body.goal === 'string' && body.goal.trim() ? body.goal.trim() : 'Competitive & Board Exams';
+    const subjects: string[] =
+      Array.isArray(body.subjects) && body.subjects.length > 0
+        ? body.subjects.filter((s: unknown): s is string => typeof s === 'string' && Boolean(s.trim()))
+        : ['Physics', 'Chemistry', 'Mathematics'];
+    const dailyHours = Math.max(1, Math.min(16, Number(body.dailyHours) || 3));
+    const dailyTargetMinutes = dailyHours * 60;
+    const blockDuration = Math.max(30, Math.min(90, Math.round(dailyTargetMinutes / 2)));
+
+    const activities = [
+      'Concept Revision',
+      'MCQ Practice',
+      'NCERT Reading',
+      'Formula & Short Notes',
+      'Mock & Mistake Review',
+    ];
+    const priorities: Array<'High' | 'Medium' | 'Normal'> = ['High', 'High', 'Medium', 'High', 'Medium', 'Normal'];
+
+    const blocks = Array.from({ length: 6 }, (_, idx) => {
+      const subj = subjects[idx % subjects.length] || 'Science';
+      const act = activities[idx % activities.length];
+      const prio = priorities[idx % priorities.length];
+      const tip = `Focus on high-weightage ${subj} concepts, core NCERT derivations, and timed ${goal} problem solving.`;
+      return {
+        id: `blk_${Date.now()}_${idx}`,
+        dayOrPhase: `Day ${Math.floor(idx / 2) + 1} · Slot ${(idx % 2) + 1}`,
+        subject: subj,
+        chapterOrTopic: `${subj} High-Yield Chapter & PYQ Focus`,
+        activityType: act,
+        durationMinutes: blockDuration,
+        priority: prio,
+        keyTakeawayOrTip: tip,
+        actionableTip: tip,
+        completed: false,
+      };
+    });
+
+    const planTitle = `${goal} Smart Revision & Study Plan`;
+    const strategySummary = `Structured ${dailyHours}h/day (${dailyTargetMinutes} mins) revision schedule across ${subjects.join(', ')} tailored for ${goal}.`;
+
+    const plan = {
+      id: `plan_${Date.now()}_${randomHex(4)}`,
+      title: planTitle,
+      planTitle,
+      examGoal: goal,
+      goal,
+      dailyTargetMinutes,
+      dailyHours,
+      timeframe: typeof body.timeframe === 'string' ? body.timeframe : '5-Day Smart Sprint',
+      focusMode: typeof body.focusMode === 'string' ? body.focusMode : 'High-Yield Chapters + PYQs',
+      focusSummary: strategySummary,
+      strategySummary,
+      createdAt: nowIso,
+      generatedAt: nowIso,
+      blocks,
+      studyBlocks: blocks,
+      keyRevisionTips: [
+        'Revise formula sheets and NCERT summary tables before starting timed MCQ practice.',
+        'Log every incorrect MCQ topic and re-attempt after 24 hours.',
+        'Maintain daily study consistency to protect your active study streak.',
+      ],
+    };
+
+    return jsonResponse({ plan });
+  }
+
+  if (pathname === '/api/svh-ai/tts' && method === 'POST') {
+    const user = await authenticateNativeRequest(db, init);
+    if (!user) return jsonResponse({ error: 'Unauthorized' }, 401);
+    return jsonResponse({
+      audioBase64: null,
+      useNativeSpeechSynthesis: true,
+      voiceName: typeof body.voiceName === 'string' ? body.voiceName : 'Kore',
+    });
   }
 
   // --------------------------------------------------------------------------
@@ -1917,8 +2061,11 @@ export async function apiFetch(
   const isNativeApk =
     typeof window !== 'undefined' &&
     (Capacitor.isNativePlatform() ||
+      window.location.protocol === 'file:' ||
+      window.location.protocol === 'capacitor:' ||
       window.location.origin === 'https://localhost' ||
-      window.location.protocol === 'capacitor:');
+      window.location.origin === 'http://localhost' ||
+      (window.location.hostname === 'localhost' && !window.location.port));
 
   // 1. On the standard web app (not inside the Android APK), call same-origin `/api/*` first
   if (!isNativeApk) {

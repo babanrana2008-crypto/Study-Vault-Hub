@@ -953,6 +953,40 @@ export const SVHAIFloatingAssistant: React.FC<SVHAIFloatingAssistantProps> = Rea
     }
 
     stopVoicePlayback();
+    setErrorState(null);
+
+    // 1. Explicitly trigger native audio permission request via navigator.mediaDevices.getUserMedia first
+    // so Android/iOS WebView (APK) and browsers always prompt for native RECORD_AUDIO permission.
+    if (typeof navigator !== 'undefined' && navigator.mediaDevices?.getUserMedia) {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true,
+          },
+        });
+        stream.getTracks().forEach((track) => track.stop());
+      } catch (permErr) {
+        const errName = (permErr as { name?: string })?.name || '';
+        if (
+          errName === 'NotAllowedError' ||
+          errName === 'PermissionDeniedError' ||
+          errName === 'SecurityError'
+        ) {
+          setErrorState(
+            'Microphone permission was denied. Please allow microphone access in your device/app settings, or type your question below.'
+          );
+          return;
+        }
+        if (errName === 'NotFoundError' || errName === 'DevicesNotFoundError') {
+          setErrorState(
+            'No microphone was detected on this device. You can still type your question below.'
+          );
+          return;
+        }
+      }
+    }
 
     const SpeechRec =
       (window as unknown as { SpeechRecognition?: new () => unknown; webkitSpeechRecognition?: new () => unknown })
@@ -961,25 +995,10 @@ export const SVHAIFloatingAssistant: React.FC<SVHAIFloatingAssistantProps> = Rea
 
     if (!SpeechRec) {
       setErrorState(
-        'Voice speech recognition is not supported on this device or browser. You can still type your question below.'
+        'Microphone permission is active, but native WebView speech-to-text is unavailable on this device. Please use your keyboard voice dictation mic or type your question below.'
       );
+      textareaRef.current?.focus();
       return;
-    }
-
-    // Request real microphone permission first when supported
-    if (typeof navigator !== 'undefined' && navigator.mediaDevices?.getUserMedia) {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        stream.getTracks().forEach((track) => track.stop());
-      } catch (permErr) {
-        const errName = (permErr as { name?: string })?.name || '';
-        if (errName === 'NotAllowedError' || errName === 'PermissionDeniedError') {
-          setErrorState(
-            'Microphone permission was denied. Please allow microphone access in your browser/app settings, or type your question below.'
-          );
-          return;
-        }
-      }
     }
 
     try {
