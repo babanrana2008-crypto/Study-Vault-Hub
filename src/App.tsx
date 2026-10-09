@@ -22,6 +22,7 @@ import { OwnerAnalyticsModal } from './components/OwnerAnalyticsModal';
 import { WhatsAppChannelBanner } from './components/WhatsAppChannelBanner';
 import { PremiumFooter } from './components/PremiumFooter';
 import { MiniBubbleBackground } from './components/MiniBubbleBackground';
+import { SVHErrorBoundary } from './components/SVHErrorBoundary';
 import { StudySession } from './types';
 import { apiFetch } from './services/nativeApiBridge';
 import { calculateUserVPBreakdown } from './utils/vpPoints';
@@ -1013,6 +1014,7 @@ export default function App() {
             : 'pb-24 md:pb-12'
         }`}
       >
+        <SVHErrorBoundary fallbackTitle="Section View Temporarily Paused">
         <div key={activeSection} className="svh-section-transition">
           {activeSection === 'home' && (
             <HomeSection
@@ -1119,6 +1121,7 @@ export default function App() {
             />
           )}
         </div>
+        </SVHErrorBoundary>
 
         {/* Premium Responsive Platform Footer */}
         <PremiumFooter onNavigate={handleNavigate} />
@@ -1149,14 +1152,16 @@ export default function App() {
       />
 
       {/* Premium Floating SVH AI Personal Study Assistant */}
-      <SVHAIFloatingAssistant
-        userStats={userStats}
-        onUpdateStats={handleUpdateStats}
-        activeGoal={activeGoal}
-        activeSubjects={activeSubjects}
-        isFloatingBottomDock={isFloatingBottomNav}
-        isFloatingTopDock={isMobileOrTabletPortrait}
-      />
+      <SVHErrorBoundary fallbackTitle="SVH AI Assistant Temporarily Paused">
+        <SVHAIFloatingAssistant
+          userStats={userStats}
+          onUpdateStats={handleUpdateStats}
+          activeGoal={activeGoal}
+          activeSubjects={activeSubjects}
+          isFloatingBottomDock={isFloatingBottomNav}
+          isFloatingTopDock={isMobileOrTabletPortrait}
+        />
+      </SVHErrorBoundary>
 
       {/* Book Reader Modal */}
       {readingBook && (

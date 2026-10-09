@@ -197,9 +197,9 @@ export const Header: React.FC<HeaderProps> = React.memo(({
           <button
             onClick={() => onNavigate('profile')}
             aria-label="Student Profile"
-            className={`h-7 sm:h-8 px-1.5 sm:px-2 rounded-lg border flex items-center gap-1.5 transition-all text-xs shrink-0 ${
+            className={`min-h-[28px] sm:min-h-[32px] py-0.5 px-1.5 sm:px-2.5 rounded-lg border flex items-center gap-1.5 transition-all text-xs shrink-0 max-w-[130px] sm:max-w-[160px] ${
               activeSection === 'profile'
-                ? 'border-[#d4af37] bg-[#d4af37]/20 text-[#fbf9f4]'
+                ? 'border-[#d4af37] bg-[#d4af37]/20 text-[#fbf9f4] shadow-[0_0_12px_rgba(212,175,55,0.2)]'
                 : 'border-[#d4af37]/25 bg-[#0f172a] text-[#cbd5e1] hover:text-[#fbf9f4] hover:border-[#d4af37]'
             }`}
           >
@@ -207,12 +207,16 @@ export const Header: React.FC<HeaderProps> = React.memo(({
               <img
                 src={userProfilePhotoUrl}
                 alt={userName || 'Student'}
+                loading="lazy"
+                decoding="async"
                 className="w-4 h-4 sm:w-5 sm:h-5 rounded-full object-cover border border-[#d4af37]/50 shrink-0 aspect-square"
               />
             ) : (
               <User className="w-3.5 h-3.5 text-[#d4af37] shrink-0" />
             )}
-            <span className="hidden sm:inline max-w-[80px] truncate">{userName}</span>
+            <span className="hidden sm:inline max-w-[96px] md:max-w-[116px] truncate leading-tight" title={userName}>
+              {userName}
+            </span>
           </button>
         </div>
       </div>

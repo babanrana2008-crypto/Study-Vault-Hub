@@ -469,7 +469,7 @@ export const HomeSection: React.FC<HomeSectionProps> = React.memo(({
       {/* ===================================================================== */}
       {/* 1. HERO BRANDING & WELCOME SECTION                                    */}
       {/* ===================================================================== */}
-      <section className="relative overflow-hidden rounded-2xl sm:rounded-3xl border border-[#d4af37]/35 bg-gradient-to-br from-[#0c1428] via-[#090f20] to-[#060b18] shadow-xl">
+      <section className="svh-card-glow relative overflow-hidden rounded-2xl sm:rounded-3xl border border-[#d4af37]/35 bg-gradient-to-br from-[#0c1428] via-[#090f20] to-[#060b18] shadow-xl">
         <div className="absolute top-0 right-0 w-72 h-72 bg-[#d4af37]/10 rounded-full blur-3xl pointer-events-none" />
 
         <div className="relative z-10 p-4 sm:p-7 space-y-5">
@@ -537,14 +537,14 @@ export const HomeSection: React.FC<HomeSectionProps> = React.memo(({
           </div>
 
           {/* Welcome User Statement */}
-          <div className="space-y-1">
-            <h2 className="font-display text-xl sm:text-2xl font-bold text-[#fbf9f4]">
+          <div className="space-y-1.5 min-w-0 max-w-full">
+            <h2 className="font-display text-xl sm:text-2xl font-bold text-[#fbf9f4] break-words leading-snug">
               Welcome{userStats.name ? `, ` : ' to Study Vault Hub'}
               {userStats.name && (
-                <span className="gold-gradient-text">{userStats.name}</span>
+                <span className="gold-gradient-text break-words">{userStats.name}</span>
               )}
             </h2>
-            <p className="text-xs sm:text-sm text-[#cbd5e1] leading-relaxed">
+            <p className="text-xs sm:text-sm text-[#cbd5e1] leading-relaxed break-words">
               {hasExplicitGoal ? (
                 <>
                   Your personalized workspace for{' '}
@@ -625,11 +625,11 @@ export const HomeSection: React.FC<HomeSectionProps> = React.memo(({
             </div>
 
             {hasExplicitGoal && (
-              <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar">
+              <div className="flex flex-wrap items-center gap-1.5 min-w-0 max-w-full">
                 {subjectsForActiveGoal.map((sub) => (
                   <span
                     key={sub}
-                    className="px-2 py-0.5 rounded-md bg-[#131b2e]/80 border border-[#d4af37]/20 text-[10px] font-medium text-[#cbd5e1] whitespace-nowrap"
+                    className="px-2.5 py-1 rounded-lg bg-[#131b2e]/85 border border-[#d4af37]/25 text-[10px] sm:text-[11px] font-medium text-[#cbd5e1] break-words leading-tight"
                   >
                     {sub}
                   </span>
@@ -1365,79 +1365,80 @@ export const HomeSection: React.FC<HomeSectionProps> = React.memo(({
           <span className="text-xs text-[#9ca3af]">Curated for {activeGoal}</span>
         </div>
 
+        {/* Quick Access Grid — Responsive min-h-[6rem] instead of fixed h-24 */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
           <button
             onClick={() => onNavigate('books')}
-            className="p-3.5 rounded-xl bg-[#0f172a] border border-[#d4af37]/25 hover:border-[#d4af37] text-left transition-all active:scale-[0.98] group flex flex-col justify-between h-24"
+            className="p-3.5 rounded-xl bg-[#0f172a] border border-[#d4af37]/25 hover:border-[#d4af37] text-left transition-all active:scale-[0.98] group flex flex-col justify-between gap-2.5 min-h-[6rem] h-auto"
           >
-            <div className="w-8 h-8 rounded-lg bg-[#19233c] border border-[#d4af37]/30 flex items-center justify-center text-[#d4af37] group-hover:scale-110 transition-transform">
+            <div className="w-8 h-8 rounded-lg bg-[#19233c] border border-[#d4af37]/30 flex items-center justify-center text-[#d4af37] group-hover:scale-110 transition-transform shrink-0">
               <BookOpen className="w-4 h-4" />
             </div>
-            <div>
-              <h3 className="font-display text-xs sm:text-sm font-semibold text-[#fbf9f4] group-hover:text-[#d4af37] transition-colors">
+            <div className="min-w-0">
+              <h3 className="font-display text-xs sm:text-sm font-semibold text-[#fbf9f4] group-hover:text-[#d4af37] transition-colors break-words leading-snug">
                 Books &amp; NCERT
               </h3>
-              <p className="text-[10px] text-[#9ca3af]">NCERT &amp; References</p>
+              <p className="text-[10px] text-[#9ca3af] break-words mt-0.5">NCERT &amp; References</p>
             </div>
           </button>
 
           <button
             onClick={() => onNavigate('notes')}
-            className="p-3.5 rounded-xl bg-[#0f172a] border border-[#d4af37]/25 hover:border-[#d4af37] text-left transition-all active:scale-[0.98] group flex flex-col justify-between h-24"
+            className="p-3.5 rounded-xl bg-[#0f172a] border border-[#d4af37]/25 hover:border-[#d4af37] text-left transition-all active:scale-[0.98] group flex flex-col justify-between gap-2.5 min-h-[6rem] h-auto"
           >
-            <div className="w-8 h-8 rounded-lg bg-[#19233c] border border-[#d4af37]/30 flex items-center justify-center text-[#d4af37] group-hover:scale-110 transition-transform">
+            <div className="w-8 h-8 rounded-lg bg-[#19233c] border border-[#d4af37]/30 flex items-center justify-center text-[#d4af37] group-hover:scale-110 transition-transform shrink-0">
               <FileText className="w-4 h-4" />
             </div>
-            <div>
-              <h3 className="font-display text-xs sm:text-sm font-semibold text-[#fbf9f4] group-hover:text-[#d4af37] transition-colors">
+            <div className="min-w-0">
+              <h3 className="font-display text-xs sm:text-sm font-semibold text-[#fbf9f4] group-hover:text-[#d4af37] transition-colors break-words leading-snug">
                 Notes
               </h3>
-              <p className="text-[10px] text-[#9ca3af]">High-Yield Summaries</p>
+              <p className="text-[10px] text-[#9ca3af] break-words mt-0.5">High-Yield Summaries</p>
             </div>
           </button>
 
           <button
             onClick={() => onNavigate('practice')}
-            className="p-3.5 rounded-xl bg-[#0f172a] border border-[#d4af37]/25 hover:border-[#d4af37] text-left transition-all active:scale-[0.98] group flex flex-col justify-between h-24"
+            className="p-3.5 rounded-xl bg-[#0f172a] border border-[#d4af37]/25 hover:border-[#d4af37] text-left transition-all active:scale-[0.98] group flex flex-col justify-between gap-2.5 min-h-[6rem] h-auto"
           >
-            <div className="w-8 h-8 rounded-lg bg-[#19233c] border border-[#d4af37]/30 flex items-center justify-center text-emerald-400 group-hover:scale-110 transition-transform">
+            <div className="w-8 h-8 rounded-lg bg-[#19233c] border border-[#d4af37]/30 flex items-center justify-center text-emerald-400 group-hover:scale-110 transition-transform shrink-0">
               <CheckCircle2 className="w-4 h-4" />
             </div>
-            <div>
-              <h3 className="font-display text-xs sm:text-sm font-semibold text-[#fbf9f4] group-hover:text-[#d4af37] transition-colors">
+            <div className="min-w-0">
+              <h3 className="font-display text-xs sm:text-sm font-semibold text-[#fbf9f4] group-hover:text-[#d4af37] transition-colors break-words leading-snug">
                 Question Practice
               </h3>
-              <p className="text-[10px] text-[#9ca3af]">MCQs &amp; Sprints</p>
+              <p className="text-[10px] text-[#9ca3af] break-words mt-0.5">MCQs &amp; Sprints</p>
             </div>
           </button>
 
           <button
             onClick={() => onNavigate('tracker')}
-            className="p-3.5 rounded-xl bg-[#0f172a] border border-[#d4af37]/25 hover:border-[#d4af37] text-left transition-all active:scale-[0.98] group flex flex-col justify-between h-24"
+            className="p-3.5 rounded-xl bg-[#0f172a] border border-[#d4af37]/25 hover:border-[#d4af37] text-left transition-all active:scale-[0.98] group flex flex-col justify-between gap-2.5 min-h-[6rem] h-auto"
           >
-            <div className="w-8 h-8 rounded-lg bg-[#19233c] border border-[#d4af37]/30 flex items-center justify-center text-[#d4af37] group-hover:scale-110 transition-transform">
+            <div className="w-8 h-8 rounded-lg bg-[#19233c] border border-[#d4af37]/30 flex items-center justify-center text-[#d4af37] group-hover:scale-110 transition-transform shrink-0">
               <BarChart3 className="w-4 h-4" />
             </div>
-            <div>
-              <h3 className="font-display text-xs sm:text-sm font-semibold text-[#fbf9f4] group-hover:text-[#d4af37] transition-colors">
+            <div className="min-w-0">
+              <h3 className="font-display text-xs sm:text-sm font-semibold text-[#fbf9f4] group-hover:text-[#d4af37] transition-colors break-words leading-snug">
                 Study Tracker
               </h3>
-              <p className="text-[10px] text-[#9ca3af]">Timer &amp; Daily Tasks</p>
+              <p className="text-[10px] text-[#9ca3af] break-words mt-0.5">Timer &amp; Daily Tasks</p>
             </div>
           </button>
 
           <button
             onClick={() => onNavigate('prep')}
-            className="p-3.5 rounded-xl bg-[#0f172a] border border-[#d4af37]/25 hover:border-[#d4af37] text-left transition-all active:scale-[0.98] group flex flex-col justify-between h-24 col-span-2 sm:col-span-1"
+            className="p-3.5 rounded-xl bg-[#0f172a] border border-[#d4af37]/25 hover:border-[#d4af37] text-left transition-all active:scale-[0.98] group flex flex-col justify-between gap-2.5 min-h-[6rem] h-auto col-span-2 sm:col-span-1"
           >
-            <div className="w-8 h-8 rounded-lg bg-[#19233c] border border-[#d4af37]/30 flex items-center justify-center text-amber-400 group-hover:scale-110 transition-transform">
+            <div className="w-8 h-8 rounded-lg bg-[#19233c] border border-[#d4af37]/30 flex items-center justify-center text-amber-400 group-hover:scale-110 transition-transform shrink-0">
               <Award className="w-4 h-4" />
             </div>
-            <div>
-              <h3 className="font-display text-xs sm:text-sm font-semibold text-[#fbf9f4] group-hover:text-[#d4af37] transition-colors truncate">
+            <div className="min-w-0">
+              <h3 className="font-display text-xs sm:text-sm font-semibold text-[#fbf9f4] group-hover:text-[#d4af37] transition-colors break-words leading-snug">
                 {activeGoal} Prep
               </h3>
-              <p className="text-[10px] text-[#9ca3af]">Blueprint &amp; Matrix</p>
+              <p className="text-[10px] text-[#9ca3af] break-words mt-0.5">Blueprint &amp; Matrix</p>
             </div>
           </button>
         </div>

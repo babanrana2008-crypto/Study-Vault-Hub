@@ -32,7 +32,7 @@ export const BottomNav: React.FC<BottomNavProps> = React.memo(
           aria-label="Bottom Navigation"
           className="fixed bottom-[calc(0.65rem+env(safe-area-inset-bottom))] left-0 right-0 z-40 px-2.5 pointer-events-none"
         >
-          <div className="pointer-events-auto grid grid-cols-7 h-16 w-full max-w-md mx-auto px-1 rounded-2xl bg-[#060b18]/95 backdrop-blur-xl border border-[#d4af37]/35 shadow-[0_10px_30px_rgba(0,0,0,0.65),0_0_20px_rgba(212,175,55,0.14)] overflow-hidden">
+          <div className="pointer-events-auto grid grid-cols-7 min-h-[4rem] py-1 w-full max-w-md mx-auto px-1 rounded-2xl bg-[#060b18]/95 backdrop-blur-xl border border-[#d4af37]/35 shadow-[0_10px_30px_rgba(0,0,0,0.65),0_0_20px_rgba(212,175,55,0.14)] overflow-hidden">
             {navItems.map((item) => {
               const Icon = item.icon;
               const isActive = activeSection === item.id;
@@ -87,7 +87,7 @@ export const BottomNav: React.FC<BottomNavProps> = React.memo(
         aria-label="Bottom Navigation"
         className="md:hidden fixed bottom-0 left-0 right-0 z-40 w-full max-w-full bg-[#060b18]/95 backdrop-blur-lg border-t border-[#d4af37]/25 pb-[env(safe-area-inset-bottom)]"
       >
-        <div className="grid grid-cols-7 h-16 w-full max-w-lg mx-auto px-0.5">
+        <div className="grid grid-cols-7 min-h-[4rem] py-1 w-full max-w-lg mx-auto px-0.5">
           {navItems.map((item) => {
             const Icon = item.icon;
             const isActive = activeSection === item.id;

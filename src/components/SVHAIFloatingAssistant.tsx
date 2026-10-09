@@ -16,14 +16,9 @@ import {
   Target,
   CheckCircle2,
   Clock,
-  Volume2,
-  VolumeX,
-  Mic,
-  MicOff,
   Copy,
   Check,
   Calendar,
-  Headphones,
 } from 'lucide-react';
 import { UserStats, SVHAIButtonPosition, AISmartRevisionPlan } from '../types';
 import { APP_LOGO, SAMPLE_BOOKS, SAMPLE_NOTES } from '../data/sampleData';
@@ -116,14 +111,9 @@ async function compressQuestionImage(file: File): Promise<string> {
 const SVHAIMessageItem = React.memo<{
   msg: SVHAIMessage;
   displayUserName: string;
-  speakingMessageId: string | null;
-  isLoadingTTSId: string | null;
-  onSpeakMessage: (msg: SVHAIMessage) => void;
-}>(({ msg, displayUserName, speakingMessageId, isLoadingTTSId, onSpeakMessage }) => {
+}>(({ msg, displayUserName }) => {
   const isUser = msg.role === 'user';
   const [copied, setCopied] = useState(false);
-  const isSpeaking = speakingMessageId === msg.id;
-  const isLoadingAudio = isLoadingTTSId === msg.id;
 
   const handleCopy = () => {
     if (!msg.content) return;
@@ -134,71 +124,46 @@ const SVHAIMessageItem = React.memo<{
 
   return (
     <div
-      className={`flex flex-col ${
+      className={`svh-chat-msg-enter flex flex-col min-w-0 max-w-full ${
         isUser ? 'items-end' : 'items-start'
       }`}
     >
       <div
-        className={`max-w-[90%] sm:max-w-[85%] rounded-2xl p-3.5 sm:p-4 space-y-2 border shadow-sm ${
+        className={`max-w-[92%] sm:max-w-[86%] min-w-0 rounded-2xl p-3.5 sm:p-4 space-y-2 border shadow-sm overflow-hidden ${
           isUser
             ? 'bg-gradient-to-br from-[#d3dfed] to-[#c4d4e6] border-[#96b0cb] text-[#162438]'
             : 'bg-[#edf3f9] border-[#c5d4e5] text-[#1c2b3e]'
         }`}
       >
-        <div className="flex items-center justify-between gap-3 text-[10px] font-mono">
+        <div className="flex items-center justify-between gap-2 text-[10px] font-mono min-w-0">
           <span
             className={
               isUser
-                ? 'text-[#1e3554] font-bold'
-                : 'text-[#244166] font-bold flex items-center gap-1'
+                ? 'text-[#1e3554] font-bold truncate max-w-[160px] sm:max-w-[240px]'
+                : 'text-[#244166] font-bold flex items-center gap-1 shrink-0'
             }
           >
-            {!isUser && <Sparkles className="w-3 h-3 text-[#2d5380]" />}
-            {isUser ? displayUserName || 'You' : 'SVH AI'}
+            {!isUser && <Sparkles className="w-3 h-3 text-[#2d5380] shrink-0" />}
+            <span className="truncate">{isUser ? displayUserName || 'You' : 'SVH AI'}</span>
           </span>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 shrink-0">
             {!isUser && msg.content && (
-              <>
-                <button
-                  type="button"
-                  onClick={() => onSpeakMessage(msg)}
-                  title={isSpeaking ? 'Stop AI Voice Tutor' : 'Listen with AI Voice Tutor'}
-                  className={`px-2 py-0.5 rounded-md border flex items-center gap-1 transition-all cursor-pointer ${
-                    isSpeaking
-                      ? 'bg-[#b8cde3] text-[#132238] border-[#7e9ec2] font-bold shadow-xs'
-                      : 'bg-[#dce7f3] hover:bg-[#ceddf0] border-[#b0c5dd] text-[#1f3654]'
-                  }`}
-                >
-                  {isSpeaking ? (
-                    <>
-                      <VolumeX className="w-3 h-3" />
-                      <span>Stop</span>
-                    </>
-                  ) : (
-                    <>
-                      <Volume2 className="w-3 h-3" />
-                      <span>{isLoadingAudio ? 'Loading...' : 'Listen'}</span>
-                    </>
-                  )}
-                </button>
-
-                <button
-                  type="button"
-                  onClick={handleCopy}
-                  title="Copy explanation"
-                  className="p-1 rounded-md bg-[#dce7f3] hover:bg-[#ceddf0] border border-[#b0c5dd] text-[#284263] hover:text-[#132238] transition-colors cursor-pointer"
-                >
-                  {copied ? (
-                    <Check className="w-3 h-3 text-emerald-700" />
-                  ) : (
-                    <Copy className="w-3 h-3" />
-                  )}
-                </button>
-              </>
+              <button
+                type="button"
+                onClick={handleCopy}
+                title="Copy explanation"
+                className="p-1 rounded-md bg-[#dce7f3] hover:bg-[#ceddf0] border border-[#b0c5dd] text-[#284263] hover:text-[#132238] transition-colors cursor-pointer shrink-0"
+              >
+                {copied ? (
+                  <Check className="w-3 h-3 text-emerald-700" />
+                ) : (
+                  <Copy className="w-3 h-3" />
+                )}
+              </button>
             )}
 
-            <span className="text-[#4a6280]">
+            <span className="text-[#4a6280] whitespace-nowrap">
               {new Date(msg.createdAt).toLocaleTimeString([], {
                 hour: '2-digit',
                 minute: '2-digit',
@@ -214,11 +179,12 @@ const SVHAIMessageItem = React.memo<{
               alt="Uploaded question"
               className="max-h-56 w-auto mx-auto object-contain"
               loading="lazy"
+              decoding="async"
             />
           </div>
         )}
 
-        <div className="text-xs sm:text-sm whitespace-pre-wrap break-words leading-relaxed text-[#162438]">
+        <div className="svh-ai-message-body text-xs sm:text-sm whitespace-pre-wrap break-words leading-[1.65] text-[#162438]">
           {msg.content}
         </div>
       </div>
@@ -492,18 +458,9 @@ export const SVHAIFloatingAssistant: React.FC<SVHAIFloatingAssistantProps> = Rea
   } | null>(null);
   const [confirmClearAll, setConfirmClearAll] = useState<boolean>(false);
 
-  // AI Voice Tutor & Smart Study Planner state
-  const [isVoiceTutorMode, setIsVoiceTutorMode] = useState<boolean>(false);
-  const [autoSpeakTutor, setAutoSpeakTutor] = useState<boolean>(false);
-  const [isListeningMic, setIsListeningMic] = useState<boolean>(false);
-  const [speakingMessageId, setSpeakingMessageId] = useState<string | null>(null);
-  const [isLoadingTTSId, setIsLoadingTTSId] = useState<string | null>(null);
+  // Smart Study Planner state
   const [isGeneratingPlan, setIsGeneratingPlan] = useState<boolean>(false);
   const [planAddedToast, setPlanAddedToast] = useState<string | null>(null);
-
-  const audioContextRef = useRef<AudioContext | null>(null);
-  const activeAudioSourceRef = useRef<AudioBufferSourceNode | null>(null);
-  const speechRecognitionRef = useRef<unknown>(null);
 
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const chatScrollContainerRef = useRef<HTMLDivElement | null>(null);
@@ -795,261 +752,14 @@ export const SVHAIFloatingAssistant: React.FC<SVHAIFloatingAssistantProps> = Rea
     }
   }, [isOpen]);
 
-  // Abort any in-flight stream on component unmount and support Escape key + mobile scroll lock when open
+  // Abort any in-flight stream on component unmount
   useEffect(() => {
     return () => {
       if (activeAbortControllerRef.current) {
         activeAbortControllerRef.current.abort();
       }
-      if (activeAudioSourceRef.current) {
-        try {
-          activeAudioSourceRef.current.stop();
-        } catch {
-          // ignore
-        }
-      }
-      if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-        window.speechSynthesis.cancel();
-      }
-      if (speechRecognitionRef.current) {
-        try {
-          (speechRecognitionRef.current as { abort?: () => void })?.abort?.();
-        } catch {
-          // ignore
-        }
-        speechRecognitionRef.current = null;
-      }
     };
   }, []);
-
-  // Stop any playing AI Voice Tutor audio
-  const stopVoicePlayback = useCallback(() => {
-    if (activeAudioSourceRef.current) {
-      try {
-        activeAudioSourceRef.current.stop();
-        activeAudioSourceRef.current.disconnect();
-      } catch {
-        // ignore
-      }
-      activeAudioSourceRef.current = null;
-    }
-    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
-    }
-    setSpeakingMessageId(null);
-    setIsLoadingTTSId(null);
-  }, []);
-
-  // Speak any SVH AI message using Gemini 2.5 Flash TTS (with Web Speech API fallback)
-  const speakMessageWithGeminiTTS = useCallback(
-    async (msg: SVHAIMessage) => {
-      if (!msg?.content) return;
-      if (speakingMessageId === msg.id) {
-        stopVoicePlayback();
-        return;
-      }
-
-      stopVoicePlayback();
-      setIsLoadingTTSId(msg.id);
-
-      const cleanText = msg.content
-        .replace(/[#*`_~>-]/g, ' ')
-        .replace(/\s+/g, ' ')
-        .trim()
-        .slice(0, 1100);
-
-      try {
-        let activeId = getLatestIdentity() || (await ensureIdentity());
-        if (!activeId?.authToken) {
-          activeId = await ensureIdentity(true);
-        }
-
-        if (activeId?.authToken) {
-          const res = await apiFetch('/api/svh-ai/tts', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${activeId.authToken}`,
-            },
-            body: JSON.stringify({
-              text: cleanText,
-              voiceName: 'Kore',
-            }),
-          });
-
-          if (res.ok) {
-            const data = await res.json();
-            if (data?.audioBase64) {
-              const binaryStr = window.atob(data.audioBase64);
-              const len = binaryStr.length;
-              const bytes = new Uint8Array(len);
-              for (let i = 0; i < len; i++) {
-                bytes[i] = binaryStr.charCodeAt(i);
-              }
-
-              const AudioCtx =
-                window.AudioContext ||
-                (window as unknown as { webkitAudioContext: typeof AudioContext })
-                  .webkitAudioContext;
-              if (!audioContextRef.current) {
-                audioContextRef.current = new AudioCtx({ sampleRate: 24000 });
-              }
-              const ctx = audioContextRef.current;
-              if (ctx.state === 'suspended') {
-                await ctx.resume();
-              }
-
-              // Convert 16-bit PCM little-endian at 24kHz to AudioBuffer
-              const int16 = new Int16Array(bytes.buffer, 0, Math.floor(bytes.byteLength / 2));
-              const audioBuffer = ctx.createBuffer(1, int16.length, 24000);
-              const channelData = audioBuffer.getChannelData(0);
-              for (let i = 0; i < int16.length; i++) {
-                channelData[i] = int16[i] / 32768.0;
-              }
-
-              const source = ctx.createBufferSource();
-              source.buffer = audioBuffer;
-              source.connect(ctx.destination);
-              source.onended = () => {
-                setSpeakingMessageId((prev) => (prev === msg.id ? null : prev));
-                activeAudioSourceRef.current = null;
-              };
-
-              activeAudioSourceRef.current = source;
-              setIsLoadingTTSId(null);
-              setSpeakingMessageId(msg.id);
-              source.start(0);
-              return;
-            }
-          }
-        }
-      } catch {
-        // Fallback to browser speechSynthesis below
-      }
-
-      // Fallback to native SpeechSynthesis if offline or TTS quota reached
-      setIsLoadingTTSId(null);
-      if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-        window.speechSynthesis.cancel();
-        const utterance = new SpeechSynthesisUtterance(cleanText);
-        utterance.rate = 1.02;
-        utterance.onend = () => {
-          setSpeakingMessageId((prev) => (prev === msg.id ? null : prev));
-        };
-        utterance.onerror = () => {
-          setSpeakingMessageId((prev) => (prev === msg.id ? null : prev));
-        };
-        setSpeakingMessageId(msg.id);
-        window.speechSynthesis.speak(utterance);
-      }
-    },
-    [speakingMessageId, stopVoicePlayback, getLatestIdentity, ensureIdentity]
-  );
-
-  // Voice Input (Microphone Speech-to-Text) for AI Voice Tutor — Direct start on tap without pre-checks
-  const toggleMicrophoneVoiceInput = useCallback(() => {
-    if (isListeningMic) {
-      const rec = speechRecognitionRef.current as { stop?: () => void; abort?: () => void } | null;
-      try {
-        rec?.stop?.();
-      } catch {
-        // ignore
-      }
-      speechRecognitionRef.current = null;
-      setIsListeningMic(false);
-      return;
-    }
-
-    stopVoicePlayback();
-    setErrorState(null);
-
-    const SpeechRec =
-      (window as unknown as { SpeechRecognition?: new () => unknown; webkitSpeechRecognition?: new () => unknown })
-        .SpeechRecognition ||
-      (window as unknown as { webkitSpeechRecognition?: new () => unknown }).webkitSpeechRecognition;
-
-    if (!SpeechRec) {
-      textareaRef.current?.focus();
-      return;
-    }
-
-    try {
-      const prevRec = speechRecognitionRef.current as { abort?: () => void } | null;
-      try {
-        prevRec?.abort?.();
-      } catch {
-        // ignore
-      }
-
-      const recognition = new SpeechRec() as {
-        lang: string;
-        continuous: boolean;
-        interimResults: boolean;
-        maxAlternatives: number;
-        onstart: () => void;
-        onresult: (event: {
-          results: ArrayLike<{ isFinal?: boolean; 0: { transcript: string } }>;
-        }) => void;
-        onerror: (event: { error?: string }) => void;
-        onend: () => void;
-        start: () => void;
-      };
-      recognition.lang = 'en-IN';
-      recognition.continuous = false;
-      recognition.interimResults = true;
-      recognition.maxAlternatives = 1;
-
-      let finalCapturedTranscript = '';
-
-      recognition.onstart = () => {
-        setIsListeningMic(true);
-        setErrorState(null);
-      };
-
-      recognition.onresult = (event) => {
-        let interimTranscript = '';
-        let finalTranscript = '';
-        const len = event.results?.length || 0;
-        for (let i = 0; i < len; i++) {
-          const res = event.results[i];
-          const textPiece = res?.[0]?.transcript || '';
-          if (res?.isFinal) {
-            finalTranscript += textPiece;
-          } else {
-            interimTranscript += textPiece;
-          }
-        }
-        const combined = (finalTranscript || interimTranscript).trim();
-        if (combined) {
-          finalCapturedTranscript = combined;
-          setInputPrompt(combined);
-        }
-      };
-
-      recognition.onerror = () => {
-        setIsListeningMic(false);
-        speechRecognitionRef.current = null;
-      };
-
-      recognition.onend = () => {
-        setIsListeningMic(false);
-        speechRecognitionRef.current = null;
-        const cleanSpoken = finalCapturedTranscript.trim();
-        if (cleanSpoken && !isSubmittingRef.current) {
-          setAutoSpeakTutor(true);
-          setTimeout(() => {
-            sendPromptToSVHAI(cleanSpoken, null);
-          }, 120);
-        }
-      };
-
-      speechRecognitionRef.current = recognition;
-      recognition.start();
-    } catch {
-      setIsListeningMic(false);
-      speechRecognitionRef.current = null;
-    }
-  }, [isListeningMic, stopVoicePlayback]);
 
   // Generate AI Smart Revision Plan directly inside SVH AI & sync to Study Planner
   const handleGenerateQuickSmartPlan = async () => {
@@ -1424,23 +1134,40 @@ export const SVHAIFloatingAssistant: React.FC<SVHAIFloatingAssistantProps> = Rea
         throw new Error('Could not initialize secure session. Please tap Retry.');
       }
 
-      const executeStreamRequest = async (token: string) =>
-        apiFetch('/api/svh-ai/chat/stream', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            conversationId: targetConvId,
-            clientTurnId: userMsgId,
-            isRetry: Boolean(retryOptions?.isRetry),
-            message: trimmed,
-            imageUrl: imageToUse || undefined,
-            studentContext: realStudentContext,
-          }),
-          signal: abortController.signal,
-        });
+      const executeStreamRequest = async (token: string, attempt = 0): Promise<Response> => {
+        try {
+          const response = await apiFetch('/api/svh-ai/chat/stream', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+              conversationId: targetConvId,
+              clientTurnId: userMsgId,
+              isRetry: Boolean(retryOptions?.isRetry) || attempt > 0,
+              message: trimmed,
+              imageUrl: imageToUse || undefined,
+              studentContext: realStudentContext,
+            }),
+            signal: abortController.signal,
+          });
+          if (!response.ok && response.status >= 500 && attempt < 1) {
+            await new Promise((r) => setTimeout(r, 400));
+            return executeStreamRequest(token, attempt + 1);
+          }
+          return response;
+        } catch (fetchErr) {
+          if ((fetchErr as Error)?.name === 'AbortError') {
+            throw fetchErr;
+          }
+          if (attempt < 1) {
+            await new Promise((r) => setTimeout(r, 400));
+            return executeStreamRequest(token, attempt + 1);
+          }
+          throw fetchErr;
+        }
+      };
 
       let res = await executeStreamRequest(activeId.authToken);
       if (res.status === 401) {
@@ -1544,16 +1271,6 @@ export const SVHAIFloatingAssistant: React.FC<SVHAIFloatingAssistantProps> = Rea
                     ...prev.filter((c) => c.id !== finalConv.id),
                   ]);
                   setActiveConversationId(finalConv.id);
-                  if (autoSpeakTutor || isVoiceTutorMode) {
-                    const lastAi = [...(finalConv.messages || [])]
-                      .reverse()
-                      .find((m) => m.role === 'assistant');
-                    if (lastAi) {
-                      setTimeout(() => {
-                        speakMessageWithGeminiTTS(lastAi);
-                      }, 150);
-                    }
-                  }
                 }
               } else if (eventData.type === 'error') {
                 throw new Error(
@@ -1578,16 +1295,6 @@ export const SVHAIFloatingAssistant: React.FC<SVHAIFloatingAssistantProps> = Rea
             ...prev.filter((c) => c.id !== updatedConv.id),
           ]);
           setActiveConversationId(updatedConv.id);
-          if (autoSpeakTutor || isVoiceTutorMode) {
-            const lastAi = [...(updatedConv.messages || [])]
-              .reverse()
-              .find((m) => m.role === 'assistant');
-            if (lastAi) {
-              setTimeout(() => {
-                speakMessageWithGeminiTTS(lastAi);
-              }, 150);
-            }
-          }
         }
       }
     } catch (err) {
@@ -1769,21 +1476,22 @@ export const SVHAIFloatingAssistant: React.FC<SVHAIFloatingAssistantProps> = Rea
           />
 
           <div
-            className={`w-full h-full sm:rounded-3xl bg-gradient-to-b from-[#e6eef7] via-[#edf3fa] to-[#e2ecf6] border-0 sm:border-2 sm:border-[#b5c8de] shadow-[0_20px_50px_rgba(22,36,56,0.25)] flex flex-col overflow-hidden transition-all duration-200 will-change-transform ${
+            className={`svh-chatbot-panel-glow w-full h-full sm:rounded-3xl bg-gradient-to-b from-[#e6eef7] via-[#edf3fa] to-[#e2ecf6] border-0 sm:border-2 sm:border-[#b5c8de] flex flex-col overflow-hidden transition-all duration-200 will-change-transform ${
               isExpandedDesktop
                 ? 'sm:w-[92vw] sm:max-w-4xl sm:h-[85vh] sm:max-h-[calc(100dvh-2rem)]'
                 : 'sm:w-[430px] md:w-[480px] sm:h-[660px] sm:max-h-[calc(100vh-2.5rem)] sm:max-h-[calc(100dvh-2rem)]'
             }`}
           >
             {/* Top Header */}
-            <div className="px-4 py-3.5 bg-[#d8e5f3]/95 border-b border-[#b5c8de] flex items-center justify-between gap-2 shrink-0">
-              <div className="flex items-center gap-2.5 min-w-0">
+            <div className="px-4 py-3.5 bg-[#d8e5f3]/95 border-b border-[#b5c8de] flex items-center justify-between gap-2 shrink-0 min-w-0">
+              <div className="flex items-center gap-2.5 min-w-0 flex-1">
                 <div className="w-9 h-9 rounded-full overflow-hidden flex items-center justify-center shrink-0 aspect-square border border-[#9eb8d4] bg-[#eef4fa]">
                   <img
                     src={logoSrc}
                     alt="SVH AI"
                     className="w-full h-full rounded-full object-contain aspect-square"
                     referrerPolicy="no-referrer"
+                    decoding="async"
                     onError={() => {
                       if (logoSrc !== '/official_logo.jpg') {
                         setLogoSrc('/official_logo.jpg');
@@ -1791,13 +1499,13 @@ export const SVHAIFloatingAssistant: React.FC<SVHAIFloatingAssistantProps> = Rea
                     }}
                   />
                 </div>
-                <div className="min-w-0">
-                  <div className="flex items-center gap-1.5">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
                     <Sparkles className="w-3.5 h-3.5 text-[#2b4c73] shrink-0" />
                     <h2 className="font-display text-sm sm:text-base font-bold text-[#162438] truncate">
                       SVH AI
                     </h2>
-                    <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-[#c6d8ec] text-[#1e3859] border border-[#9eb8d4] font-semibold">
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-[#c6d8ec] text-[#1e3859] border border-[#9eb8d4] font-semibold whitespace-nowrap shrink-0">
                       Personal Tutor
                     </span>
                   </div>
@@ -1807,28 +1515,8 @@ export const SVHAIFloatingAssistant: React.FC<SVHAIFloatingAssistantProps> = Rea
                 </div>
               </div>
 
-              {/* Header Controls: Voice Tutor, New Chat, History, Expand (Desktop), Close */}
+              {/* Header Controls: New Chat, History, Expand (Desktop), Close */}
               <div className="flex items-center gap-1.5 shrink-0">
-                <button
-                  onClick={() => {
-                    const nextMode = !isVoiceTutorMode;
-                    setIsVoiceTutorMode(nextMode);
-                    setAutoSpeakTutor(nextMode);
-                    if (!nextMode) {
-                      stopVoicePlayback();
-                    }
-                  }}
-                  title="AI Voice Tutor Mode (Speak & Listen)"
-                  className={`px-2.5 py-1.5 rounded-xl border text-xs flex items-center gap-1 transition-all cursor-pointer ${
-                    isVoiceTutorMode
-                      ? 'bg-[#b3cae3] text-[#112033] border-[#7b9bc0] font-bold shadow-xs'
-                      : 'bg-[#e8f0f8] hover:bg-[#d7e5f3] border-[#b2c7df] text-[#1f3654]'
-                  }`}
-                >
-                  <Headphones className="w-3.5 h-3.5" />
-                  <span className="hidden xs:inline">Voice Tutor</span>
-                </button>
-
                 <button
                   onClick={handleStartNewChat}
                   title="New Chat"
@@ -1875,20 +1563,21 @@ export const SVHAIFloatingAssistant: React.FC<SVHAIFloatingAssistantProps> = Rea
             </div>
 
             {/* Real User Data Context Strip + AI Smart Study Planner Trigger */}
-            <div className="px-4 py-2 bg-[#dfe9f5] border-b border-[#bfd1e5] flex items-center justify-between gap-2 text-[11px] text-[#2c4463] overflow-x-auto no-scrollbar shrink-0">
-              <div className="flex items-center gap-3 whitespace-nowrap">
+            <div className="px-4 py-2 bg-[#dfe9f5] border-b border-[#bfd1e5] flex flex-wrap items-center justify-between gap-2 text-[11px] text-[#2c4463] shrink-0 min-w-0">
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 min-w-0 flex-1">
                 {displayUserName && (
-                  <span className="text-[#162438] font-medium">
-                    Student: <strong className="text-[#1e3a5f]">{displayUserName}</strong>
+                  <span className="text-[#162438] font-medium inline-flex items-center gap-1 max-w-[180px] sm:max-w-[220px] min-w-0">
+                    <span className="shrink-0">Student:</span>
+                    <strong className="text-[#1e3a5f] truncate">{displayUserName}</strong>
                   </span>
                 )}
-                <span className="flex items-center gap-1">
-                  <Target className="w-3 h-3 text-[#2b4c73]" />
-                  <span>{activeGoal || 'General Study'}</span>
+                <span className="inline-flex items-center gap-1 min-w-0">
+                  <Target className="w-3 h-3 text-[#2b4c73] shrink-0" />
+                  <span className="truncate max-w-[140px]">{activeGoal || 'General Study'}</span>
                 </span>
-                <span className="flex items-center gap-1">
-                  <CheckCircle2 className="w-3 h-3 text-emerald-700" />
-                  <span>
+                <span className="inline-flex items-center gap-1 shrink-0">
+                  <CheckCircle2 className="w-3 h-3 text-emerald-700 shrink-0" />
+                  <span className="whitespace-nowrap">
                     {userStats.questionsAttempted > 0
                       ? `${userStats.questionsAttempted} Solved (${(
                           (userStats.correctAnswers / userStats.questionsAttempted) *
@@ -1903,78 +1592,12 @@ export const SVHAIFloatingAssistant: React.FC<SVHAIFloatingAssistantProps> = Rea
                 type="button"
                 onClick={handleGenerateQuickSmartPlan}
                 disabled={isGeneratingPlan || isGenerating}
-                className="px-2.5 py-1 rounded-lg bg-[#ceddf0] hover:bg-[#bdd1e8] border border-[#9ab4d1] text-[#162840] font-semibold text-[10px] flex items-center gap-1 shrink-0 transition-colors cursor-pointer disabled:opacity-50"
+                className="px-2.5 py-1 rounded-xl bg-[#ceddf0] hover:bg-[#bdd1e8] border border-[#9ab4d1] text-[#162840] font-semibold text-[10px] flex items-center gap-1 shrink-0 transition-all cursor-pointer disabled:opacity-50 whitespace-nowrap"
               >
-                <Calendar className="w-3 h-3 text-[#234166]" />
+                <Calendar className="w-3 h-3 text-[#234166] shrink-0" />
                 <span>{isGeneratingPlan ? 'Planning...' : 'Smart Revision Plan'}</span>
               </button>
             </div>
-
-            {/* AI Voice Tutor Active Banner */}
-            {isVoiceTutorMode && (
-              <div className="px-4 py-2.5 bg-gradient-to-r from-[#d4e2f2] via-[#dce8f6] to-[#d4e2f2] border-b border-[#adc3dc] flex items-center justify-between gap-3 shrink-0">
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <div
-                    className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 ${
-                      speakingMessageId || isListeningMic
-                        ? 'bg-[#b3cae3] text-[#112033] border border-[#7b9bc0] animate-pulse'
-                        : 'bg-[#e6eef8] text-[#234166] border border-[#a6bed9]'
-                    }`}
-                  >
-                    <Headphones className="w-3.5 h-3.5" />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-xs font-bold text-[#162438] truncate">
-                      AI Voice Tutor Active{' '}
-                      <span className="text-[10px] font-mono text-[#2b4c73]">
-                        (Gemini Neural Voice)
-                      </span>
-                    </p>
-                    <p className="text-[10px] text-[#354f6e] truncate">
-                      {isListeningMic
-                        ? 'Listening to your question... speak clearly'
-                        : speakingMessageId
-                        ? 'SVH AI Tutor is speaking explanation aloud...'
-                        : 'Tap Speak Doubt or the Mic button to ask by voice'}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-1.5 shrink-0">
-                  {speakingMessageId && (
-                    <button
-                      type="button"
-                      onClick={stopVoicePlayback}
-                      className="px-2.5 py-1 rounded-lg bg-[#f2d8dc] border border-[#d69ba4] text-[#6e1c2a] text-[10px] font-bold flex items-center gap-1 cursor-pointer"
-                    >
-                      <VolumeX className="w-3 h-3" />
-                      <span>Mute</span>
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    onClick={toggleMicrophoneVoiceInput}
-                    className={`px-2.5 py-1 rounded-lg text-[10px] font-bold flex items-center gap-1 cursor-pointer transition-all border ${
-                      isListeningMic
-                        ? 'bg-[#e8b4bc] text-[#5c1420] border-[#c9828d] animate-pulse'
-                        : 'bg-[#bdd1e8] hover:bg-[#acc4e0] text-[#132238] border-[#8eabcb]'
-                    }`}
-                  >
-                    {isListeningMic ? (
-                      <>
-                        <MicOff className="w-3 h-3" />
-                        <span>Stop Mic</span>
-                      </>
-                    ) : (
-                      <>
-                        <Mic className="w-3 h-3" />
-                        <span>Speak Doubt</span>
-                      </>
-                    )}
-                  </button>
-                </div>
-              </div>
-            )}
 
             {planAddedToast && (
               <div className="px-4 py-2 bg-[#d7ece3] border-b border-[#9ec8b5] text-[#154230] text-xs flex items-center justify-between gap-2 shrink-0">
@@ -2140,9 +1763,9 @@ export const SVHAIFloatingAssistant: React.FC<SVHAIFloatingAssistantProps> = Rea
                           key={suggestion}
                           onClick={() => sendPromptToSVHAI(suggestion, null)}
                           disabled={isGenerating}
-                          className="p-3 rounded-xl bg-[#f0f5fb] hover:bg-[#dfeaf6] border border-[#bfd1e5] hover:border-[#8eabcb] text-xs text-[#162438] flex items-center justify-between gap-2 transition-all group cursor-pointer shadow-2xs"
+                          className="p-3 min-h-[2.75rem] rounded-xl bg-[#f0f5fb] hover:bg-[#dfeaf6] border border-[#bfd1e5] hover:border-[#8eabcb] text-xs text-[#162438] flex items-center justify-between gap-2.5 transition-all group cursor-pointer shadow-2xs"
                         >
-                          <span className="line-clamp-1 font-medium">{suggestion}</span>
+                          <span className="font-medium break-words leading-snug text-left">{suggestion}</span>
                           <BookOpen className="w-3.5 h-3.5 text-[#2b4c73] shrink-0 opacity-75 group-hover:opacity-100" />
                         </button>
                       ))}
@@ -2155,9 +1778,6 @@ export const SVHAIFloatingAssistant: React.FC<SVHAIFloatingAssistantProps> = Rea
                         key={msg.id}
                         msg={msg}
                         displayUserName={displayUserName}
-                        speakingMessageId={speakingMessageId}
-                        isLoadingTTSId={isLoadingTTSId}
-                        onSpeakMessage={speakMessageWithGeminiTTS}
                       />
                     ))}
 
@@ -2240,34 +1860,32 @@ export const SVHAIFloatingAssistant: React.FC<SVHAIFloatingAssistantProps> = Rea
                     <ImageIcon className="w-4 h-4" />
                   </button>
 
-                  <button
-                    type="button"
-                    onClick={toggleMicrophoneVoiceInput}
-                    title={isListeningMic ? 'Stop Voice Input' : 'Ask doubt by voice (AI Voice Tutor)'}
-                    className={`p-2.5 rounded-xl border transition-all shrink-0 cursor-pointer ${
-                      isListeningMic
-                        ? 'bg-[#e8b4bc] text-[#5c1420] border-[#c9828d] animate-pulse'
-                        : 'bg-[#ebf2f9] hover:bg-[#dce7f3] border-[#b0c5dd] text-[#234166]'
-                    }`}
-                  >
-                    {isListeningMic ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
-                  </button>
-
                   <textarea
                     ref={textareaRef}
                     rows={1}
                     value={inputPrompt}
-                    onChange={(e) => setInputPrompt(e.target.value)}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setInputPrompt(val);
+                      const el = e.currentTarget;
+                      requestAnimationFrame(() => {
+                        el.style.height = 'auto';
+                        el.style.height = `${Math.min(112, Math.max(40, el.scrollHeight))}px`;
+                      });
+                    }}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter' && !e.shiftKey) {
                         e.preventDefault();
                         if (!isGenerating && (inputPrompt.trim() || attachedImage)) {
+                          if (textareaRef.current) {
+                            textareaRef.current.style.height = 'auto';
+                          }
                           sendPromptToSVHAI(inputPrompt, attachedImage);
                         }
                       }
                     }}
                     placeholder="Ask SVH AI a doubt, concept, formula, or study plan..."
-                    className="flex-1 max-h-28 px-3.5 py-2.5 rounded-xl bg-[#f5f8fc] border border-[#b0c5dd] text-xs sm:text-sm text-[#162438] placeholder-[#5a718f] focus:outline-none focus:border-[#7899be] resize-none"
+                    className="flex-1 min-w-0 min-h-[2.5rem] max-h-28 px-3.5 py-2.5 rounded-xl bg-[#f5f8fc] border border-[#b0c5dd] text-xs sm:text-sm text-[#162438] placeholder-[#5a718f] focus:outline-none focus:border-[#7899be] resize-none leading-snug"
                   />
 
                   <button

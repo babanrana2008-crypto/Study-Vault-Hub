@@ -2128,27 +2128,34 @@ async function startServer() {
       saveDatabase(db);
     }
 
-    const systemInstruction = `You are SVH AI, the official personal AI study assistant and academic tutor inside Study Vault Hub (Developed by Soumyadip Rana).
+    const systemInstruction = `You are SVH AI, an elite, highly accurate academic tutor specializing in NEET, JEE, and Science/Math curriculum. 
+- Always verify formulas, calculation steps, and conceptual facts internally before generating a response.
+- Break down complex doubts into structured sections: 1. Core Concept / Formula, 2. Step-by-Step Solution, 3. Key High-Yield Exam Takeaways.
+- Format all mathematical equations, scientific units, and chemical reactions cleanly using standard LaTeX ($...$ for inline, $$...$$ for display).
 
 QUESTION-SPECIFIC ACADEMIC RESPONSE RULES (HIGHEST PRIORITY):
 1. Directly, accurately, and thoroughly answer the exact question, problem, concept, derivation, formula, MCQ request, or doubt the student just asked. Never give a generic or off-topic reply.
 2. When solving numerical problems, physics/chemistry/math derivations, or mechanism questions:
-   - State the Core Concept / Principle clearly.
-   - List Given Data & Required Formula(s).
-   - Provide a clear Step-by-Step Solution with units and intermediate steps.
-   - Highlight the Final Answer and a "High-Yield Exam Tip / Common Mistake to Avoid".
+   - 1. Core Concept / Formula: State the governing principle and list Given Data & Required Formula(s) in standard LaTeX.
+   - 2. Step-by-Step Solution: Provide a clear, verified step-by-step calculation or derivation with SI/IUPAC units.
+   - 3. Key High-Yield Exam Takeaways: Highlight the Final Answer and common exam traps to avoid.
 3. When asked for practice MCQs or quizzes on a topic:
    - Generate high-yield, exam-accurate multiple-choice questions with options (A), (B), (C), (D), the Correct Answer key, and a concise conceptual explanation for each question.
-4. When explaining theory, chapters, or NCERT concepts:
-   - Structure your explanation with clear headings, bullet points, key reactions/formulas, memory mnemonics where helpful, and exam weightage relevance.
 
 STRICT PERSONALIZATION & HONESTY RULES:
-5. Use ONLY the real student data provided below when referencing the student's personal progress. NEVER invent, guess, or fabricate statistics, weak topics, test scores, study hours, target exam dates, or past activity.
-6. If the student specifically asks about their weak topics, mistake analysis, or performance AND their real questionsAttempted is 0 (or weakTopics list is empty), state honestly that they have not attempted enough practice questions yet to detect weak topics, and offer to start a quick diagnostic practice or revise a specific chapter.
-7. If the student asks for a personalized study plan or timetable, tailor it directly to their activeGoal, subjects, and any timeframe/hours they mention.
+4. Use ONLY the real student data provided below when referencing the student's personal progress. NEVER invent, guess, or fabricate statistics, weak topics, test scores, study hours, target exam dates, or past activity.
+5. If the student specifically asks about their weak topics, mistake analysis, or performance AND their real questionsAttempted is 0 (or weakTopics list is empty), state honestly that they have not attempted enough practice questions yet to detect weak topics, and offer to start a quick diagnostic practice or revise a specific chapter.
+6. If the student asks for a personalized study plan or timetable, tailor it directly to their activeGoal, subjects, and any timeframe/hours they mention.
 
 REAL STUDENT APP DATA SNAPSHOT:
 ${JSON.stringify(studentContext, null, 2)}`;
+
+    const generationConfig = {
+      systemInstruction,
+      temperature: 0.15,
+      topP: 0.95,
+      maxOutputTokens: 4096,
+    };
 
     return {
       user,
@@ -2158,6 +2165,7 @@ ${JSON.stringify(studentContext, null, 2)}`;
       userMsgRecord,
       historyContents,
       systemInstruction,
+      generationConfig,
     };
   };
 
@@ -2170,7 +2178,7 @@ ${JSON.stringify(studentContext, null, 2)}`;
       });
     }
 
-    const { user, ai, conversation, userConversations, userMsgRecord, historyContents, systemInstruction } = prep;
+    const { user, ai, conversation, userConversations, userMsgRecord, historyContents, generationConfig } = prep;
 
     res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
     res.setHeader('Cache-Control', 'no-cache, no-transform');
@@ -2205,9 +2213,7 @@ ${JSON.stringify(studentContext, null, 2)}`;
         const responseStream = await ai.models.generateContentStream({
           model: modelName,
           contents: historyContents,
-          config: {
-            systemInstruction,
-          },
+          config: generationConfig,
         });
 
         for await (const chunk of responseStream) {
@@ -2243,9 +2249,7 @@ ${JSON.stringify(studentContext, null, 2)}`;
           const unaryRes = await ai.models.generateContent({
             model: modelName,
             contents: historyContents,
-            config: {
-              systemInstruction,
-            },
+            config: generationConfig,
           });
           const text = unaryRes?.text?.trim();
           if (text) {
@@ -2312,7 +2316,7 @@ ${JSON.stringify(studentContext, null, 2)}`;
       });
     }
 
-    const { user, ai, conversation, userConversations, userMsgRecord, historyContents, systemInstruction } = prep;
+    const { user, ai, conversation, userConversations, userMsgRecord, historyContents, generationConfig } = prep;
 
     try {
       let replyText = '';
@@ -2323,9 +2327,7 @@ ${JSON.stringify(studentContext, null, 2)}`;
           const response = await ai.models.generateContent({
             model: modelName,
             contents: historyContents,
-            config: {
-              systemInstruction,
-            },
+            config: generationConfig,
           });
           const candidateText = response?.text?.trim();
           if (candidateText) {

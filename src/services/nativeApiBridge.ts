@@ -585,16 +585,18 @@ function buildLocalAcademicAssistantAnswer(
   return [
     `### Detailed Academic Explanation: ${q}`,
     '',
-    `Here is a direct, structured breakdown focused on **${topicFocus}** for **${activeGoal}**:`,
+    `Here is a high-precision breakdown focused on **${topicFocus}** for **${activeGoal}**:`,
     '',
-    '#### 1. Definition & Core Principle',
+    '#### 1. Core Concept / Formula',
     `- **${q}** is governed by fundamental conservation laws, standard definitions, and quantitative relationships in your **${activeGoal}** curriculum.`,
-    `- When approaching questions on **${topicFocus}**, begin by stating the primary governing equation or mechanism and defining each variable with its standard SI/IUPAC unit.`,
+    `- When approaching questions on **${topicFocus}**, state the primary governing equation in standard LaTeX (e.g., $\\Delta G = \\Delta H - T\\Delta S$ or $\\vec{F}_{\\text{net}} = m\\vec{a}$) and verify all SI/IUPAC units.`,
     '',
-    '#### 2. Step-by-Step Analysis',
+    '#### 2. Step-by-Step Solution',
     `- **Step 1 (Conceptual Setup):** Identify the system, boundary conditions, or functional groups involved in *${q}*.`,
-    `- **Step 2 (Governing Relation):** Apply the direct textbook law connecting the cause and measurable effect.`,
-    `- **Step 3 (Exam Application):** Check proportionality constants, sign conventions, and exceptions frequently tested in ${activeGoal} multiple-choice questions.`,
+    `- **Step 2 (Governing Relation & Calculation):** Substitute known values in standard SI units and verify intermediate steps carefully.`,
+    '',
+    '#### 3. Key High-Yield Exam Takeaways',
+    `- Check proportionality constants, dimensional homogeneity, sign conventions, and NCERT exceptions frequently tested in **${activeGoal}** multiple-choice questions.`,
   ].join('\n');
 }
 
@@ -2067,19 +2069,28 @@ export async function apiFetch(
       window.location.origin === 'http://localhost' ||
       (window.location.hostname === 'localhost' && !window.location.port));
 
-  // 1. On the standard web app (not inside the Android APK), call same-origin `/api/*` first
+  // 1. On the standard web app (not inside the Android APK), call same-origin `/api/*` first with automatic retry on temporary drops
   if (!isNativeApk) {
-    try {
-      const webRes = await baseFetch(input, init);
-      const contentType = webRes.headers.get('content-type') || '';
-      if (
-        contentType.includes('application/json') ||
-        contentType.includes('text/event-stream')
-      ) {
-        return webRes;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const webRes = await baseFetch(input, init);
+        const contentType = webRes.headers.get('content-type') || '';
+        if (
+          contentType.includes('application/json') ||
+          contentType.includes('text/event-stream')
+        ) {
+          return webRes;
+        }
+      } catch (err) {
+        if ((err as Error)?.name === 'AbortError') {
+          throw err;
+        }
+        if (attempt === 0) {
+          await new Promise((r) => setTimeout(r, 250));
+          continue;
+        }
+        // Fall through to candidate discovery / native bridge if offline
       }
-    } catch {
-      // Fall through to candidate discovery / native bridge if offline
     }
   }
 
