@@ -19,6 +19,9 @@ import { SplashScreen } from './components/SplashScreen';
 import { SVHAIFloatingAssistant } from './components/SVHAIFloatingAssistant';
 import { FocusModeModal } from './components/FocusModeModal';
 import { OwnerAnalyticsModal } from './components/OwnerAnalyticsModal';
+import { WhatsAppChannelBanner } from './components/WhatsAppChannelBanner';
+import { PremiumFooter } from './components/PremiumFooter';
+import { MiniBubbleBackground } from './components/MiniBubbleBackground';
 import { StudySession } from './types';
 import { apiFetch } from './services/nativeApiBridge';
 import { calculateUserVPBreakdown } from './utils/vpPoints';
@@ -956,6 +959,9 @@ export default function App() {
 
   return (
     <div className="min-h-screen min-h-[100dvh] w-full max-w-[100vw] overflow-x-clip bg-[#060b18] text-[#f7f4ee] flex flex-col selection:bg-[#d4af37]/30 selection:text-white">
+      {/* Standalone Mini Bubble Background Animation Layer */}
+      <MiniBubbleBackground />
+
       {/* Official Opening Splash Animation (1.8s) */}
       {showSplash && (
         <SplashScreen onFinish={() => setShowSplash(false)} />
@@ -987,6 +993,9 @@ export default function App() {
         userProfilePhotoUrl={userStats.profilePhotoUrl}
         isFloatingTopDock={isMobileOrTabletPortrait}
       />
+
+      {/* Official WhatsApp Channel Banner Directly Below Header */}
+      <WhatsAppChannelBanner isFloatingTopDock={isMobileOrTabletPortrait} />
 
       {/* Main Container */}
       <main
@@ -1110,6 +1119,9 @@ export default function App() {
             />
           )}
         </div>
+
+        {/* Premium Responsive Platform Footer */}
+        <PremiumFooter onNavigate={handleNavigate} />
       </main>
 
       {/* Secure Owner Verification & Analytics Modal (Hidden from normal users) */}

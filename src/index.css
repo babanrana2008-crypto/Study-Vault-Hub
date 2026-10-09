@@ -623,3 +623,463 @@ html[data-theme="light"] [class*="bg-sky-9"] {
   will-change: transform, opacity;
   backface-visibility: hidden;
 }
+
+/* ============================================================================
+   ADDITIVE PREMIUM AMBIENT WAVE, GRADIENT ORB & BUBBLE ANIMATION SYSTEM
+   - Compositor-only transform & opacity animations
+   - Compatible with both Dark Mode and Light Mode (Dusty-Blue)
+   - Strictly respects prefers-reduced-motion
+   ============================================================================ */
+
+@keyframes svhWaveFloatSlow {
+  0% {
+    transform: translate3d(0%, 0, 0) scaleY(1);
+  }
+  50% {
+    transform: translate3d(-4%, 4px, 0) scaleY(1.04);
+  }
+  100% {
+    transform: translate3d(0%, 0, 0) scaleY(1);
+  }
+}
+
+@keyframes svhWaveFloatReverse {
+  0% {
+    transform: translate3d(-3%, 0, 0) scaleY(1);
+  }
+  50% {
+    transform: translate3d(3%, -4px, 0) scaleY(0.96);
+  }
+  100% {
+    transform: translate3d(-3%, 0, 0) scaleY(1);
+  }
+}
+
+@keyframes svhOrbDrift {
+  0% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(18px, -14px, 0) scale(1.06);
+  }
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+@keyframes svhBubbleRise {
+  0% {
+    transform: translate3d(0, 12px, 0) scale(0.92);
+    opacity: 0.18;
+  }
+  50% {
+    transform: translate3d(8px, -16px, 0) scale(1.05);
+    opacity: 0.45;
+  }
+  100% {
+    transform: translate3d(0, 12px, 0) scale(0.92);
+    opacity: 0.18;
+  }
+}
+
+.svh-splash-multicomp-bg {
+  background: radial-gradient(circle at 20% 20%, rgba(212, 175, 55, 0.22) 0%, transparent 48%),
+    radial-gradient(circle at 80% 30%, rgba(56, 189, 248, 0.20) 0%, transparent 50%),
+    radial-gradient(circle at 50% 80%, rgba(99, 102, 241, 0.20) 0%, transparent 52%),
+    linear-gradient(145deg, #060b18 0%, #0b152c 48%, #071022 100%);
+}
+
+html[data-theme="light"] .svh-splash-multicomp-bg {
+  background: radial-gradient(circle at 20% 20%, rgba(132, 168, 205, 0.38) 0%, transparent 50%),
+    radial-gradient(circle at 80% 28%, rgba(154, 184, 215, 0.42) 0%, transparent 52%),
+    radial-gradient(circle at 50% 82%, rgba(180, 206, 232, 0.45) 0%, transparent 55%),
+    linear-gradient(145deg, #e3eef9 0%, #d5e6f6 50%, #dfecf9 100%) !important;
+}
+
+.svh-ambient-layer {
+  contain: layout style paint;
+  transform: translate3d(0, 0, 0);
+  backface-visibility: hidden;
+  pointer-events: none;
+}
+
+.svh-ambient-orb {
+  position: absolute;
+  border-radius: 9999px;
+  will-change: transform;
+  transform: translate3d(0, 0, 0);
+  backface-visibility: hidden;
+  pointer-events: none;
+}
+
+.svh-ambient-orb-1 {
+  width: 26rem;
+  height: 26rem;
+  top: 4%;
+  left: -5rem;
+  background: radial-gradient(
+    circle,
+    rgba(212, 175, 55, 0.16) 0%,
+    rgba(212, 175, 55, 0.06) 42%,
+    rgba(212, 175, 55, 0) 72%
+  );
+  animation: svhOrbDrift 14s ease-in-out infinite;
+}
+
+.svh-ambient-orb-2 {
+  width: 28rem;
+  height: 28rem;
+  top: 30%;
+  right: -6rem;
+  background: radial-gradient(
+    circle,
+    rgba(56, 189, 248, 0.14) 0%,
+    rgba(56, 189, 248, 0.05) 42%,
+    rgba(56, 189, 248, 0) 72%
+  );
+  animation: svhOrbDrift 18s ease-in-out infinite reverse;
+}
+
+.svh-ambient-orb-3 {
+  width: 24rem;
+  height: 24rem;
+  bottom: 10%;
+  left: 20%;
+  background: radial-gradient(
+    circle,
+    rgba(99, 102, 241, 0.13) 0%,
+    rgba(99, 102, 241, 0.05) 42%,
+    rgba(99, 102, 241, 0) 72%
+  );
+  animation: svhOrbDrift 16s ease-in-out infinite;
+}
+
+html[data-theme="light"] .svh-ambient-orb-1,
+html[data-theme="light"] .svh-ambient-orb-2,
+html[data-theme="light"] .svh-ambient-orb-3 {
+  background: radial-gradient(
+    circle,
+    rgba(138, 174, 209, 0.24) 0%,
+    rgba(138, 174, 209, 0.09) 42%,
+    rgba(138, 174, 209, 0) 72%
+  ) !important;
+}
+
+.svh-wave-container {
+  position: absolute;
+  left: -6%;
+  right: -6%;
+  bottom: 0;
+  height: 38vh;
+  min-height: 180px;
+  max-height: 320px;
+  pointer-events: none;
+  overflow: hidden;
+  contain: layout style paint;
+}
+
+.svh-wave-svg {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 112%;
+  height: 100%;
+  will-change: transform;
+  transform: translate3d(0, 0, 0);
+  backface-visibility: hidden;
+}
+
+.svh-wave-back {
+  animation: svhWaveFloatSlow 13s ease-in-out infinite;
+}
+
+.svh-wave-mid {
+  animation: svhWaveFloatReverse 10s ease-in-out infinite;
+}
+
+.svh-wave-front {
+  animation: svhWaveFloatSlow 8s ease-in-out infinite;
+}
+
+.svh-ambient-bubble {
+  position: absolute;
+  border-radius: 9999px;
+  background: radial-gradient(
+    circle at 35% 35%,
+    rgba(252, 224, 155, 0.55) 0%,
+    rgba(212, 175, 55, 0.22) 55%,
+    rgba(212, 175, 55, 0.04) 100%
+  );
+  border: 1px solid rgba(212, 175, 55, 0.28);
+  will-change: transform, opacity;
+  transform: translate3d(0, 0, 0);
+  backface-visibility: hidden;
+  pointer-events: none;
+}
+
+html[data-theme="light"] .svh-ambient-bubble {
+  background: radial-gradient(
+    circle at 35% 35%,
+    rgba(198, 218, 239, 0.75) 0%,
+    rgba(138, 174, 209, 0.35) 60%,
+    rgba(138, 174, 209, 0.08) 100%
+  ) !important;
+  border-color: rgba(128, 166, 204, 0.5) !important;
+}
+
+.svh-bubble-1 {
+  width: 14px;
+  height: 14px;
+  left: 12%;
+  top: 22%;
+  animation: svhBubbleRise 9s ease-in-out infinite;
+}
+
+.svh-bubble-2 {
+  width: 20px;
+  height: 20px;
+  right: 16%;
+  top: 28%;
+  animation: svhBubbleRise 12s ease-in-out infinite 1.5s;
+}
+
+.svh-bubble-3 {
+  width: 10px;
+  height: 10px;
+  left: 24%;
+  bottom: 26%;
+  animation: svhBubbleRise 10s ease-in-out infinite 0.8s;
+}
+
+.svh-bubble-4 {
+  width: 16px;
+  height: 16px;
+  right: 24%;
+  bottom: 22%;
+  animation: svhBubbleRise 11s ease-in-out infinite 2.2s;
+}
+
+.svh-bubble-5 {
+  width: 12px;
+  height: 12px;
+  left: 68%;
+  top: 16%;
+  animation: svhBubbleRise 13s ease-in-out infinite 1.1s;
+}
+
+.svh-bubble-6 {
+  width: 18px;
+  height: 18px;
+  left: 42%;
+  bottom: 16%;
+  animation: svhBubbleRise 14s ease-in-out infinite 2.7s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .svh-ambient-orb-1,
+  .svh-ambient-orb-2,
+  .svh-ambient-orb-3,
+  .svh-wave-back,
+  .svh-wave-mid,
+  .svh-wave-front,
+  .svh-ambient-bubble,
+  .svh-mini-bubble-particle {
+    animation: none !important;
+  }
+}
+
+/* ============================================================================
+   STANDALONE MINI BUBBLE BACKGROUND ANIMATION LAYER
+   - position: fixed, top: 0, left: 0, z-index: -1, pointer-events: none
+   - Low opacity (10% - 20%) for seamless light & dark mode readability
+   - 11 small bubbles rising from bottom to top with subtle horizontal drift
+   - Floating speeds between 8s and 20s using GPU-composited transforms
+   - High-Refresh-Rate (90Hz / 120Hz / 144Hz) & Mobile APK Battery Optimized
+   ============================================================================ */
+
+#root {
+  isolation: isolate;
+}
+
+#root > div[class*="bg-[#060b18"] {
+  position: relative;
+  z-index: 0;
+}
+
+.svh-mini-bubble-layer {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: -1;
+  pointer-events: none;
+  overflow: hidden;
+  user-select: none;
+  contain: strict;
+  transform: translate3d(0, 0, 0);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  --svh-bubble-border-w: 1px;
+  --svh-bubble-mid-y: -52vh;
+  --svh-bubble-travel-y: -110vh;
+}
+
+.svh-mini-bubble-layer[data-paused="true"] .svh-mini-bubble-particle {
+  animation-play-state: paused !important;
+}
+
+@keyframes svhMiniBubbleFloatUp {
+  0% {
+    transform: translate3d(0, 0, 0) scale3d(0.88, 0.88, 1);
+    opacity: 0;
+  }
+  12% {
+    opacity: 0.16;
+  }
+  50% {
+    transform: translate3d(var(--svh-bubble-drift, 14px), var(--svh-bubble-mid-y, -52vh), 0) scale3d(1, 1, 1);
+    opacity: 0.19;
+  }
+  88% {
+    opacity: 0.13;
+  }
+  100% {
+    transform: translate3d(calc(var(--svh-bubble-drift, 14px) * -0.65), var(--svh-bubble-travel-y, -110vh), 0) scale3d(0.94, 0.94, 1);
+    opacity: 0;
+  }
+}
+
+.svh-mini-bubble-particle {
+  position: absolute;
+  bottom: -28px;
+  border-radius: 9999px;
+  pointer-events: none;
+  opacity: 0.15;
+  background: radial-gradient(
+    circle at 35% 35%,
+    rgba(252, 224, 155, 0.9) 0%,
+    rgba(212, 175, 55, 0.55) 55%,
+    rgba(56, 189, 248, 0.2) 100%
+  );
+  border: var(--svh-bubble-border-w, 1px) solid rgba(252, 224, 155, 0.45);
+  will-change: transform, opacity;
+  transform: translate3d(0, 0, 0);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  contain: layout style paint;
+  animation-name: svhMiniBubbleFloatUp;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+
+html[data-theme="light"] .svh-mini-bubble-particle {
+  background: radial-gradient(
+    circle at 35% 35%,
+    rgba(118, 158, 198, 0.9) 0%,
+    rgba(92, 138, 184, 0.65) 58%,
+    rgba(138, 174, 209, 0.25) 100%
+  ) !important;
+  border-color: rgba(92, 138, 184, 0.55) !important;
+}
+
+.svh-mini-bubble-item-1 {
+  width: 8px;
+  height: 8px;
+  left: 6%;
+  --svh-bubble-drift: 14px;
+  animation-duration: 11s;
+  animation-delay: 0s;
+}
+
+.svh-mini-bubble-item-2 {
+  width: 14px;
+  height: 14px;
+  left: 15%;
+  --svh-bubble-drift: -18px;
+  animation-duration: 16s;
+  animation-delay: -4s;
+}
+
+.svh-mini-bubble-item-3 {
+  width: 10px;
+  height: 10px;
+  left: 25%;
+  --svh-bubble-drift: 12px;
+  animation-duration: 9s;
+  animation-delay: -2s;
+}
+
+.svh-mini-bubble-item-4 {
+  width: 18px;
+  height: 18px;
+  left: 34%;
+  --svh-bubble-drift: -20px;
+  animation-duration: 19s;
+  animation-delay: -9s;
+}
+
+.svh-mini-bubble-item-5 {
+  width: 7px;
+  height: 7px;
+  left: 44%;
+  --svh-bubble-drift: 10px;
+  animation-duration: 8s;
+  animation-delay: -1s;
+}
+
+.svh-mini-bubble-item-6 {
+  width: 13px;
+  height: 13px;
+  left: 53%;
+  --svh-bubble-drift: -14px;
+  animation-duration: 14s;
+  animation-delay: -6s;
+}
+
+.svh-mini-bubble-item-7 {
+  width: 16px;
+  height: 16px;
+  left: 63%;
+  --svh-bubble-drift: 18px;
+  animation-duration: 17s;
+  animation-delay: -11s;
+}
+
+.svh-mini-bubble-item-8 {
+  width: 9px;
+  height: 9px;
+  left: 72%;
+  --svh-bubble-drift: -12px;
+  animation-duration: 10s;
+  animation-delay: -3s;
+}
+
+.svh-mini-bubble-item-9 {
+  width: 15px;
+  height: 15px;
+  left: 81%;
+  --svh-bubble-drift: 16px;
+  animation-duration: 15s;
+  animation-delay: -7s;
+}
+
+.svh-mini-bubble-item-10 {
+  width: 11px;
+  height: 11px;
+  left: 89%;
+  --svh-bubble-drift: -15px;
+  animation-duration: 12s;
+  animation-delay: -5s;
+}
+
+.svh-mini-bubble-item-11 {
+  width: 19px;
+  height: 19px;
+  left: 95%;
+  --svh-bubble-drift: -16px;
+  animation-duration: 20s;
+  animation-delay: -13s;
+}
+
+

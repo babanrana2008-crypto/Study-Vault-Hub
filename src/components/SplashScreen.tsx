@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { APP_LOGO } from '../data/sampleData';
+import { HomeAmbientAnimation } from './HomeAmbientAnimation';
 
 interface SplashScreenProps {
   onFinish: () => void;
@@ -35,12 +36,15 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({ onFinish }) => {
   return (
     <div
       onClick={onFinish}
-      className={`fixed inset-0 z-[100] flex flex-col items-center justify-between py-6 sm:py-12 px-4 bg-[#060b18] select-none transition-opacity duration-350 ease-out cursor-pointer will-change-[opacity] overflow-hidden ${
+      className={`fixed inset-0 z-[100] flex flex-col items-center justify-between py-6 sm:py-12 px-4 svh-splash-multicomp-bg select-none transition-opacity duration-350 ease-out cursor-pointer will-change-[opacity] overflow-hidden ${
         stage === 'exit' ? 'opacity-0 pointer-events-none' : 'opacity-100'
       }`}
       aria-label="Loading Screen"
     >
-      <div className="h-2 shrink-0" />
+      {/* Layered Flowing Waves, Soft Gradient Aura & Floating Bubbles */}
+      <HomeAmbientAnimation variant="splash" />
+
+      <div className="h-2 shrink-0 relative z-10" />
 
       {/* Center Container: Logo -> App Identity with smooth GPU transform/opacity easing */}
       <div

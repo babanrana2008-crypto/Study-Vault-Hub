@@ -41,6 +41,11 @@ import {
 } from '../data/sampleData';
 import { PWAInstallButton } from './PWAInstallButton';
 import { calculateUserVPBreakdown } from '../utils/vpPoints';
+import { HomeAmbientAnimation } from './HomeAmbientAnimation';
+import { StudentImpactDashboard } from './StudentImpactDashboard';
+import { LearningPathsSection } from './LearningPathsSection';
+import { LearningResourcesShowcase } from './LearningResourcesShowcase';
+import { GenuineStudentReviewsSection } from './GenuineStudentReviewsSection';
 
 interface HomeSectionProps {
   userStats: UserStats;
@@ -456,7 +461,11 @@ export const HomeSection: React.FC<HomeSectionProps> = React.memo(({
     realRevisionItemsCount > 0;
 
   return (
-    <div className="space-y-6 pb-12 max-w-full overflow-x-hidden">
+    <div className="relative space-y-6 pb-12 max-w-full overflow-x-hidden">
+      {/* Subtle Ambient Flowing Waves & Floating Bubbles Behind Home Content */}
+      <HomeAmbientAnimation variant="home" />
+
+      <div className="relative z-10 space-y-6">
       {/* ===================================================================== */}
       {/* 1. HERO BRANDING & WELCOME SECTION                                    */}
       {/* ===================================================================== */}
@@ -1660,10 +1669,39 @@ export const HomeSection: React.FC<HomeSectionProps> = React.memo(({
         </div>
       </section>
 
+      {/* ===================================================================== */}
+      {/* 8. STUDENT IMPACT DASHBOARD (100% VERIFIED REAL TELEMETRY)            */}
+      {/* ===================================================================== */}
+      <StudentImpactDashboard userStats={userStats} />
+
+      {/* ===================================================================== */}
+      {/* 9. STRUCTURED LEARNING PATHS (CLASSES 10, 11, 12, BOARDS, NEET, JEE)  */}
+      {/* ===================================================================== */}
+      <LearningPathsSection
+        activeGoal={activeGoal}
+        onSelectActiveGoal={onSelectActiveGoal}
+        onNavigate={onNavigate}
+      />
+
+      {/* ===================================================================== */}
+      {/* 10. EXISTING LEARNING RESOURCES SHOWCASE                              */}
+      {/* ===================================================================== */}
+      <LearningResourcesShowcase
+        activeGoal={activeGoal}
+        onNavigate={onNavigate}
+        onOpenFocusMode={onOpenFocusMode}
+      />
+
+      {/* ===================================================================== */}
+      {/* 11. GENUINE STUDENT REVIEWS SECTION                                   */}
+      {/* ===================================================================== */}
+      <GenuineStudentReviewsSection onNavigate={onNavigate} />
+
       {/* Independent Platform & Academic Attribution Notice */}
       <footer className="px-4 py-3 rounded-2xl bg-[#090e1c] border border-[#1e293b] text-[11px] text-[#9ca3af] text-center leading-relaxed">
         Study Vault Hub is an independent educational study platform developed by Soumyadip Rana and is not affiliated with or endorsed by NCERT, NTA, CBSE, or any examination authority. In-app guides and practice questions are original study resources; official NCERT textbook links open the public NCERT portal (ncert.nic.in).
       </footer>
+      </div>
 
       {/* ===================================================================== */}
       {/* COMPACT PREMIUM VP POINTS POPUP ANCHORED ADJACENT TO VP BADGE         */}
