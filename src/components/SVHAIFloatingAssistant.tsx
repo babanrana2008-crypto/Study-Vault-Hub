@@ -504,6 +504,24 @@ export const SVHAIFloatingAssistant: React.FC<SVHAIFloatingAssistantProps> = Rea
   const audioContextRef = useRef<AudioContext | null>(null);
   const activeAudioSourceRef = useRef<AudioBufferSourceNode | null>(null);
   const speechRecognitionRef = useRef<unknown>(null);
+  const activeMicStreamRef = useRef<MediaStream | null>(null);
+
+  const closeActiveMicStream = useCallback(() => {
+    if (activeMicStreamRef.current) {
+      try {
+        activeMicStreamRef.current.getTracks().forEach((track) => {
+          try {
+            track.stop();
+          } catch {
+            // ignore track stop error
+          }
+        });
+      } catch {
+        // ignore stream release error
+      }
+      activeMicStreamRef.current = null;
+    }
+  }, []);
 
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const chatScrollContainerRef = useRef<HTMLDivElement | null>(null);
@@ -811,8 +829,17 @@ export const SVHAIFloatingAssistant: React.FC<SVHAIFloatingAssistantProps> = Rea
       if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
         window.speechSynthesis.cancel();
       }
+      if (speechRecognitionRef.current) {
+        try {
+          (speechRecognitionRef.current as { abort?: () => void })?.abort?.();
+        } catch {
+          // ignore
+        }
+        speechRecognitionRef.current = null;
+      }
+      closeActiveMicStream();
     };
-  }, []);
+  }, [closeActiveMicStream]);
 
   // Stop any playing AI Voice Tutor audio
   const stopVoicePlayback = useCallback(() => {
@@ -948,43 +975,51 @@ export const SVHAIFloatingAssistant: React.FC<SVHAIFloatingAssistantProps> = Rea
         // ignore
       }
       speechRecognitionRef.current = null;
+      closeActiveMicStream();
       setIsListeningMic(false);
       return;
     }
 
     stopVoicePlayback();
+    closeActiveMicStream();
     setErrorState(null);
 
-    // 1. Explicitly trigger native audio permission request via navigator.mediaDevices.getUserMedia first
-    // so Android/iOS WebView (APK) and browsers always prompt for native RECORD_AUDIO permission.
+    // 1. Before starting SpeechRecognition or recording audio, explicitly trigger a permission request
+    // using navigator.mediaDevices.getUserMedia({ audio: true }) for Android WebView (APK) & browsers.
     if (typeof navigator !== 'undefined' && navigator.mediaDevices?.getUserMedia) {
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          audio: {
-            echoCancellation: true,
-            noiseSuppression: true,
-            autoGainControl: true,
-          },
-        });
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        activeMicStreamRef.current = stream;
+        // Immediately stop the permission-probe tracks so the Android hardware audio driver is not locked
+        // when SpeechRecognition acquires the microphone.
         stream.getTracks().forEach((track) => track.stop());
+        activeMicStreamRef.current = null;
       } catch (permErr) {
+        closeActiveMicStream();
         const errName = (permErr as { name?: string })?.name || '';
+        const errMsg = ((permErr as { message?: string })?.message || '').toLowerCase();
         if (
           errName === 'NotAllowedError' ||
           errName === 'PermissionDeniedError' ||
-          errName === 'SecurityError'
+          errName === 'SecurityError' ||
+          errMsg.includes('permission') ||
+          errMsg.includes('denied')
         ) {
           setErrorState(
-            'Microphone permission was denied. Please allow microphone access in your device/app settings, or type your question below.'
+            'Microphone access is blocked. Please enable Microphone permission in Android App Settings (Settings → Apps → Study Vault Hub → Permissions → Microphone) or type your question below.'
           );
           return;
         }
         if (errName === 'NotFoundError' || errName === 'DevicesNotFoundError') {
           setErrorState(
-            'No microphone was detected on this device. You can still type your question below.'
+            'No microphone hardware was detected on this device. Please type your question below.'
           );
           return;
         }
+        setErrorState(
+          'Could not access the microphone. Please ensure Microphone access is enabled in Android App Settings (Settings → Apps → Study Vault Hub → Permissions → Microphone) and try again.'
+        );
+        return;
       }
     }
 
@@ -994,8 +1029,9 @@ export const SVHAIFloatingAssistant: React.FC<SVHAIFloatingAssistantProps> = Rea
       (window as unknown as { webkitSpeechRecognition?: new () => unknown }).webkitSpeechRecognition;
 
     if (!SpeechRec) {
+      closeActiveMicStream();
       setErrorState(
-        'Microphone permission is active, but native WebView speech-to-text is unavailable on this device. Please use your keyboard voice dictation mic or type your question below.'
+        'Microphone permission is enabled, but speech recognition is unavailable in this WebView. Please use your keyboard voice dictation mic or type your question below.'
       );
       textareaRef.current?.focus();
       return;
@@ -1055,21 +1091,23 @@ export const SVHAIFloatingAssistant: React.FC<SVHAIFloatingAssistantProps> = Rea
       };
 
       recognition.onerror = (event) => {
+        closeActiveMicStream();
         setIsListeningMic(false);
         speechRecognitionRef.current = null;
         const code = event?.error || '';
         if (code === 'not-allowed' || code === 'service-not-allowed') {
           setErrorState(
-            'Microphone access is blocked. Please enable microphone permission or type your question below.'
+            'Microphone access is blocked. Please enable Microphone permission in Android App Settings (Settings → Apps → Study Vault Hub → Permissions → Microphone) or type your question below.'
           );
         } else if (code === 'no-speech') {
           setErrorState('No speech was detected. Tap the microphone and speak your question clearly.');
         } else if (code && code !== 'aborted') {
-          setErrorState(`Voice recognition error (${code}). Please try again or type your question.`);
+          setErrorState(`Voice recognition error (${code}). Please check Microphone permissions in Android App Settings or type your question.`);
         }
       };
 
       recognition.onend = () => {
+        closeActiveMicStream();
         setIsListeningMic(false);
         speechRecognitionRef.current = null;
         const cleanSpoken = finalCapturedTranscript.trim();
@@ -1084,11 +1122,14 @@ export const SVHAIFloatingAssistant: React.FC<SVHAIFloatingAssistantProps> = Rea
       speechRecognitionRef.current = recognition;
       recognition.start();
     } catch {
+      closeActiveMicStream();
       setIsListeningMic(false);
       speechRecognitionRef.current = null;
-      setErrorState('Could not start voice recognition. Please try again or type your question.');
+      setErrorState(
+        'Could not start voice recognition. Please verify Microphone access in Android App Settings or type your question.'
+      );
     }
-  }, [isListeningMic, stopVoicePlayback]);
+  }, [isListeningMic, stopVoicePlayback, closeActiveMicStream]);
 
   // Generate AI Smart Revision Plan directly inside SVH AI & sync to Study Planner
   const handleGenerateQuickSmartPlan = async () => {
