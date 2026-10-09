@@ -165,12 +165,12 @@ export const PWAInstallButton: React.FC = React.memo(() => {
 
   let modalTitle = 'Install Study Vault Hub';
   let modalDescription =
-    'Download the official Android app for a better study experience.';
+    'Download the official Android app (Study.Vault.Hub.apk) for a better study experience.';
 
   if (isAndroidDevice) {
     modalTitle = 'Install Study Vault Hub';
     modalDescription =
-      'Download the official Android app (Best.app-debug.apk) for your device.';
+      'Download the official Android app (Study.Vault.Hub.apk) for your device.';
   } else if (isIOSDevice) {
     modalTitle = 'Add to Home Screen';
     modalDescription =
@@ -198,15 +198,15 @@ export const PWAInstallButton: React.FC = React.memo(() => {
 
   return (
     <div className="pt-2 pb-1 flex flex-col items-start">
-      <button
-        type="button"
-        onClick={handleOpenConfirmModal}
+      <a
+        href="https://github.com/babanrana2008-crypto/Study-Vault-Hub/releases/download/v2.0.0/Study.Vault.Hub.apk"
+        download
         aria-label={buttonLabel}
-        className="inline-flex items-center justify-center gap-2.5 px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#d4af37] to-[#aa7c11] text-[#080d1a] font-bold text-xs sm:text-sm tracking-wide shadow-md hover:brightness-105 active:scale-[0.98] transition-all cursor-pointer border border-[#d4af37]/40"
+        className="install-btn inline-flex items-center justify-center gap-2.5 px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#d4af37] to-[#aa7c11] text-[#080d1a] font-bold text-xs sm:text-sm tracking-wide shadow-md hover:brightness-105 active:scale-[0.98] transition-all cursor-pointer border border-[#d4af37]/40 no-underline"
       >
         <Download className="w-4 h-4 shrink-0" />
         <span>{buttonLabel}</span>
-      </button>
+      </a>
 
       {statusMessage && (
         <div
@@ -291,12 +291,12 @@ export const PWAInstallButton: React.FC = React.memo(() => {
                 </button>
 
                 {isAndroidDevice ? (
-                  /* ANDROID: Direct external <a> download of Best.app-debug.apk */
+                  /* ANDROID: Direct external <a> download of Study.Vault.Hub.apk */
                   <a
                     href={ANDROID_APK_DOWNLOAD_URL}
                     target="_blank"
                     rel="noopener noreferrer external"
-                    download="Best.app-debug.apk"
+                    download="Study.Vault.Hub.apk"
                     onClick={(e) =>
                       handleDirectDownloadClick(e, 'Study Vault Hub APK download started.')
                     }

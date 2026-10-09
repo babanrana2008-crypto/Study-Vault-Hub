@@ -40,7 +40,11 @@ import {
 import { UserStats, Book, StudyNote, ActiveSection, ThemePreference } from '../types';
 import { SAMPLE_BOOKS, SAMPLE_NOTES, SAMPLE_MCQS, PRESET_GOALS } from '../data/sampleData';
 import { apiFetch } from '../services/nativeApiBridge';
-import { calculateUserVPBreakdown, VP_RANK_TIERS } from '../utils/vpPoints';
+import { calculateUserVPBreakdown, VP_RANK_TIERS, getAcademicStanding } from '../utils/vpPoints';
+import { RollingVPCounter } from './RollingVPCounter';
+import { doc, onSnapshot } from 'firebase/firestore';
+import { db, auth } from '../firebase';
+import { handleUserTrackingFirestoreError } from '../services/firebaseDb';
 
 const IDENTITY_STORAGE_KEY = 'study_vault_community_identity_v1';
 
@@ -111,10 +115,72 @@ export const ProfileSection: React.FC<ProfileSectionProps> = React.memo(({
   const [customGoalText, setCustomGoalText] = useState('');
   const [milestoneFilter, setMilestoneFilter] = useState<'all' | 'unlocked' | 'in_progress'>('all');
 
-  // Real VP Points, Rank Tier, and Milestones calculation
+  // 1. REAL-TIME PROFILE VP READ: Attach live Firestore listener (onSnapshot) to users/{auth.currentUser.uid}
+  const [liveProfileVpPoints, setLiveProfileVpPoints] = useState<number | null>(null);
+
+  useEffect(() => {
+    let targetUid = auth?.currentUser?.uid || userStats.userId || null;
+    if (!targetUid) {
+      try {
+        const raw = localStorage.getItem(IDENTITY_STORAGE_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (parsed?.userId) targetUid = String(parsed.userId);
+        }
+      } catch {
+        // ignore
+      }
+    }
+    if (!targetUid) {
+      setLiveProfileVpPoints(null);
+      return;
+    }
+
+    const userDocRef = doc(db, 'users', targetUid);
+    const unsubscribe = onSnapshot(
+      userDocRef,
+      (snapshot) => {
+        if (!snapshot.exists()) return;
+        const data = snapshot.data() || {};
+        const remoteVp = Math.max(
+          0,
+          Math.floor(Number(data.vpPoints ?? data.vaultPoints ?? data.userStats?.vpPoints ?? 0))
+        );
+        setLiveProfileVpPoints(remoteVp);
+      },
+      (error) => {
+        const msg = error instanceof Error ? error.message : String(error);
+        if (msg.toLowerCase().includes('Missing or insufficient permissions'.toLowerCase())) {
+          try {
+            handleUserTrackingFirestoreError(error, 'get' as any, `users/${targetUid}`);
+          } catch {
+            // logged by handler
+          }
+        }
+      }
+    );
+
+    return () => {
+      unsubscribe();
+    };
+  }, [userStats.userId]);
+
+  // Real VP Points, Dynamic Academic Standing, Rank Tier, and Milestones calculation
   const vpSummary = useMemo(() => {
-    return calculateUserVPBreakdown(userStats);
-  }, [userStats]);
+    const effectiveStats: UserStats =
+      liveProfileVpPoints !== null
+        ? {
+            ...userStats,
+            vpPoints: Math.max(Number(userStats.vpPoints) || 0, liveProfileVpPoints),
+            vaultPoints: Math.max(Number(userStats.vaultPoints) || 0, liveProfileVpPoints),
+          }
+        : userStats;
+    return calculateUserVPBreakdown(effectiveStats);
+  }, [userStats, liveProfileVpPoints]);
+
+  const academicStanding = useMemo(() => {
+    return getAcademicStanding(vpSummary.totalVP);
+  }, [vpSummary.totalVP]);
 
   const filteredMilestones = useMemo(() => {
     if (milestoneFilter === 'unlocked') {
@@ -605,17 +671,19 @@ Active Streak: ${userStats.streak?.current || 0} Days
                   </span>
                 )}
                 {isOwnerAuthenticated && (
-                  <span className="px-2 py-0.5 rounded-lg bg-[#d4af37]/20 border border-[#d4af37]/50 text-[10px] font-mono font-bold uppercase tracking-wider text-[#d4af37] inline-flex items-center gap-1">
+                  <span className="svh-badge-shimmer px-2 py-0.5 rounded-lg bg-[#d4af37]/20 border border-[#d4af37]/50 text-[10px] font-mono font-bold uppercase tracking-wider text-[#d4af37] inline-flex items-center gap-1">
                     <ShieldCheck className="w-3 h-3" />
                     <span>Owner</span>
                   </span>
                 )}
                 <span
-                  className={`px-2.5 py-0.5 rounded-lg ${vpSummary.currentTier.badgeColor} border text-[10px] font-mono font-bold inline-flex items-center gap-1 shadow-xs`}
+                  className={`svh-badge-shimmer px-2.5 py-0.5 rounded-lg ${vpSummary.currentTier.badgeColor} border text-[10px] font-mono font-bold inline-flex items-center gap-1 shadow-xs`}
                 >
                   <Trophy className="w-3 h-3 text-[#d4af37]" />
-                  <span>{vpSummary.currentTier.title}</span>
-                  <span>· {vpSummary.totalVP} VP</span>
+                  <span>{academicStanding}</span>
+                  <span>
+                    · <RollingVPCounter value={vpSummary.totalVP} suffix=" VP" />
+                  </span>
                 </span>
               </div>
               <p className="text-xs text-[#9ca3af] truncate">
@@ -1072,16 +1140,17 @@ Active Streak: ${userStats.streak?.current || 0} Days
 
         {/* 5 Quantitative Real Metrics (including VP Points) */}
         <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 pt-2 border-t border-[#d4af37]/20">
-          <div className="p-3.5 rounded-xl bg-gradient-to-br from-[#1b243b] to-[#111829] border border-[#d4af37]/40 text-center">
+          <div className="svh-badge-shimmer p-3.5 rounded-xl bg-gradient-to-br from-[#1b243b] to-[#111829] border border-[#d4af37]/40 text-center">
             <span className="text-[11px] text-[#d4af37] font-semibold block">Vault Points (VP)</span>
             <div className="flex items-center justify-center gap-1.5 mt-1">
               <Trophy className="w-4 h-4 text-[#d4af37]" />
-              <span className="font-display text-2xl font-bold text-[#fbf9f4] tabular-nums">
-                {vpSummary.totalVP}
-              </span>
+              <RollingVPCounter
+                value={vpSummary.totalVP}
+                className="font-display text-2xl font-bold text-[#fbf9f4] tabular-nums"
+              />
             </div>
             <span className="text-[10px] text-[#d4af37]/90 font-mono">
-              {vpSummary.currentTier.title}
+              {academicStanding}
             </span>
           </div>
 
@@ -1114,7 +1183,7 @@ Active Streak: ${userStats.streak?.current || 0} Days
           <div className="p-3.5 rounded-xl bg-[#131b2e]/80 border border-[#d4af37]/20 text-center col-span-2 sm:col-span-1">
             <span className="text-[11px] text-[#9ca3af] block">Current Streak</span>
             <div className="flex items-center justify-center gap-1.5 mt-1">
-              <Flame className="w-5 h-5 text-amber-400 fill-amber-400" />
+              <Flame className="w-5 h-5 text-amber-400 fill-amber-400 svh-live-streak-flame" />
               <span className="font-display text-2xl font-bold text-[#fbf9f4] tabular-nums">
                 {userStats.streak?.current || 0}d
               </span>
@@ -1133,7 +1202,7 @@ Active Streak: ${userStats.streak?.current || 0} Days
               <span>Vault Points (VP) &amp; Academic Standing</span>
             </div>
             <h2 className="font-display text-lg sm:text-xl font-bold text-[#fbf9f4]">
-              {vpSummary.currentTier.title}{' '}
+              {academicStanding}{' '}
               <span className="text-sm font-mono text-[#d4af37] font-normal">
                 (Tier {vpSummary.currentTier.level} of {VP_RANK_TIERS.length})
               </span>
@@ -1142,13 +1211,15 @@ Active Streak: ${userStats.streak?.current || 0} Days
           </div>
 
           <div className="flex items-center gap-3 self-start sm:self-center">
-            <div className="px-4 py-2.5 rounded-2xl bg-[#131b2e] border border-[#d4af37]/40 text-right">
+            <div className="svh-badge-shimmer px-4 py-2.5 rounded-2xl bg-[#131b2e] border border-[#d4af37]/40 text-right">
               <span className="text-[10px] font-mono uppercase tracking-wider text-[#9ca3af] block">
                 Total Earned
               </span>
-              <span className="font-display text-2xl font-extrabold text-[#d4af37] tabular-nums">
-                {vpSummary.totalVP} VP
-              </span>
+              <RollingVPCounter
+                value={vpSummary.totalVP}
+                suffix=" VP"
+                className="font-display text-2xl font-extrabold text-[#d4af37] tabular-nums"
+              />
             </div>
             <button
               type="button"
@@ -1167,25 +1238,25 @@ Active Streak: ${userStats.streak?.current || 0} Days
             <span className="text-[#cbd5e1] font-medium">
               {vpSummary.nextTier ? (
                 <>
-                  Next Rank:{' '}
+                  Next Standing:{' '}
                   <strong className="text-[#d4af37]">{vpSummary.nextTier.title}</strong> (
                   {vpSummary.nextTier.minVP} VP)
                 </>
               ) : (
                 <strong className="text-emerald-400">
-                  Highest Rank Tier Achieved — Grandmaster Legend!
+                  Highest Academic Standing Achieved — Master Educator (500+ VP)!
                 </strong>
               )}
             </span>
             <span className="font-mono text-[#d4af37] font-bold tabular-nums">
               {vpSummary.nextTier
-                ? `${vpSummary.vpNeededForNextTier} VP to next rank (${vpSummary.tierProgressPercent}%)`
+                ? `${vpSummary.vpNeededForNextTier} VP to next standing (${vpSummary.tierProgressPercent}%)`
                 : '100%'}
             </span>
           </div>
           <div className="w-full h-2.5 bg-[#131b2e] rounded-full overflow-hidden border border-[#d4af37]/25">
             <div
-              className="h-full bg-gradient-to-r from-[#d4af37] via-amber-300 to-emerald-400 transition-all duration-500"
+              className="svh-animated-progress-fill h-full bg-gradient-to-r from-[#d4af37] via-amber-300 to-emerald-400"
               style={{ width: `${vpSummary.tierProgressPercent}%` }}
             />
           </div>
@@ -1193,28 +1264,28 @@ Active Streak: ${userStats.streak?.current || 0} Days
 
         {/* Real VP Breakdown Grid */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs">
-          <div className="p-3 rounded-xl bg-[#10192e] border border-[#d4af37]/20">
+          <div className="svh-3d-tilt-card p-3 rounded-xl bg-[#10192e] border border-[#d4af37]/20">
             <span className="text-[11px] text-[#9ca3af] block">Focused Study</span>
             <span className="font-mono text-sm sm:text-base font-bold text-[#fbf9f4] tabular-nums mt-0.5 block">
               +{vpSummary.studyTimeVP} VP
             </span>
             <span className="text-[10px] text-[#9ca3af]">10 VP / 5 mins focus</span>
           </div>
-          <div className="p-3 rounded-xl bg-[#10192e] border border-[#d4af37]/20">
+          <div className="svh-3d-tilt-card p-3 rounded-xl bg-[#10192e] border border-[#d4af37]/20">
             <span className="text-[11px] text-[#9ca3af] block">Normal Questions</span>
             <span className="font-mono text-sm sm:text-base font-bold text-[#fbf9f4] tabular-nums mt-0.5 block">
               +{vpSummary.normalQuestionVP} VP
             </span>
             <span className="text-[10px] text-[#9ca3af]">2 VP / solved question</span>
           </div>
-          <div className="p-3 rounded-xl bg-[#10192e] border border-[#d4af37]/20">
+          <div className="svh-3d-tilt-card p-3 rounded-xl bg-[#10192e] border border-[#d4af37]/20">
             <span className="text-[11px] text-[#9ca3af] block">Test Mode Questions</span>
             <span className="font-mono text-sm sm:text-base font-bold text-cyan-300 tabular-nums mt-0.5 block">
               +{vpSummary.testModeQuestionVP} VP
             </span>
             <span className="text-[10px] text-[#9ca3af]">5 VP / correct answer</span>
           </div>
-          <div className="p-3 rounded-xl bg-[#10192e] border border-[#d4af37]/20">
+          <div className="svh-3d-tilt-card p-3 rounded-xl bg-[#10192e] border border-[#d4af37]/20">
             <span className="text-[11px] text-[#9ca3af] block">5-Day Streaks</span>
             <span className="font-mono text-sm sm:text-base font-bold text-amber-300 tabular-nums mt-0.5 block">
               +{vpSummary.streakMilestoneVP} VP
@@ -1273,7 +1344,7 @@ Active Streak: ${userStats.streak?.current || 0} Days
           {filteredMilestones.map((ms) => (
             <div
               key={ms.id}
-              className={`p-4 rounded-2xl border transition-all flex flex-col justify-between gap-3 ${
+              className={`svh-3d-tilt-card p-4 rounded-2xl border transition-all flex flex-col justify-between gap-3 ${
                 ms.unlocked
                   ? 'bg-gradient-to-br from-[#132238] to-[#0b1526] border-[#d4af37]/60 shadow-md'
                   : 'bg-[#090f1e] border-[#1e293b]'
@@ -1299,7 +1370,7 @@ Active Streak: ${userStats.streak?.current || 0} Days
                       <h3 className="font-display text-xs sm:text-sm font-bold text-[#fbf9f4]">
                         {ms.title}
                       </h3>
-                      <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-[#131b2e] text-[#d4af37] border border-[#d4af37]/30">
+                      <span className="svh-badge-shimmer text-[10px] font-mono px-2 py-0.5 rounded-full bg-[#131b2e] text-[#d4af37] border border-[#d4af37]/30">
                         +{ms.vpReward} VP
                       </span>
                     </div>
@@ -1312,7 +1383,7 @@ Active Streak: ${userStats.streak?.current || 0} Days
                 <span
                   className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-md shrink-0 ${
                     ms.unlocked
-                      ? 'bg-emerald-950/80 text-emerald-300 border border-emerald-500/40'
+                      ? 'svh-badge-shimmer bg-emerald-950/80 text-emerald-300 border border-emerald-500/40'
                       : 'bg-[#131b2e] text-[#9ca3af] border border-[#273557]'
                   }`}
                 >
@@ -1329,7 +1400,7 @@ Active Streak: ${userStats.streak?.current || 0} Days
                 </div>
                 <div className="w-full h-1.5 bg-[#131b2e] rounded-full overflow-hidden">
                   <div
-                    className={`h-full transition-all duration-500 ${
+                    className={`svh-animated-progress-fill h-full ${
                       ms.unlocked
                         ? 'bg-gradient-to-r from-[#d4af37] to-emerald-400'
                         : 'bg-[#d4af37]/70'
@@ -1704,7 +1775,7 @@ Active Streak: ${userStats.streak?.current || 0} Days
 
       {/* Appearance & Theme Section */}
       <section className="p-5 sm:p-6 rounded-2xl bg-gradient-to-br from-[#0c1428] via-[#0a1122] to-[#060b18] border border-[#d4af37]/30 shadow-lg space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="space-y-1">
             <div className="flex items-center gap-2 text-xs font-semibold text-[#d4af37] uppercase tracking-wider">
               <Palette className="w-4 h-4" />
@@ -1715,6 +1786,32 @@ Active Streak: ${userStats.streak?.current || 0} Days
               <span className="font-semibold text-[#d4af37] capitalize">{resolvedTheme} Mode</span>
             </p>
           </div>
+
+          {/* Animated Sun-to-Moon Quick Theme Toggle Button */}
+          <button
+            type="button"
+            onClick={() => onChangeTheme(resolvedTheme === 'dark' ? 'light' : 'dark')}
+            aria-label={`Toggle theme to ${resolvedTheme === 'dark' ? 'Light' : 'Dark'} Mode`}
+            className="svh-theme-switch-btn inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-[#131b2e] hover:bg-[#19243d] border border-[#d4af37]/40 hover:border-[#d4af37] text-xs font-semibold text-[#fbf9f4] shrink-0 cursor-pointer shadow-sm"
+          >
+            <span className="relative w-4 h-4 inline-flex items-center justify-center overflow-hidden">
+              <Sun
+                className={`w-4 h-4 text-amber-400 svh-theme-switch-icon ${
+                  resolvedTheme === 'light'
+                    ? 'svh-theme-icon-active'
+                    : 'svh-theme-icon-inactive'
+                }`}
+              />
+              <Moon
+                className={`w-4 h-4 text-[#d4af37] svh-theme-switch-icon ${
+                  resolvedTheme === 'dark'
+                    ? 'svh-theme-icon-active'
+                    : 'svh-theme-icon-inactive'
+                }`}
+              />
+            </span>
+            <span>Switch to {resolvedTheme === 'dark' ? 'Light' : 'Dark'} Mode</span>
+          </button>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -1735,7 +1832,11 @@ Active Streak: ${userStats.streak?.current || 0} Days
                   : 'bg-[#131b2e] text-[#d4af37]'
               }`}
             >
-              <Sun className="w-4 h-4" />
+              <Sun
+                className={`w-4 h-4 svh-theme-option-icon ${
+                  resolvedTheme === 'light' ? 'svh-theme-option-rotated' : ''
+                }`}
+              />
             </div>
             <div className="min-w-0 flex-1">
               <div className="flex items-center justify-between gap-2">
@@ -1769,7 +1870,11 @@ Active Streak: ${userStats.streak?.current || 0} Days
                   : 'bg-[#131b2e] text-[#d4af37]'
               }`}
             >
-              <Moon className="w-4 h-4" />
+              <Moon
+                className={`w-4 h-4 svh-theme-option-icon ${
+                  resolvedTheme === 'dark' ? 'svh-theme-option-rotated' : ''
+                }`}
+              />
             </div>
             <div className="min-w-0 flex-1">
               <div className="flex items-center justify-between gap-2">

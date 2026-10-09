@@ -41,6 +41,24 @@
       },
       "required": ["userId", "displayName", "createdAt"]
     },
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Automatic user profile document at users/{uid} with displayName, email, role, createdAt, lastLogin, vpPoints, and activeDevices",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "userId": { "type": "string" },
+        "displayName": { "type": "string" },
+        "email": { "type": "string" },
+        "username": { "type": "string" },
+        "role": { "type": "string", "enum": ["student", "owner"] },
+        "createdAt": { "type": "string" },
+        "lastLogin": { "type": "string" },
+        "vpPoints": { "type": "number" },
+        "activeDevices": { "type": "array" }
+      },
+      "required": ["displayName", "email", "role", "createdAt", "lastLogin", "vpPoints"]
+    },
     "VPTransaction": {
       "title": "VPTransaction",
       "description": "Idempotent Vault Points (VP) reward transaction record",
@@ -58,18 +76,21 @@
     },
     "CommunityPost": {
       "title": "CommunityPost",
-      "description": "Student doubt or discussion post shared across Web and APK",
+      "description": "Student doubt or discussion post shared across Web and APK in community_posts",
       "type": "object",
       "properties": {
         "id": { "type": "string" },
         "authorId": { "type": "string" },
         "authorName": { "type": "string" },
+        "messageText": { "type": "string" },
+        "timestamp": { "type": "string" },
+        "replies": { "type": "array" },
         "subject": { "type": "string" },
         "content": { "type": "string" },
         "replyCount": { "type": "number" },
         "createdAt": { "type": "string" }
       },
-      "required": ["id", "authorId", "authorName", "subject", "createdAt"]
+      "required": ["authorId", "authorName", "messageText", "timestamp"]
     },
     "CommunityReply": {
       "title": "CommunityReply",
@@ -80,6 +101,8 @@
         "postId": { "type": "string" },
         "authorId": { "type": "string" },
         "authorName": { "type": "string" },
+        "messageText": { "type": "string" },
+        "timestamp": { "type": "string" },
         "content": { "type": "string" },
         "createdAt": { "type": "string" }
       },
@@ -108,9 +131,21 @@
       "schema": { "$ref": "#/entities/UserSession" },
       "description": "Active user profiles, study telemetry, login/logout records, and VP balances"
     },
+    "/users/{uid}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "Real-time user profile and active devices tracking document at users/{uid}"
+    },
     "/svh_vp_transactions/{txId}": {
       "schema": { "$ref": "#/entities/VPTransaction" },
       "description": "Idempotent Vault Points (VP) ledger entries"
+    },
+    "/community_posts/{postId}": {
+      "schema": { "$ref": "#/entities/CommunityPost" },
+      "description": "Shared real-time Community and Doubt Discussion posts visible to all online users"
+    },
+    "/community_posts/{postId}/replies/{replyId}": {
+      "schema": { "$ref": "#/entities/CommunityReply" },
+      "description": "Replies subcollection for community_posts"
     },
     "/svh_posts/{postId}": {
       "schema": { "$ref": "#/entities/CommunityPost" },

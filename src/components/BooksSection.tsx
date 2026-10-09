@@ -15,6 +15,7 @@ import { Book, NCERTBook } from '../types';
 import { SAMPLE_BOOKS } from '../data/sampleData';
 import { NCERT_BOOKS_COLLECTION, getNCERTBooksByFilter } from '../data/ncertBooksData';
 import { NCERTBookModal } from './NCERTBookModal';
+import { GlassMetallicSkeleton, useBriefShimmerTransition } from './GlassMetallicSkeleton';
 
 interface BooksSectionProps {
   activeGoal: string;
@@ -87,6 +88,11 @@ export const BooksSection: React.FC<BooksSectionProps> = React.memo(({
     setDownloadToast(`Saved "${book.title}" for offline reading cache (${book.downloadSize})`);
     setTimeout(() => setDownloadToast(null), 3000);
   };
+
+  const isBooksShimmering = useBriefShimmerTransition(
+    [activeTab, selectedSubject, ncertClassFilter, ncertStreamFilter, ncertSubjectFilter],
+    220
+  );
 
   return (
     <div className="space-y-6 pb-12 max-w-full overflow-x-hidden">
@@ -184,6 +190,9 @@ export const BooksSection: React.FC<BooksSectionProps> = React.memo(({
           </div>
 
           {/* Books Grid */}
+          {isBooksShimmering ? (
+            <GlassMetallicSkeleton variant="books" count={4} />
+          ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {curatedBooksToDisplay.map((book) => {
               const bookmarked = isBookmarked(book.id);
@@ -191,7 +200,7 @@ export const BooksSection: React.FC<BooksSectionProps> = React.memo(({
               return (
                 <div
                   key={book.id}
-                  className="rounded-2xl bg-[#0f172a] border border-[#d4af37]/25 hover:border-[#d4af37]/60 p-4 flex flex-col justify-between transition-all group shadow-md space-y-4"
+                  className="svh-3d-tilt-card rounded-2xl bg-[#0f172a] border border-[#d4af37]/25 hover:border-[#d4af37]/60 p-4 flex flex-col justify-between transition-all group shadow-md space-y-4"
                 >
                   <div className="flex gap-4">
                     {/* Book Cover */}
@@ -288,6 +297,7 @@ export const BooksSection: React.FC<BooksSectionProps> = React.memo(({
               );
             })}
           </div>
+          )}
         </div>
       )}
 
@@ -431,6 +441,9 @@ export const BooksSection: React.FC<BooksSectionProps> = React.memo(({
           </div>
 
           {/* NCERT Books Grid */}
+          {isBooksShimmering ? (
+            <GlassMetallicSkeleton variant="notes" count={4} />
+          ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {filteredNCERTBooks.map((nBook) => {
               const bookmarked = isBookmarked(nBook.id);
@@ -438,7 +451,7 @@ export const BooksSection: React.FC<BooksSectionProps> = React.memo(({
               return (
                 <div
                   key={nBook.id}
-                  className="rounded-2xl bg-[#0f172a] border border-[#d4af37]/25 hover:border-[#d4af37]/60 p-4 sm:p-5 flex flex-col justify-between transition-all group shadow-md space-y-4"
+                  className="svh-3d-tilt-card rounded-2xl bg-[#0f172a] border border-[#d4af37]/25 hover:border-[#d4af37]/60 p-4 sm:p-5 flex flex-col justify-between transition-all group shadow-md space-y-4"
                 >
                   <div className="space-y-3">
                     {/* Top Row: Class, Stream, Code & Bookmark */}
@@ -519,6 +532,7 @@ export const BooksSection: React.FC<BooksSectionProps> = React.memo(({
               );
             })}
           </div>
+          )}
 
           {filteredNCERTBooks.length === 0 && (
             <div className="p-8 text-center rounded-2xl bg-[#0f172a] border border-[#d4af37]/20 space-y-2">

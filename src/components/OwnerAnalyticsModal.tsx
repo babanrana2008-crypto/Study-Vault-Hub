@@ -1,5 +1,14 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
+  collection,
+  doc,
+  setDoc,
+  deleteDoc,
+  onSnapshot,
+} from 'firebase/firestore';
+import { db } from '../firebase';
+import { ActiveDeviceRecord } from '../types';
+import {
   ShieldCheck,
   Users,
   Smartphone,
@@ -27,6 +36,7 @@ const OWNER_TOKEN_STORAGE_KEY = 'study_vault_owner_session_token_v1';
 interface RegisteredAccountItem {
   userId: string;
   username: string | null;
+  email?: string | null;
   displayName: string;
   role?: 'owner' | 'student';
   accountStatus?: 'active' | 'suspended';
@@ -42,10 +52,13 @@ interface RegisteredAccountItem {
   totalSessionCount?: number;
   firstSeenAt?: string;
   createdAt: string;
+  lastLogin?: string | null;
   lastLoginAt?: string | null;
   lastLogoutAt?: string | null;
   lastSeenAt: string;
   devicePlatform?: string | null;
+  activeDevices?: ActiveDeviceRecord[];
+  activeDeviceCount?: number;
   loginHistory?: Array<{
     event: 'login' | 'logout';
     timestamp: string;
@@ -100,6 +113,7 @@ export const OwnerAnalyticsModal: React.FC<OwnerAnalyticsModalProps> = ({
   onOwnerAuthStatusChange,
 }) => {
   const [metrics, setMetrics] = useState<OwnerAnalyticsMetrics | null>(null);
+  const [liveFirestoreUsers, setLiveFirestoreUsers] = useState<RegisteredAccountItem[]>([]);
   const [generatedAt, setGeneratedAt] = useState<string | null>(null);
   const [isLoadingAnalytics, setIsLoadingAnalytics] = useState<boolean>(false);
   const [analyticsError, setAnalyticsError] = useState<string | null>(null);
@@ -114,8 +128,193 @@ export const OwnerAnalyticsModal: React.FC<OwnerAnalyticsModalProps> = ({
     'lastActive' | 'latestLogin' | 'loginCount' | 'vpPoints' | 'streak' | 'questions' | 'minutes'
   >('lastActive');
 
+  // Real-time Firestore listener on `users` collection via onSnapshot
+  useEffect(() => {
+    if (!isOpen || !db) return;
+    const usersColRef = collection(db, 'users');
+    const unsubscribe = onSnapshot(
+      usersColRef,
+      (snapshot) => {
+        const nowIso = new Date().toISOString();
+        const items: RegisteredAccountItem[] = [];
+        snapshot.forEach((docSnap) => {
+          const data = docSnap.data() || {};
+          const uid = String(data.uid || data.userId || docSnap.id);
+          const stats = (data.userStats || {}) as Record<string, any>;
+          const rawDevices: ActiveDeviceRecord[] = Array.isArray(data.activeDevices)
+            ? data.activeDevices.filter(
+                (d: any) => d && typeof d === 'object' && (d.deviceInfo || d.platformType)
+              )
+            : [];
+          const latestDevice = rawDevices[0];
+          const resolvedEmail =
+            typeof data.email === 'string' && data.email.trim()
+              ? data.email.trim()
+              : typeof data.username === 'string' && data.username.trim()
+              ? data.username.includes('@')
+                ? data.username
+                : `${data.username}@svh.student`
+              : `${uid}@svh.student`;
+
+          const vpVal = Math.max(
+            0,
+            Number(data.vpPoints) || 0,
+            Number(data.vaultPoints) || 0,
+            Number(stats.vpPoints) || 0,
+            Number(stats.vaultPoints) || 0
+          );
+
+          const createdAtStr =
+            typeof data.createdAt === 'string' && data.createdAt
+              ? data.createdAt
+              : nowIso;
+          const lastLoginStr =
+            typeof data.lastLogin === 'string' && data.lastLogin
+              ? data.lastLogin
+              : typeof data.lastLoginAt === 'string' && data.lastLoginAt
+              ? data.lastLoginAt
+              : createdAtStr;
+          const lastSeenStr =
+            typeof data.lastSeenAt === 'string' && data.lastSeenAt
+              ? data.lastSeenAt
+              : lastLoginStr;
+
+          items.push({
+            userId: uid,
+            username: data.username || stats.username || resolvedEmail.split('@')[0] || null,
+            email: resolvedEmail,
+            displayName: data.displayName || stats.name || 'Student',
+            role: data.role === 'owner' ? 'owner' : 'student',
+            accountStatus: data.accountStatus === 'suspended' ? 'suspended' : 'active',
+            activeSessionStatus: rawDevices.length > 0 ? 'online_active' : 'signed_out',
+            activeGoal: data.activeGoal || stats.activeGoal || null,
+            questionsAttempted: Math.max(
+              0,
+              Number(data.questionsAttempted) || Number(stats.questionsAttempted) || 0
+            ),
+            correctAnswers: Math.max(
+              0,
+              Number(data.correctAnswers) || Number(stats.correctAnswers) || 0
+            ),
+            totalStudyMinutes: Math.max(
+              0,
+              Number(data.totalStudyMinutes) || Number(stats.totalStudyMinutes) || 0
+            ),
+            vpPoints: vpVal,
+            streakDays: Math.max(
+              0,
+              Number(data.streakDays) || Number(stats.streak?.current) || 0
+            ),
+            streakLastActiveDate: stats.streak?.lastActiveDate || null,
+            totalLoginCount: Math.max(
+              1,
+              Number(data.loginCount) || Number(stats.loginCount) || rawDevices.length || 1
+            ),
+            totalSessionCount: Math.max(1, rawDevices.length || 1),
+            firstSeenAt: createdAtStr,
+            createdAt: createdAtStr,
+            lastLogin: lastLoginStr,
+            lastLoginAt: lastLoginStr,
+            lastLogoutAt: data.lastLogoutAt || stats.lastLogoutAt || null,
+            lastSeenAt: lastSeenStr,
+            devicePlatform: latestDevice
+              ? `${latestDevice.platformType}: ${latestDevice.deviceInfo}`
+              : data.lastDevicePlatform || stats.lastDevicePlatform || 'Web Browser',
+            activeDevices: rawDevices,
+            activeDeviceCount: rawDevices.length,
+            loginHistory: Array.isArray(data.loginHistory) ? data.loginHistory : [],
+          });
+        });
+        setLiveFirestoreUsers(items);
+        setGeneratedAt(nowIso);
+      },
+      (err) => {
+        console.error('Owner Dashboard users onSnapshot error:', err);
+      }
+    );
+    return () => unsubscribe();
+  }, [isOpen]);
+
+  // Combined real-time user directory (merges live Firestore `users` onSnapshot feed with backend accounts)
+  const combinedRegisteredAccounts = React.useMemo(() => {
+    const map = new Map<string, RegisteredAccountItem>();
+    const serverAccounts = metrics?.registeredAccounts || [];
+
+    for (const acc of serverAccounts) {
+      const fallbackDevices: ActiveDeviceRecord[] =
+        Array.isArray(acc.activeDevices) && acc.activeDevices.length > 0
+          ? acc.activeDevices
+          : acc.activeSessionStatus === 'online_active'
+          ? [
+              {
+                deviceId: `dev_${acc.userId}`,
+                platformType: (acc.devicePlatform || '').toLowerCase().includes('apk')
+                  ? 'APK'
+                  : 'Web',
+                deviceInfo: acc.devicePlatform || 'Web Browser',
+                lastActive: acc.lastSeenAt || acc.createdAt,
+              },
+            ]
+          : [];
+      const resolvedEmail =
+        acc.email ||
+        (acc.username
+          ? acc.username.includes('@')
+            ? acc.username
+            : `${acc.username}@svh.student`
+          : `${acc.userId}@svh.student`);
+
+      map.set(acc.userId, {
+        ...acc,
+        email: resolvedEmail,
+        lastLogin: acc.lastLogin || acc.lastLoginAt || acc.lastSeenAt,
+        activeDevices: fallbackDevices,
+        activeDeviceCount: fallbackDevices.length,
+      });
+    }
+
+    for (const liveUser of liveFirestoreUsers) {
+      const existing = map.get(liveUser.userId);
+      if (!existing) {
+        map.set(liveUser.userId, liveUser);
+      } else {
+        const mergedDevices =
+          Array.isArray(liveUser.activeDevices) && liveUser.activeDevices.length > 0
+            ? liveUser.activeDevices
+            : existing.activeDevices || [];
+        map.set(liveUser.userId, {
+          ...existing,
+          ...liveUser,
+          displayName: liveUser.displayName || existing.displayName,
+          email: liveUser.email || existing.email,
+          username: liveUser.username || existing.username,
+          createdAt: liveUser.createdAt || existing.createdAt,
+          lastLogin: liveUser.lastLogin || existing.lastLogin || existing.lastLoginAt,
+          lastLoginAt: liveUser.lastLoginAt || existing.lastLoginAt,
+          vpPoints: Math.max(Number(liveUser.vpPoints) || 0, Number(existing.vpPoints) || 0),
+          questionsAttempted: Math.max(
+            Number(liveUser.questionsAttempted) || 0,
+            Number(existing.questionsAttempted) || 0
+          ),
+          totalStudyMinutes: Math.max(
+            Number(liveUser.totalStudyMinutes) || 0,
+            Number(existing.totalStudyMinutes) || 0
+          ),
+          activeDevices: mergedDevices,
+          activeDeviceCount: mergedDevices.length,
+          loginHistory:
+            Array.isArray(liveUser.loginHistory) && liveUser.loginHistory.length > 0
+              ? liveUser.loginHistory
+              : existing.loginHistory || [],
+        });
+      }
+    }
+
+    return Array.from(map.values());
+  }, [metrics?.registeredAccounts, liveFirestoreUsers]);
+
   const filteredAndSortedAccounts = React.useMemo(() => {
-    const rawList = metrics?.registeredAccounts || [];
+    const rawList = combinedRegisteredAccounts;
     const q = userSearchQuery.trim().toLowerCase();
     const filtered = rawList.filter((acct) => {
       if (userStatusFilter === 'online_active' && acct.activeSessionStatus !== 'online_active') {
@@ -130,6 +329,7 @@ export const OwnerAnalyticsModal: React.FC<OwnerAnalyticsModalProps> = ({
       if (!q) return true;
       return (
         (acct.displayName || '').toLowerCase().includes(q) ||
+        (acct.email || '').toLowerCase().includes(q) ||
         (acct.username || '').toLowerCase().includes(q) ||
         (acct.userId || '').toLowerCase().includes(q) ||
         (acct.activeGoal || '').toLowerCase().includes(q) ||
@@ -144,13 +344,13 @@ export const OwnerAnalyticsModal: React.FC<OwnerAnalyticsModalProps> = ({
       if (userSortBy === 'questions') return (b.questionsAttempted || 0) - (a.questionsAttempted || 0);
       if (userSortBy === 'minutes') return (b.totalStudyMinutes || 0) - (a.totalStudyMinutes || 0);
       if (userSortBy === 'latestLogin') {
-        return (b.lastLoginAt || b.lastSeenAt || '').localeCompare(
-          a.lastLoginAt || a.lastSeenAt || ''
+        return (b.lastLogin || b.lastLoginAt || b.lastSeenAt || '').localeCompare(
+          a.lastLogin || a.lastLoginAt || a.lastSeenAt || ''
         );
       }
       return (b.lastSeenAt || '').localeCompare(a.lastSeenAt || '');
     });
-  }, [metrics?.registeredAccounts, userSearchQuery, userStatusFilter, userSortBy]);
+  }, [combinedRegisteredAccounts, userSearchQuery, userStatusFilter, userSortBy]);
 
   const formatDateTime = (iso?: string | null) => {
     if (!iso) return 'Not recorded yet';
@@ -252,25 +452,31 @@ export const OwnerAnalyticsModal: React.FC<OwnerAnalyticsModalProps> = ({
     currentStatus: 'active' | 'suspended' = 'active'
   ) => {
     const token = getActiveBearerToken();
-    if (!token) return;
     const nextStatus = currentStatus === 'suspended' ? 'active' : 'suspended';
     setActionBusyId(targetUserId);
     setAnalyticsError(null);
     try {
-      const res = await apiFetch(`/api/owner/users/${encodeURIComponent(targetUserId)}/status`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-          'X-Owner-Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({ status: nextStatus }),
-      });
-      if (!res.ok) {
-        const errData = await res.json().catch(() => ({}));
-        throw new Error(errData.error || 'Failed to update account status.');
+      if (db) {
+        await setDoc(
+          doc(db, 'users', targetUserId),
+          { accountStatus: nextStatus },
+          { merge: true }
+        ).catch(() => {});
       }
-      await fetchOwnerAnalytics();
+      if (token) {
+        const res = await apiFetch(`/api/owner/users/${encodeURIComponent(targetUserId)}/status`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+            'X-Owner-Authorization': `Bearer ${token}`,
+          },
+          body: JSON.stringify({ status: nextStatus }),
+        });
+        if (res.ok) {
+          await fetchOwnerAnalytics();
+        }
+      }
     } catch (err) {
       setAnalyticsError(err instanceof Error ? err.message : 'Could not update user status.');
     } finally {
@@ -280,20 +486,21 @@ export const OwnerAnalyticsModal: React.FC<OwnerAnalyticsModalProps> = ({
 
   const handleRemoveUserAccount = async (targetUserId: string) => {
     const token = getActiveBearerToken();
-    if (!token) return;
     setActionBusyId(targetUserId);
     setAnalyticsError(null);
     try {
-      const res = await apiFetch(`/api/owner/users/${encodeURIComponent(targetUserId)}`, {
-        method: 'DELETE',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'X-Owner-Authorization': `Bearer ${token}`,
-        },
-      });
-      if (!res.ok) {
-        const errData = await res.json().catch(() => ({}));
-        throw new Error(errData.error || 'Failed to remove user account.');
+      if (db) {
+        await deleteDoc(doc(db, 'users', targetUserId)).catch(() => {});
+        await deleteDoc(doc(db, 'svh_users', targetUserId)).catch(() => {});
+      }
+      if (token) {
+        await apiFetch(`/api/owner/users/${encodeURIComponent(targetUserId)}`, {
+          method: 'DELETE',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'X-Owner-Authorization': `Bearer ${token}`,
+          },
+        }).catch(() => {});
       }
       setConfirmDeleteUserId(null);
       await fetchOwnerAnalytics();
@@ -344,7 +551,7 @@ export const OwnerAnalyticsModal: React.FC<OwnerAnalyticsModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-5 overflow-y-auto">
-      <div className="w-full max-w-5xl rounded-2xl sm:rounded-3xl bg-[#0b1324] border border-[#d4af37]/40 shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
+      <div className="svh-spring-modal-card w-full max-w-5xl rounded-2xl sm:rounded-3xl bg-[#0b1324] border border-[#d4af37]/40 shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
         {/* Top Bar */}
         <div className="px-4 sm:px-6 py-4 bg-[#0f1930] border-b border-[#d4af37]/25 flex items-center justify-between gap-3 shrink-0">
           <div className="flex items-center gap-2.5 min-w-0">
@@ -437,25 +644,29 @@ export const OwnerAnalyticsModal: React.FC<OwnerAnalyticsModalProps> = ({
                         <Users className="w-4 h-4 text-[#d4af37]" />
                       </div>
                       <div className="font-display text-2xl sm:text-3xl font-bold text-[#fbf9f4] tabular-nums">
-                        {metrics.totalUniqueUsers}
+                        {Math.max(metrics.totalUniqueUsers, combinedRegisteredAccounts.length)}
                       </div>
                       <p className="text-[11px] text-[#cbd5e1]">
-                        {typeof metrics.totalRegisteredAccounts === 'number'
-                          ? `${metrics.totalRegisteredAccounts} with username credentials`
-                          : 'Verified unique accounts'}
+                        {combinedRegisteredAccounts.length} live synced in Firestore users collection
                       </p>
                     </div>
 
                     <div className="p-4 rounded-2xl bg-[#0f172a] border border-[#d4af37]/30 space-y-1">
                       <div className="flex items-center justify-between text-xs text-[#9ca3af]">
-                        <span>Total Devices</span>
+                        <span>Total Active Devices</span>
                         <Smartphone className="w-4 h-4 text-[#d4af37]" />
                       </div>
                       <div className="font-display text-2xl sm:text-3xl font-bold text-[#fbf9f4] tabular-nums">
-                        {metrics.totalDevices}
+                        {Math.max(
+                          metrics.totalDevices,
+                          combinedRegisteredAccounts.reduce(
+                            (sum, u) => sum + (u.activeDeviceCount || u.activeDevices?.length || 0),
+                            0
+                          )
+                        )}
                       </div>
                       <p className="text-[11px] text-[#cbd5e1]">
-                        Unique anonymous device identifiers
+                        Tracked across Web &amp; Android APK
                       </p>
                     </div>
 
@@ -465,7 +676,7 @@ export const OwnerAnalyticsModal: React.FC<OwnerAnalyticsModalProps> = ({
                         <Activity className="w-4 h-4 text-[#d4af37]" />
                       </div>
                       <div className="font-display text-2xl sm:text-3xl font-bold text-[#fbf9f4] tabular-nums">
-                        {metrics.totalAppOpenSessions}
+                        {Math.max(metrics.totalAppOpenSessions, combinedRegisteredAccounts.length)}
                       </div>
                       <p className="text-[11px] text-[#cbd5e1]">
                         Recorded application launch sessions
@@ -593,18 +804,18 @@ export const OwnerAnalyticsModal: React.FC<OwnerAnalyticsModalProps> = ({
                   </div>
                 </div>
 
-                {/* 4. Registered Users Directory & Access Management (Owner-Only) */}
-                {Array.isArray(metrics.registeredAccounts) && (
+                {/* 4. Registered Users Directory & Access Management (Owner-Only Live Firestore Feed) */}
+                {Array.isArray(combinedRegisteredAccounts) && (
                   <div className="p-4 sm:p-5 rounded-2xl bg-[#0f172a] border border-[#d4af37]/30 space-y-4">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                       <div className="flex items-center gap-2">
                         <Users className="w-4 h-4 text-[#d4af37]" />
                         <h4 className="font-display text-sm font-bold text-[#fbf9f4]">
-                          Real User Analytics, Directory &amp; Account Management
+                          Real User Analytics, Directory &amp; Account Management (Live Firestore Feed)
                         </h4>
                       </div>
                       <span className="text-[11px] font-mono text-[#9ca3af]">
-                        {filteredAndSortedAccounts.length} of {metrics.registeredAccounts.length} Registered User(s) · Tap any user for full detail view
+                        {filteredAndSortedAccounts.length} of {combinedRegisteredAccounts.length} Registered User(s) · Tap any user for full detail view
                       </span>
                     </div>
 
@@ -616,7 +827,7 @@ export const OwnerAnalyticsModal: React.FC<OwnerAnalyticsModalProps> = ({
                           type="text"
                           value={userSearchQuery}
                           onChange={(e) => setUserSearchQuery(e.target.value)}
-                          placeholder="Search by name, @username, User ID, goal, or device..."
+                          placeholder="Search by name, email, @username, User ID, goal, or device..."
                           className="w-full pl-8 pr-8 py-1.5 rounded-xl bg-[#090e1c] border border-[#1e293b] focus:border-[#d4af37] text-xs text-[#fbf9f4] placeholder:text-[#6b7280] outline-none transition-colors"
                         />
                         {userSearchQuery && (
@@ -701,7 +912,7 @@ export const OwnerAnalyticsModal: React.FC<OwnerAnalyticsModalProps> = ({
                       </div>
                     </div>
 
-                    {metrics.registeredAccounts.length === 0 ? (
+                    {combinedRegisteredAccounts.length === 0 ? (
                       <div className="py-6 text-center text-xs text-[#9ca3af]">
                         No user activity yet
                       </div>
@@ -715,12 +926,12 @@ export const OwnerAnalyticsModal: React.FC<OwnerAnalyticsModalProps> = ({
                           <table className="w-full text-left border-collapse text-xs">
                             <thead>
                               <tr className="border-b border-[#1e293b] text-[10px] uppercase tracking-wider text-[#9ca3af]">
-                                <th className="py-2 pr-3 font-semibold">User / Role</th>
-                                <th className="py-2 px-3 font-semibold">Username</th>
-                                <th className="py-2 px-3 font-semibold">Device / Platform</th>
-                                <th className="py-2 px-3 font-semibold text-right">VP / Streak</th>
-                                <th className="py-2 px-3 font-semibold text-right">Solved / Time</th>
-                                <th className="py-2 px-3 font-semibold text-right">Logins / Latest</th>
+                                <th className="py-2 pr-3 font-semibold">Name / Role</th>
+                                <th className="py-2 px-3 font-semibold">Email &amp; Username</th>
+                                <th className="py-2 px-3 font-semibold">Registration Date</th>
+                                <th className="py-2 px-3 font-semibold text-right">VP Points</th>
+                                <th className="py-2 px-3 font-semibold">Active Devices</th>
+                                <th className="py-2 px-3 font-semibold text-right">Last Login</th>
                                 <th className="py-2 px-3 font-semibold">Session / Status</th>
                                 <th className="py-2 pl-3 font-semibold text-right">Details &amp; Actions</th>
                               </tr>
@@ -731,6 +942,12 @@ export const OwnerAnalyticsModal: React.FC<OwnerAnalyticsModalProps> = ({
                                 const isSuspended = acc.accountStatus === 'suspended';
                                 const isBusy = actionBusyId === acc.userId;
                                 const isSelected = selectedDetailUserId === acc.userId;
+                                const deviceCount =
+                                  typeof acc.activeDeviceCount === 'number'
+                                    ? acc.activeDeviceCount
+                                    : Array.isArray(acc.activeDevices)
+                                    ? acc.activeDevices.length
+                                    : 0;
 
                                 return (
                                   <tr
@@ -763,29 +980,40 @@ export const OwnerAnalyticsModal: React.FC<OwnerAnalyticsModalProps> = ({
                                         </span>
                                       </div>
                                     </td>
-                                    <td className="py-2.5 px-3 font-mono text-[11px] text-[#d4af37]">
-                                      {acc.username ? `@${acc.username}` : 'Registered'}
+                                    <td className="py-2.5 px-3 font-mono text-[11px]">
+                                      <span className="text-[#fbf9f4] block truncate max-w-[160px]">
+                                        {acc.email || (acc.username ? `${acc.username}@svh.student` : 'Not provided')}
+                                      </span>
+                                      <span className="text-[10px] text-[#d4af37] block">
+                                        {acc.username ? `@${acc.username}` : 'Registered'}
+                                      </span>
                                     </td>
                                     <td className="py-2.5 px-3 font-mono text-[11px] text-[#cbd5e1]">
-                                      <span className="block truncate max-w-[130px]">
-                                        {acc.devicePlatform || 'Web Browser'}
-                                      </span>
-                                      <span className="text-[10px] text-[#9ca3af] block">
-                                        Active: {formatDateTime(acc.lastSeenAt)}
+                                      <span className="block">
+                                        {formatDateTime(acc.createdAt)}
                                       </span>
                                     </td>
                                     <td className="py-2.5 px-3 text-right font-mono tabular-nums text-[#d4af37] font-bold">
-                                      {acc.vpPoints || 0} VP · {acc.streakDays || 0}d
+                                      {acc.vpPoints || 0} VP
+                                      <span className="text-[10px] text-[#9ca3af] block font-normal">
+                                        {acc.streakDays || 0}d streak · {acc.questionsAttempted}Q
+                                      </span>
                                     </td>
-                                    <td className="py-2.5 px-3 text-right font-mono tabular-nums text-[#fbf9f4]">
-                                      {acc.questionsAttempted}Q · {acc.totalStudyMinutes}m
+                                    <td className="py-2.5 px-3 font-mono text-[11px] text-[#cbd5e1]">
+                                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-[#131b2e] border border-[#d4af37]/30 text-[#d4af37] font-bold text-[10px]">
+                                        <Smartphone className="w-3 h-3" />
+                                        <span>{deviceCount} Active Device{deviceCount === 1 ? '' : 's'}</span>
+                                      </span>
+                                      <span className="text-[10px] text-[#9ca3af] block truncate max-w-[140px] mt-0.5">
+                                        {acc.devicePlatform || 'Web Browser'}
+                                      </span>
                                     </td>
                                     <td className="py-2.5 px-3 text-right font-mono tabular-nums text-[#cbd5e1]">
                                       <span className="font-bold text-[#fbf9f4] block">
-                                        {acc.totalLoginCount || 0} login(s)
+                                        {formatDateTime(acc.lastLogin || acc.lastLoginAt || acc.lastSeenAt)}
                                       </span>
                                       <span className="text-[10px] text-[#9ca3af] block">
-                                        {formatDateTime(acc.lastLoginAt || acc.lastSeenAt)}
+                                        {acc.totalLoginCount || 1} login(s)
                                       </span>
                                     </td>
                                     <td className="py-2.5 px-3">
@@ -890,9 +1118,9 @@ export const OwnerAnalyticsModal: React.FC<OwnerAnalyticsModalProps> = ({
                           </table>
                         </div>
 
-                        {/* Detailed User Inspection View (Requirement 9 & 10) */}
+                        {/* Detailed User Inspection View */}
                         {selectedDetailUserId && (() => {
-                          const detailUser = metrics.registeredAccounts.find(
+                          const detailUser = combinedRegisteredAccounts.find(
                             (u) => u.userId === selectedDetailUserId
                           );
                           if (!detailUser) return null;
@@ -903,18 +1131,23 @@ export const OwnerAnalyticsModal: React.FC<OwnerAnalyticsModalProps> = ({
                                     100
                                 )
                               : 0;
+                          const activeDevicesList: ActiveDeviceRecord[] = Array.isArray(
+                            detailUser.activeDevices
+                          )
+                            ? detailUser.activeDevices
+                            : [];
 
                           return (
                             <div className="p-4 sm:p-5 rounded-2xl bg-[#131d33] border border-[#d4af37]/45 space-y-4">
                               <div className="flex items-center justify-between gap-2 border-b border-[#1e293b] pb-3">
                                 <div>
                                   <span className="text-[10px] font-mono uppercase tracking-widest text-[#d4af37] font-bold block">
-                                    Real User-Detail Record
+                                    Real User-Detail Record (Firestore users/{detailUser.userId})
                                   </span>
                                   <h5 className="font-display text-base font-bold text-[#fbf9f4]">
                                     {detailUser.displayName}{' '}
                                     <span className="text-xs font-mono text-[#d4af37]">
-                                      ({detailUser.username ? `@${detailUser.username}` : 'Anonymous Session'})
+                                      ({detailUser.email || (detailUser.username ? `@${detailUser.username}` : 'Student')})
                                     </span>
                                   </h5>
                                 </div>
@@ -929,34 +1162,34 @@ export const OwnerAnalyticsModal: React.FC<OwnerAnalyticsModalProps> = ({
 
                               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs">
                                 <div className="p-3 rounded-xl bg-[#0b1324] border border-[#1e293b]">
-                                  <span className="text-[10px] text-[#9ca3af] block">Username</span>
+                                  <span className="text-[10px] text-[#9ca3af] block">Email / Username</span>
                                   <span className="font-mono font-bold text-[#d4af37] mt-0.5 block truncate">
-                                    {detailUser.username ? `@${detailUser.username}` : 'Anonymous'}
+                                    {detailUser.email || (detailUser.username ? `@${detailUser.username}` : 'Student')}
                                   </span>
                                 </div>
                                 <div className="p-3 rounded-xl bg-[#0b1324] border border-[#1e293b]">
-                                  <span className="text-[10px] text-[#9ca3af] block">User ID</span>
+                                  <span className="text-[10px] text-[#9ca3af] block">User ID (UID)</span>
                                   <span className="font-mono text-[11px] text-[#fbf9f4] mt-0.5 block break-all">
                                     {detailUser.userId}
                                   </span>
                                 </div>
                                 <div className="p-3 rounded-xl bg-[#0b1324] border border-[#1e293b]">
-                                  <span className="text-[10px] text-[#9ca3af] block">Account Created</span>
+                                  <span className="text-[10px] text-[#9ca3af] block">Registration Date (createdAt)</span>
                                   <span className="font-mono text-[11px] text-[#fbf9f4] mt-0.5 block">
                                     {formatDateTime(detailUser.createdAt)}
                                   </span>
                                 </div>
                                 <div className="p-3 rounded-xl bg-[#0b1324] border border-[#1e293b]">
-                                  <span className="text-[10px] text-[#9ca3af] block">First Seen</span>
-                                  <span className="font-mono text-[11px] text-[#fbf9f4] mt-0.5 block">
-                                    {formatDateTime(detailUser.firstSeenAt || detailUser.createdAt)}
+                                  <span className="text-[10px] text-[#9ca3af] block">Role</span>
+                                  <span className="font-mono text-[11px] text-[#fbf9f4] uppercase mt-0.5 block">
+                                    {detailUser.role || 'student'}
                                   </span>
                                 </div>
 
                                 <div className="p-3 rounded-xl bg-[#0b1324] border border-[#1e293b]">
-                                  <span className="text-[10px] text-[#9ca3af] block">Total Successful Logins</span>
-                                  <span className="font-display text-base font-bold text-[#fbf9f4] mt-0.5 block tabular-nums">
-                                    {detailUser.totalLoginCount ?? 0}
+                                  <span className="text-[10px] text-[#9ca3af] block">Total Active Devices</span>
+                                  <span className="font-display text-base font-bold text-[#d4af37] mt-0.5 block tabular-nums">
+                                    {activeDevicesList.length} Active Device(s)
                                   </span>
                                 </div>
                                 <div className="p-3 rounded-xl bg-[#0b1324] border border-[#1e293b]">
@@ -966,9 +1199,9 @@ export const OwnerAnalyticsModal: React.FC<OwnerAnalyticsModalProps> = ({
                                   </span>
                                 </div>
                                 <div className="p-3 rounded-xl bg-[#0b1324] border border-[#1e293b]">
-                                  <span className="text-[10px] text-[#9ca3af] block">Last Login Date/Time</span>
+                                  <span className="text-[10px] text-[#9ca3af] block">Last Login (lastLogin)</span>
                                   <span className="font-mono text-[11px] text-[#fbf9f4] mt-0.5 block">
-                                    {formatDateTime(detailUser.lastLoginAt || detailUser.lastSeenAt)}
+                                    {formatDateTime(detailUser.lastLogin || detailUser.lastLoginAt || detailUser.lastSeenAt)}
                                   </span>
                                 </div>
                                 <div className="p-3 rounded-xl bg-[#0b1324] border border-[#1e293b]">
@@ -1024,6 +1257,37 @@ export const OwnerAnalyticsModal: React.FC<OwnerAnalyticsModalProps> = ({
                                       : ''}
                                   </span>
                                 </div>
+                              </div>
+
+                              {/* Tracked Active Devices List (users/{uid}.activeDevices) */}
+                              <div className="space-y-1.5">
+                                <span className="text-[10px] font-mono uppercase tracking-wider text-[#d4af37] font-bold block">
+                                  Active Devices ({activeDevicesList.length} Tracked in users/{detailUser.userId})
+                                </span>
+                                {activeDevicesList.length > 0 ? (
+                                  <div className="max-h-36 overflow-y-auto space-y-1 pr-1">
+                                    {activeDevicesList.map((dev, idx) => (
+                                      <div
+                                        key={`${dev.deviceId || idx}_${dev.lastActive}`}
+                                        className="px-3 py-1.5 rounded-lg bg-[#0b1324] border border-[#1e293b] flex items-center justify-between gap-2 text-[11px]"
+                                      >
+                                        <span className="px-1.5 py-0.5 rounded bg-[#d4af37]/20 border border-[#d4af37]/40 text-[#d4af37] font-mono font-bold text-[10px] uppercase shrink-0">
+                                          {dev.platformType || 'Web'}
+                                        </span>
+                                        <span className="text-[#fbf9f4] truncate flex-1">
+                                          {dev.deviceInfo || 'Standard Device'}
+                                        </span>
+                                        <span className="font-mono text-[#9ca3af] shrink-0">
+                                          Last active: {formatDateTime(dev.lastActive)}
+                                        </span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                ) : (
+                                  <div className="p-3 rounded-xl bg-[#0b1324] border border-[#1e293b] text-[11px] text-[#9ca3af]">
+                                    No active devices currently signed in.
+                                  </div>
+                                )}
                               </div>
 
                               {/* Recent Real Login / Logout Activity Log */}

@@ -101,10 +101,12 @@ export const HomeAmbientAnimation: React.FC<HomeAmbientAnimationProps> = React.m
         {/* Delicate floating glowing particles on Splash screen */}
         {isSplash && (
           <>
-            <span className="svh-ambient-bubble svh-bubble-1" />
-            <span className="svh-ambient-bubble svh-bubble-2" />
-            <span className="svh-ambient-bubble svh-bubble-3" />
-            <span className="svh-ambient-bubble svh-bubble-4" />
+            <span className="svh-ambient-bubble svh-bubble-color-pink svh-bubble-1" />
+            <span className="svh-ambient-bubble svh-bubble-color-cyan svh-bubble-2" />
+            <span className="svh-ambient-bubble svh-bubble-color-lime svh-bubble-3" />
+            <span className="svh-ambient-bubble svh-bubble-color-orange svh-bubble-4" />
+            <span className="svh-ambient-bubble svh-bubble-color-purple svh-bubble-5" />
+            <span className="svh-ambient-bubble svh-bubble-color-gold svh-bubble-6" />
           </>
         )}
       </div>

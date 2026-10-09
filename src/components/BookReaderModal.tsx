@@ -52,7 +52,7 @@ export const BookReaderModal: React.FC<BookReaderModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/75 backdrop-blur-sm animate-in fade-in duration-200 overscroll-contain">
-      <div className="w-full max-w-3xl h-[92vh] h-[92dvh] max-h-[820px] bg-[#0c1326] border border-[#d4af37]/30 rounded-2xl sm:rounded-3xl shadow-2xl flex flex-col overflow-hidden text-[#f7f4ee]">
+      <div className="svh-spring-modal-card w-full max-w-3xl h-[92vh] h-[92dvh] max-h-[820px] bg-[#0c1326] border border-[#d4af37]/30 rounded-2xl sm:rounded-3xl shadow-2xl flex flex-col overflow-hidden text-[#f7f4ee]">
         {/* Header bar */}
         <div className="px-4 sm:px-6 py-3.5 bg-[#090e1c] border-b border-[#d4af37]/20 flex items-center justify-between gap-3">
           <div className="flex items-center gap-2.5 min-w-0">
@@ -93,9 +93,10 @@ export const BookReaderModal: React.FC<BookReaderModalProps> = ({
             </div>
 
             <button
+              type="button"
               onClick={() => onToggleBookmark(book.id)}
               aria-label="Bookmark Book"
-              className={`min-h-[38px] min-w-[38px] flex items-center justify-center rounded-lg border transition-colors ${
+              className={`min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl border transition-colors cursor-pointer ${
                 isBookmarked
                   ? 'bg-[#d4af37]/20 border-[#d4af37] text-[#d4af37]'
                   : 'bg-[#131b2e] border-[#d4af37]/20 text-[#9ca3af] hover:text-[#fbf9f4]'
@@ -105,17 +106,19 @@ export const BookReaderModal: React.FC<BookReaderModalProps> = ({
             </button>
 
             <button
+              type="button"
               onClick={handleShare}
               aria-label="Share Reference"
-              className="min-h-[38px] min-w-[38px] flex items-center justify-center rounded-lg bg-[#131b2e] border border-[#d4af37]/20 text-[#9ca3af] hover:text-[#fbf9f4] transition-colors"
+              className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl bg-[#131b2e] border border-[#d4af37]/20 text-[#9ca3af] hover:text-[#fbf9f4] transition-colors cursor-pointer"
             >
               <Share2 className="w-4 h-4" />
             </button>
 
             <button
+              type="button"
               onClick={onClose}
               aria-label="Close Reader"
-              className="min-h-[38px] min-w-[38px] flex items-center justify-center rounded-lg bg-[#131b2e] border border-[#d4af37]/20 text-[#9ca3af] hover:text-[#fbf9f4] hover:border-red-400/40 transition-colors"
+              className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl bg-[#131b2e] border border-[#d4af37]/20 text-[#9ca3af] hover:text-[#fbf9f4] hover:border-red-400/40 transition-colors cursor-pointer"
             >
               <X className="w-4 h-4" />
             </button>

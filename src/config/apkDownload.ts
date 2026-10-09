@@ -5,10 +5,10 @@ import { Capacitor } from '@capacitor/core';
  * for Study Vault Hub.
  *
  * Official published Android APK release URL:
- * https://github.com/babanrana2008-crypto/Study-Vault-Hub/releases/download/v1.1.0/Best.app-debug.apk
+ * https://github.com/babanrana2008-crypto/Study-Vault-Hub/releases/download/v2.0.0/Study.Vault.Hub.apk
  */
 export const OFFICIAL_ANDROID_APK_URL =
-  'https://github.com/babanrana2008-crypto/Study-Vault-Hub/releases/download/v1.1.0/Best.app-debug.apk';
+  'https://github.com/babanrana2008-crypto/Study-Vault-Hub/releases/download/v2.0.0/Study.Vault.Hub.apk';
 
 function resolveExternalApkUrl(): string {
   const envUrl = ((import.meta as { env?: Record<string, string> })?.env?.VITE_ANDROID_APK_URL || '').trim();
@@ -210,7 +210,7 @@ export function triggerAndroidApkDownload(): boolean {
     link.href = ANDROID_APK_DOWNLOAD_URL;
     link.target = '_blank';
     link.rel = 'noopener noreferrer external';
-    link.setAttribute('download', 'Best.app-debug.apk');
+    link.setAttribute('download', 'Study.Vault.Hub.apk');
     link.style.display = 'none';
     document.body.appendChild(link);
     link.click();

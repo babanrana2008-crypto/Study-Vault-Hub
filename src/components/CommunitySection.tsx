@@ -1,5 +1,19 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import {
+  collection,
+  doc,
+  getDoc,
+  setDoc,
+  updateDoc,
+  deleteDoc,
+  onSnapshot,
+  query,
+  orderBy,
+  limit,
+} from 'firebase/firestore';
+import { db, auth } from '../firebase';
+import { upsertUserProfileInFirestore, getClientDeviceId } from '../services/firebaseDb';
+import {
   MessagesSquare,
   MessageCircle,
   Plus,
@@ -34,7 +48,96 @@ import {
   calculateUserVPBreakdown,
   evaluateUserMilestones,
   getVPRankInfo,
+  getAcademicStanding,
 } from '../utils/vpPoints';
+import { GlassMetallicSkeleton } from './GlassMetallicSkeleton';
+import { RollingVPCounter } from './RollingVPCounter';
+
+enum OperationType {
+  CREATE = 'create',
+  UPDATE = 'update',
+  DELETE = 'delete',
+  LIST = 'list',
+  GET = 'get',
+  WRITE = 'write',
+}
+
+interface FirestoreErrorInfo {
+  error: string;
+  operationType: OperationType;
+  path: string | null;
+  authInfo: {
+    userId?: string | null;
+    email?: string | null;
+    emailVerified?: boolean | null;
+    isAnonymous?: boolean | null;
+    tenantId?: string | null;
+    providerInfo?: {
+      providerId?: string | null;
+      email?: string | null;
+    }[];
+  };
+}
+
+function handleFirestoreError(
+  error: unknown,
+  operationType: OperationType,
+  path: string | null
+) {
+  const errInfo: FirestoreErrorInfo = {
+    error: error instanceof Error ? error.message : String(error),
+    authInfo: {
+      userId: auth?.currentUser?.uid ?? null,
+      email: auth?.currentUser?.email ?? null,
+      emailVerified: auth?.currentUser?.emailVerified ?? null,
+      isAnonymous: auth?.currentUser?.isAnonymous ?? null,
+      tenantId: auth?.currentUser?.tenantId ?? null,
+      providerInfo:
+        auth?.currentUser?.providerData?.map((provider) => ({
+          providerId: provider.providerId,
+          email: provider.email,
+        })) || [],
+    },
+    operationType,
+    path,
+  };
+  console.error('Firestore Error: ', JSON.stringify(errInfo));
+  throw new Error(JSON.stringify(errInfo));
+}
+
+function normalizeTimestampToIso(val: unknown): string {
+  if (!val) return new Date().toISOString();
+  if (typeof val === 'string') {
+    const parsed = new Date(val);
+    return isNaN(parsed.getTime()) ? new Date().toISOString() : parsed.toISOString();
+  }
+  if (typeof val === 'number') {
+    return new Date(val).toISOString();
+  }
+  if (
+    typeof val === 'object' &&
+    val !== null &&
+    'toDate' in val &&
+    typeof (val as { toDate: () => Date }).toDate === 'function'
+  ) {
+    try {
+      return (val as { toDate: () => Date }).toDate().toISOString();
+    } catch {
+      return new Date().toISOString();
+    }
+  }
+  return new Date().toISOString();
+}
+
+function stripUndefinedFields<T extends Record<string, unknown>>(obj: T): T {
+  const cleaned: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(obj)) {
+    if (v !== undefined) {
+      cleaned[k] = v;
+    }
+  }
+  return cleaned as T;
+}
 
 interface CommunitySectionProps {
   userName: string;
@@ -226,7 +329,7 @@ export const CommunitySection: React.FC<CommunitySectionProps> = React.memo(({
       return [];
     }
   });
-  const [serverLeaderboard, setServerLeaderboard] = useState<CommunityLeaderboardEntry[]>([]);
+  const [globalFirestoreLeaderboard, setGlobalFirestoreLeaderboard] = useState<CommunityLeaderboardEntry[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(() => {
     try {
       const hasCachedPosts = Boolean(localStorage.getItem(COMMUNITY_POSTS_CACHE_KEY));
@@ -362,15 +465,41 @@ export const CommunitySection: React.FC<CommunitySectionProps> = React.memo(({
     }, 3200);
   }, []);
 
-  // 1. Initialize & sync cryptographic user identity with backend (with resilient retry)
-  const ensureSessionIdentity = useCallback(async (): Promise<StoredIdentity | null> => {
+  // Resolve current user ID consistently across Firebase Auth, userStats, and local session
+  const currentUserId = useMemo(() => {
+    return (
+      auth?.currentUser?.uid ||
+      identity?.userId ||
+      userStats?.userId ||
+      'local-current-student'
+    );
+  }, [identity?.userId, userStats?.userId]);
+
+  const isUserAuthor = useCallback(
+    (authorId: string) => {
+      if (!authorId) return false;
+      return (
+        auth?.currentUser?.uid === authorId ||
+        identity?.userId === authorId ||
+        userStats?.userId === authorId ||
+        currentUserId === authorId
+      );
+    },
+    [identity?.userId, userStats?.userId, currentUserId]
+  );
+
+  // 1. Initialize & sync user identity (with resilient fallback so every user has a persistent authorId)
+  const ensureSessionIdentity = useCallback(async (): Promise<StoredIdentity> => {
     let currentIdentity = identityRef.current;
     try {
       const saved = localStorage.getItem(IDENTITY_STORAGE_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (parsed?.userId && parsed?.authToken) {
-          currentIdentity = { userId: parsed.userId, authToken: parsed.authToken };
+        if (parsed?.userId) {
+          currentIdentity = {
+            userId: auth?.currentUser?.uid || parsed.userId,
+            authToken: parsed.authToken || 'svh_local_token',
+          };
           identityRef.current = currentIdentity;
           if (isMountedRef.current) {
             setIdentity(currentIdentity);
@@ -380,6 +509,40 @@ export const CommunitySection: React.FC<CommunitySectionProps> = React.memo(({
     } catch {
       // ignore
     }
+
+    if (auth?.currentUser?.uid) {
+      const fbIdentity: StoredIdentity = {
+        userId: auth.currentUser.uid,
+        authToken: currentIdentity?.authToken || `fb_${auth.currentUser.uid}`,
+      };
+      identityRef.current = fbIdentity;
+      if (isMountedRef.current) {
+        setIdentity(fbIdentity);
+      }
+      try {
+        localStorage.setItem(IDENTITY_STORAGE_KEY, JSON.stringify(fbIdentity));
+      } catch {
+        // ignore
+      }
+      return fbIdentity;
+    }
+
+    if (userStats?.userId) {
+      const statsIdentity: StoredIdentity = {
+        userId: userStats.userId,
+        authToken: currentIdentity?.authToken || `svh_${userStats.userId}`,
+      };
+      identityRef.current = statsIdentity;
+      if (isMountedRef.current) {
+        setIdentity(statsIdentity);
+      }
+      try {
+        localStorage.setItem(IDENTITY_STORAGE_KEY, JSON.stringify(statsIdentity));
+      } catch {
+        // ignore
+      }
+    }
+
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
     };
@@ -387,30 +550,23 @@ export const CommunitySection: React.FC<CommunitySectionProps> = React.memo(({
       headers.Authorization = `Bearer ${currentIdentity.authToken}`;
     }
 
-    const maxAttempts = 3;
-    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-      if (!isMountedRef.current) return currentIdentity;
-      try {
-        const res = await apiFetch('/api/community/auth/session', {
-          method: 'POST',
-          headers,
-          body: JSON.stringify({
-            displayName: displayUserName,
-            profilePhotoUrl: userProfilePhotoUrl ?? null,
-          }),
-        });
+    try {
+      const res = await apiFetch('/api/community/auth/session', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          displayName: displayUserName,
+          profilePhotoUrl: userProfilePhotoUrl ?? null,
+        }),
+      });
 
-        if (!res.ok) {
-          throw new Error('Could not establish community session');
-        }
-
+      if (res.ok) {
         const data = await res.json();
         const resolvedIdentity: StoredIdentity = {
-          userId: data.userId,
-          authToken: data.authToken || currentIdentity?.authToken || '',
+          userId: auth?.currentUser?.uid || userStats?.userId || data.userId,
+          authToken: data.authToken || currentIdentity?.authToken || 'svh_token',
         };
-
-        if (resolvedIdentity.userId && resolvedIdentity.authToken) {
+        if (resolvedIdentity.userId) {
           identityRef.current = resolvedIdentity;
           if (isMountedRef.current) {
             setIdentity(resolvedIdentity);
@@ -418,252 +574,224 @@ export const CommunitySection: React.FC<CommunitySectionProps> = React.memo(({
           try {
             localStorage.setItem(IDENTITY_STORAGE_KEY, JSON.stringify(resolvedIdentity));
           } catch {
-            // ignore storage quota errors
+            // ignore
           }
           return resolvedIdentity;
         }
-        return currentIdentity;
-      } catch {
-        if (attempt < maxAttempts && isMountedRef.current) {
-          await new Promise((resolve) => setTimeout(resolve, attempt * 600));
-        }
       }
+    } catch {
+      // fallback to local deterministic identity below
     }
-    return identityRef.current;
-  }, [displayUserName, userProfilePhotoUrl]);
 
-  // Fetch initial state from backend API (with resilient retry)
-  const fetchCommunityState = useCallback(async () => {
-    const maxAttempts = 3;
-    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-      if (!isMountedRef.current) return;
-      try {
-        const res = await apiFetch('/api/community/state');
-        if (!res.ok) throw new Error('Failed to load community data');
-        const data = await res.json();
-        if (!isMountedRef.current) return;
-        setPosts(Array.isArray(data.posts) ? data.posts : []);
-        setReplies(Array.isArray(data.replies) ? data.replies : []);
-        setChatMessages(Array.isArray(data.chatMessages) ? data.chatMessages : []);
-        if (Array.isArray(data.leaderboard)) {
-          setServerLeaderboard(data.leaderboard);
-        }
-        setErrorBanner(null);
-        setIsLoading(false);
-        return;
-      } catch {
-        if (attempt < maxAttempts && isMountedRef.current) {
-          await new Promise((resolve) => setTimeout(resolve, attempt * 600));
-        }
-      }
+    if (identityRef.current?.userId) {
+      return identityRef.current;
     }
+
+    const fallbackId =
+      auth?.currentUser?.uid ||
+      userStats?.userId ||
+      `usr_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 9)}`;
+    const fallbackIdentity: StoredIdentity = {
+      userId: fallbackId,
+      authToken: `tok_${fallbackId}`,
+    };
+    identityRef.current = fallbackIdentity;
     if (isMountedRef.current) {
-      setIsLoading(false);
+      setIdentity(fallbackIdentity);
     }
-  }, []);
+    try {
+      localStorage.setItem(IDENTITY_STORAGE_KEY, JSON.stringify(fallbackIdentity));
+    } catch {
+      // ignore
+    }
+    return fallbackIdentity;
+  }, [displayUserName, userProfilePhotoUrl, userStats?.userId]);
 
-  // Run session initialization and initial state fetch
   useEffect(() => {
     ensureSessionIdentity();
-    fetchCommunityState();
-  }, [ensureSessionIdentity, fetchCommunityState]);
+  }, [ensureSessionIdentity]);
 
-  // 2. Real-time WebSocket connection with idempotent event handlers & exponential backoff
+  // 2A. GLOBAL LEADERBOARD: Live Firestore listener using query(collection(db, "users"), orderBy("vpPoints", "desc"), limit(50)) with onSnapshot
   useEffect(() => {
-    let ws: WebSocket | null = null;
-    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
-    let isUnmounted = false;
-    let failedAttempts = 0;
+    const leaderboardQuery = query(
+      collection(db, 'users'),
+      orderBy('vpPoints', 'desc'),
+      limit(50)
+    );
 
-    const connectWebSocket = () => {
-      if (isUnmounted) return;
-      const isNativeAndroid =
-        typeof window !== 'undefined' &&
-        (Boolean(
-          (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor?.isNativePlatform?.()
-        ) ||
-          window.location.origin === 'https://localhost' ||
-          window.location.protocol === 'capacitor:');
+    const unsubscribe = onSnapshot(
+      leaderboardQuery,
+      (snapshot) => {
+        if (!isMountedRef.current) return;
+        const rankedUsers: CommunityLeaderboardEntry[] = [];
 
-      // In standalone Android APK, if WebSocket handshake already failed due to Cloud Run cookie gate, stop spamming reconnects
-      if (isNativeAndroid && failedAttempts >= 1) {
-        return;
-      }
+        snapshot.forEach((docSnap) => {
+          const data = docSnap.data() || {};
+          const uid = String(docSnap.id || data.uid || data.userId || '').trim();
+          if (!uid) return;
 
-      const protocol = isNativeAndroid || window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const host = isNativeAndroid
-        ? 'ais-pre-w3eilfsiu6bgskrqwaueau-208888461367.asia-east1.run.app'
-        : window.location.host;
-      const wsUrl = `${protocol}//${host}/ws/community`;
+          const vpPoints = Math.max(
+            0,
+            Math.floor(Number(data.vpPoints ?? data.vaultPoints ?? data.userStats?.vpPoints ?? 0))
+          );
+          const tierInfo = getVPRankInfo(vpPoints);
+          const standingTitle = getAcademicStanding(vpPoints);
 
-      try {
-        ws = new WebSocket(wsUrl);
-      } catch {
-        failedAttempts += 1;
-        if (!isNativeAndroid) {
-          const delay = Math.min(30000, 3000 * Math.pow(2, failedAttempts - 1));
-          reconnectTimer = setTimeout(connectWebSocket, delay);
-        }
-        return;
-      }
+          const statsObj = (data.userStats || {}) as Partial<UserStats>;
+          const unlockedMilestones = evaluateUserMilestones(statsObj, vpPoints).filter(
+            (m) => m.unlocked
+          ).length;
 
-      ws.onopen = () => {
-        failedAttempts = 0;
-      };
+          rankedUsers.push({
+            userId: uid,
+            displayName: String(
+              data.displayName || statsObj.name || data.username || 'Student'
+            ),
+            profilePhotoUrl:
+              data.profilePhotoUrl ?? statsObj.profilePhotoUrl ?? null,
+            vpPoints,
+            rankTitle: standingTitle,
+            rankLevel: tierInfo.currentTier.level,
+            postsCount: Math.max(0, Number(data.postsCount) || 0),
+            repliesCount: Math.max(0, Number(data.repliesCount) || 0),
+            chatCount: Math.max(0, Number(data.chatCount) || 0),
+            milestonesUnlocked: Math.max(
+              0,
+              Number(data.milestonesUnlocked) || unlockedMilestones
+            ),
+            lastActiveAt: normalizeTimestampToIso(
+              data.lastLogin || data.lastSeenAt || data.createdAt
+            ),
+          });
+        });
 
-      ws.onmessage = (event) => {
+        setGlobalFirestoreLeaderboard(rankedUsers);
+      },
+      (error) => {
         try {
-          const payload = JSON.parse(event.data);
-          switch (payload.type) {
-            case 'init': {
-              if (Array.isArray(payload.posts)) setPosts(payload.posts);
-              if (Array.isArray(payload.replies)) setReplies(payload.replies);
-              if (Array.isArray(payload.chatMessages)) setChatMessages(payload.chatMessages);
-              setIsLoading(false);
-              break;
-            }
-            case 'post:created': {
-              const incomingPost: CommunityPost = payload.post;
-              if (!incomingPost?.id) break;
-              setPosts((prev) => {
-                if (prev.some((p) => p.id === incomingPost.id)) return prev;
-                return [incomingPost, ...prev];
-              });
-              break;
-            }
-            case 'post:deleted': {
-              const deletedPostId: string = payload.postId;
-              if (!deletedPostId) break;
-              setPosts((prev) => prev.filter((p) => p.id !== deletedPostId));
-              setReplies((prev) => prev.filter((r) => r.postId !== deletedPostId));
-              setSelectedPostId((prev) => (prev === deletedPostId ? null : prev));
-              break;
-            }
-            case 'reply:created': {
-              const incomingReply: CommunityReply = payload.reply;
-              const targetPostId: string = payload.postId;
-              const updatedCount: number = payload.replyCount;
-              if (!incomingReply?.id) break;
-
-              setReplies((prev) => {
-                if (prev.some((r) => r.id === incomingReply.id)) return prev;
-                return [...prev, incomingReply];
-              });
-
-              if (targetPostId && typeof updatedCount === 'number') {
-                setPosts((prev) =>
-                  prev.map((p) =>
-                    p.id === targetPostId ? { ...p, replyCount: updatedCount } : p
-                  )
-                );
-              }
-              break;
-            }
-            case 'reply:deleted': {
-              const deletedReplyId: string = payload.replyId;
-              const targetPostId: string = payload.postId;
-              const updatedCount: number = payload.replyCount;
-              if (!deletedReplyId) break;
-
-              setReplies((prev) => prev.filter((r) => r.id !== deletedReplyId));
-              if (targetPostId && typeof updatedCount === 'number') {
-                setPosts((prev) =>
-                  prev.map((p) =>
-                    p.id === targetPostId ? { ...p, replyCount: updatedCount } : p
-                  )
-                );
-              }
-              break;
-            }
-            case 'chat:created': {
-              const incomingMessage: CommunityChatMessage = payload.message;
-              if (!incomingMessage?.id) break;
-              setChatMessages((prev) => {
-                if (prev.some((m) => m.id === incomingMessage.id)) return prev;
-                return [...prev, incomingMessage];
-              });
-              break;
-            }
-            case 'chat:deleted': {
-              const deletedMessageId: string = payload.messageId;
-              if (!deletedMessageId) break;
-              setChatMessages((prev) => prev.filter((m) => m.id !== deletedMessageId));
-              break;
-            }
-            case 'user:updated': {
-              const updatedUserId: string = payload.userId;
-              const updatedName: string = payload.displayName;
-              const hasUpdatedPhoto = Object.prototype.hasOwnProperty.call(payload, 'profilePhotoUrl');
-              const updatedPhoto: string | null = hasUpdatedPhoto ? payload.profilePhotoUrl : undefined;
-              if (!updatedUserId) break;
-              setPosts((prev) =>
-                prev.map((p) =>
-                  p.authorId === updatedUserId
-                    ? {
-                        ...p,
-                        ...(updatedName ? { authorName: updatedName } : {}),
-                        ...(hasUpdatedPhoto ? { authorAvatarUrl: updatedPhoto } : {}),
-                      }
-                    : p
-                )
-              );
-              setReplies((prev) =>
-                prev.map((r) =>
-                  r.authorId === updatedUserId
-                    ? {
-                        ...r,
-                        ...(updatedName ? { authorName: updatedName } : {}),
-                        ...(hasUpdatedPhoto ? { authorAvatarUrl: updatedPhoto } : {}),
-                      }
-                    : r
-                )
-              );
-              setChatMessages((prev) =>
-                prev.map((m) =>
-                  m.authorId === updatedUserId
-                    ? {
-                        ...m,
-                        ...(updatedName ? { authorName: updatedName } : {}),
-                        ...(hasUpdatedPhoto ? { authorAvatarUrl: updatedPhoto } : {}),
-                      }
-                    : m
-                )
-              );
-              break;
-            }
-            default:
-              break;
-          }
+          handleFirestoreError(error, OperationType.LIST, 'users');
         } catch {
-          // ignore malformed event
+          // error logged by handleFirestoreError
         }
-      };
-
-      ws.onclose = () => {
-        if (!isUnmounted) {
-          failedAttempts += 1;
-          if (isNativeAndroid && failedAttempts >= 1) {
-            return;
-          }
-          const delay = Math.min(30000, 3000 * Math.pow(2, Math.min(failedAttempts - 1, 3)));
-          reconnectTimer = setTimeout(() => {
-            fetchCommunityState();
-            connectWebSocket();
-          }, delay);
-        }
-      };
-    };
-
-    connectWebSocket();
+      }
+    );
 
     return () => {
-      isUnmounted = true;
-      if (reconnectTimer) clearTimeout(reconnectTimer);
-      if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.close();
-      }
+      unsubscribe();
     };
-  }, [fetchCommunityState]);
+  }, []);
+
+  // 2. Real-time Firestore listener (onSnapshot) on `community_posts` ordered by `timestamp` descending.
+  //    Immediately visible to ALL online users with zero user-ID restrictions.
+  useEffect(() => {
+    const communityPostsQuery = query(
+      collection(db, 'community_posts'),
+      orderBy('timestamp', 'desc')
+    );
+
+    const unsubscribe = onSnapshot(
+      communityPostsQuery,
+      (snapshot) => {
+        if (!isMountedRef.current) return;
+
+        const loadedPosts: CommunityPost[] = [];
+        const loadedReplies: CommunityReply[] = [];
+        const loadedChats: CommunityChatMessage[] = [];
+
+        snapshot.forEach((docSnap) => {
+          const data = docSnap.data();
+          const docId = docSnap.id || String(data.id || '');
+          const isoTime = normalizeTimestampToIso(data.timestamp || data.createdAt);
+          const textContent = String(
+            data.messageText ?? data.content ?? ''
+          );
+          const authorId = String(data.authorId || 'anonymous');
+          const authorName = String(data.authorName || 'Student');
+          const authorAvatarUrl = data.authorAvatarUrl ?? null;
+
+          // Parse embedded replies array on each community_posts document
+          const rawReplies = Array.isArray(data.replies) ? data.replies : [];
+          const normalizedReplies: CommunityReply[] = rawReplies.map(
+            (rep: Record<string, unknown>, idx: number) => {
+              const repIso = normalizeTimestampToIso(rep.timestamp || rep.createdAt);
+              const repText = String(rep.messageText ?? rep.content ?? '');
+              return {
+                id: String(rep.id || `${docId}_reply_${idx}`),
+                postId: docId,
+                authorId: String(rep.authorId || 'anonymous'),
+                authorName: String(rep.authorName || 'Student'),
+                authorAvatarUrl: (rep.authorAvatarUrl as string | null) ?? null,
+                content: repText,
+                messageText: repText,
+                timestamp: repIso,
+                imageUrl: rep.imageUrl ? String(rep.imageUrl) : undefined,
+                createdAt: repIso,
+              };
+            }
+          );
+
+          if (data.postType === 'chat') {
+            loadedChats.push({
+              id: docId,
+              authorId,
+              authorName,
+              authorAvatarUrl,
+              content: textContent,
+              messageText: textContent,
+              timestamp: isoTime,
+              subjectTag: data.subjectTag ? String(data.subjectTag) : undefined,
+              createdAt: isoTime,
+            });
+          } else {
+            loadedReplies.push(...normalizedReplies);
+            loadedPosts.push({
+              id: docId,
+              authorId,
+              authorName,
+              authorAvatarUrl,
+              subject: String(data.subject || 'General'),
+              content: textContent,
+              messageText: textContent,
+              timestamp: isoTime,
+              replies: normalizedReplies,
+              imageUrl: data.imageUrl ? String(data.imageUrl) : undefined,
+              createdAt: isoTime,
+              replyCount:
+                typeof data.replyCount === 'number'
+                  ? Math.max(data.replyCount, normalizedReplies.length)
+                  : normalizedReplies.length,
+            });
+          }
+        });
+
+        // Sort chat messages chronologically for the live chat stream while keeping posts descending by timestamp
+        loadedChats.sort(
+          (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+        );
+        loadedReplies.sort(
+          (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+        );
+
+        setPosts(loadedPosts);
+        setReplies(loadedReplies);
+        setChatMessages(loadedChats);
+        setErrorBanner(null);
+        setIsLoading(false);
+      },
+      (error) => {
+        setIsLoading(false);
+        try {
+          handleFirestoreError(error, OperationType.LIST, 'community_posts');
+        } catch {
+          // error logged by handleFirestoreError
+        }
+      }
+    );
+
+    return () => {
+      unsubscribe();
+    };
+  }, []);
 
   const hasOpenCommunityModal = Boolean(
     isCreateModalOpen || confirmDelete || reportTarget || zoomedImageUrl
@@ -714,18 +842,19 @@ export const CommunitySection: React.FC<CommunitySectionProps> = React.memo(({
     return ['All', ...subjectOptions];
   }, [subjectOptions]);
 
-  // Filtered visible posts (excluding items the user chose to hide after reporting)
+  // Filtered visible posts (visible to ALL online users with zero userId restrictions)
   const visiblePosts = useMemo(() => {
     return posts.filter((post) => {
       if (hiddenIds.includes(post.id)) return false;
+      const postText = post.messageText || post.content || '';
       const matchesSubject =
         selectedSubjectFilter === 'All' ||
-        post.subject.toLowerCase() === selectedSubjectFilter.toLowerCase();
+        (post.subject || 'General').toLowerCase() === selectedSubjectFilter.toLowerCase();
       const matchesSearch =
         !searchQuery.trim() ||
-        post.content.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        post.authorName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        post.subject.toLowerCase().includes(searchQuery.toLowerCase());
+        postText.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (post.authorName || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (post.subject || '').toLowerCase().includes(searchQuery.toLowerCase());
       return matchesSubject && matchesSearch;
     });
   }, [posts, hiddenIds, selectedSubjectFilter, searchQuery]);
@@ -737,16 +866,19 @@ export const CommunitySection: React.FC<CommunitySectionProps> = React.memo(({
 
   const selectedPostReplies = useMemo(() => {
     if (!selectedPostId) return [];
-    return replies.filter(
-      (r) => r.postId === selectedPostId && !hiddenIds.includes(r.id)
-    );
-  }, [replies, selectedPostId, hiddenIds]);
+    const postObj = posts.find((p) => p.id === selectedPostId);
+    const sourceReplies =
+      postObj && Array.isArray(postObj.replies) && postObj.replies.length > 0
+        ? postObj.replies
+        : replies.filter((r) => r.postId === selectedPostId);
+    return sourceReplies.filter((r) => !hiddenIds.includes(r.id));
+  }, [posts, replies, selectedPostId, hiddenIds]);
 
   const visibleChatMessages = useMemo(() => {
     return chatMessages.filter((m) => !hiddenIds.includes(m.id));
   }, [chatMessages, hiddenIds]);
 
-  // Real Community Leaderboard & Milestones Computation (100% real data, zero fake entries)
+  // Real Global Leaderboard & Milestones Computation (powered by live Firestore `users` query ordered by vpPoints desc, limit 50)
   const { leaderboardEntries, myRankEntry, myMilestones, myVPBreakdown } = useMemo(() => {
     const baseStats: UserStats = userStats || {
       name: displayUserName,
@@ -775,111 +907,61 @@ export const CommunitySection: React.FC<CommunitySectionProps> = React.memo(({
     const milestones = evaluateUserMilestones(baseStats, vpBreakdown.totalVP);
     const unlockedMilestoneCount = milestones.filter((m) => m.unlocked).length;
 
-    const myUserId = identity?.userId || baseStats.userId || 'local-current-student';
+    const myUserId =
+      auth?.currentUser?.uid ||
+      identity?.userId ||
+      baseStats.userId ||
+      'local-current-student';
     const myPostsCount = posts.filter((p) => p.authorId === myUserId).length;
     const myRepliesCount = replies.filter((r) => r.authorId === myUserId).length;
     const myChatCount = chatMessages.filter((m) => m.authorId === myUserId).length;
 
-    const communityBonusVP =
-      myPostsCount * 20 + myRepliesCount * 35 + Math.min(200, myChatCount * 5);
-    const myTotalCombinedVP = vpBreakdown.totalVP + communityBonusVP;
-    const myRankTierInfo = getVPRankInfo(myTotalCombinedVP);
+    // Enrich global Firestore leaderboard entries with live community counts from `community_posts`
+    const enrichedGlobalEntries: CommunityLeaderboardEntry[] = globalFirestoreLeaderboard.map(
+      (entry) => {
+        const uPostsCount = posts.filter((p) => p.authorId === entry.userId).length;
+        const uRepliesCount = replies.filter((r) => r.authorId === entry.userId).length;
+        const uChatCount = chatMessages.filter((m) => m.authorId === entry.userId).length;
+        const tierInfo = getVPRankInfo(entry.vpPoints);
 
-    // Aggregate real users from server leaderboard + live posts/replies/chat
-    const entryMap = new Map<string, CommunityLeaderboardEntry>();
+        return {
+          ...entry,
+          rankTitle: getAcademicStanding(entry.vpPoints),
+          rankLevel: tierInfo.currentTier.level,
+          postsCount: Math.max(entry.postsCount || 0, uPostsCount),
+          repliesCount: Math.max(entry.repliesCount || 0, uRepliesCount),
+          chatCount: Math.max(entry.chatCount || 0, uChatCount),
+        };
+      }
+    );
 
-    for (const srvEntry of serverLeaderboard) {
-      if (!srvEntry?.userId) continue;
-      entryMap.set(srvEntry.userId, { ...srvEntry });
-    }
-
-    // Ensure any live authors in posts/replies/chat are accurately reflected
-    const allUserIds = new Set<string>();
-    posts.forEach((p) => p.authorId && allUserIds.add(p.authorId));
-    replies.forEach((r) => r.authorId && allUserIds.add(r.authorId));
-    chatMessages.forEach((m) => m.authorId && allUserIds.add(m.authorId));
-
-    allUserIds.forEach((uid) => {
-      const uPosts = posts.filter((p) => p.authorId === uid);
-      const uReplies = replies.filter((r) => r.authorId === uid);
-      const uChats = chatMessages.filter((m) => m.authorId === uid);
-
-      const latestName =
-        uPosts[0]?.authorName ||
-        uReplies[0]?.authorName ||
-        uChats[uChats.length - 1]?.authorName ||
-        entryMap.get(uid)?.displayName ||
-        'Student';
-      const latestPhoto =
-        uPosts[0]?.authorAvatarUrl ??
-        uReplies[0]?.authorAvatarUrl ??
-        uChats[uChats.length - 1]?.authorAvatarUrl ??
-        entryMap.get(uid)?.profilePhotoUrl ??
-        null;
-
-      const commVP =
-        uPosts.length * 20 + uReplies.length * 35 + Math.min(200, uChats.length * 5);
-      const existing = entryMap.get(uid);
-      const bestVP = Math.max(existing?.vpPoints || 0, commVP);
-      const tierInfo = getVPRankInfo(bestVP);
-
-      const mUnlocked =
-        (uPosts.length >= 1 ? 1 : 0) +
-        (uReplies.length >= 1 ? 1 : 0) +
-        (uReplies.length >= 5 ? 1 : 0) +
-        (bestVP >= 250 ? 1 : 0);
-
-      entryMap.set(uid, {
-        userId: uid,
-        displayName: latestName,
-        profilePhotoUrl: latestPhoto,
-        vpPoints: bestVP,
-        rankTitle: tierInfo.currentTier.title,
-        rankLevel: tierInfo.currentTier.level,
-        postsCount: uPosts.length,
-        repliesCount: uReplies.length,
-        chatCount: uChats.length,
-        milestonesUnlocked: Math.max(existing?.milestonesUnlocked || 0, mUnlocked),
-        lastActiveAt:
-          existing?.lastActiveAt ||
-          uPosts[0]?.createdAt ||
-          uReplies[0]?.createdAt ||
-          new Date().toISOString(),
-      });
-    });
-
-    // Always include/merge the current authenticated student with their real local + community VP
-    const existingMe = entryMap.get(myUserId);
-    const mergedMyVP = Math.max(myTotalCombinedVP, existingMe?.vpPoints || 0);
+    const existingMeInGlobal = enrichedGlobalEntries.find((e) => e.userId === myUserId);
+    const mergedMyVP = Math.max(vpBreakdown.totalVP, existingMeInGlobal?.vpPoints || 0);
     const mergedTier = getVPRankInfo(mergedMyVP);
 
     const myEntry: CommunityLeaderboardEntry = {
       userId: myUserId,
-      displayName: displayUserName,
-      profilePhotoUrl: userProfilePhotoUrl ?? existingMe?.profilePhotoUrl ?? null,
+      displayName: existingMeInGlobal?.displayName || displayUserName,
+      profilePhotoUrl:
+        userProfilePhotoUrl ?? existingMeInGlobal?.profilePhotoUrl ?? null,
       vpPoints: mergedMyVP,
-      rankTitle: mergedTier.currentTier.title,
+      rankTitle: getAcademicStanding(mergedMyVP),
       rankLevel: mergedTier.currentTier.level,
-      postsCount: Math.max(myPostsCount, existingMe?.postsCount || 0),
-      repliesCount: Math.max(myRepliesCount, existingMe?.repliesCount || 0),
-      chatCount: Math.max(myChatCount, existingMe?.chatCount || 0),
+      postsCount: Math.max(myPostsCount, existingMeInGlobal?.postsCount || 0),
+      repliesCount: Math.max(myRepliesCount, existingMeInGlobal?.repliesCount || 0),
+      chatCount: Math.max(myChatCount, existingMeInGlobal?.chatCount || 0),
       milestonesUnlocked: Math.max(
         unlockedMilestoneCount,
-        existingMe?.milestonesUnlocked || 0
+        existingMeInGlobal?.milestonesUnlocked || 0
       ),
-      lastActiveAt: new Date().toISOString(),
+      lastActiveAt: existingMeInGlobal?.lastActiveAt || new Date().toISOString(),
     };
 
-    entryMap.set(myUserId, myEntry);
-
-    const sorted = Array.from(entryMap.values()).sort((a, b) => {
-      if (b.vpPoints !== a.vpPoints) return b.vpPoints - a.vpPoints;
-      if (b.repliesCount !== a.repliesCount) return b.repliesCount - a.repliesCount;
-      return b.postsCount - a.postsCount;
-    });
+    const finalRankedList =
+      enrichedGlobalEntries.length > 0 ? enrichedGlobalEntries.slice(0, 50) : [myEntry];
 
     return {
-      leaderboardEntries: sorted,
+      leaderboardEntries: finalRankedList,
       myRankEntry: myEntry,
       myMilestones: milestones,
       myVPBreakdown: vpBreakdown,
@@ -894,7 +976,44 @@ export const CommunitySection: React.FC<CommunitySectionProps> = React.memo(({
     posts,
     replies,
     chatMessages,
-    serverLeaderboard,
+    globalFirestoreLeaderboard,
+  ]);
+
+  // Keep current student's users/{uid} document synced so they appear in the global Firestore leaderboard
+  useEffect(() => {
+    const resolvedUid =
+      auth?.currentUser?.uid || identity?.userId || userStats?.userId || '';
+    if (!resolvedUid || resolvedUid === 'local-current-student') return;
+
+    const currentInGlobal = globalFirestoreLeaderboard.find(
+      (e) => e.userId === resolvedUid
+    );
+    const localVp = myVPBreakdown.totalVP;
+
+    if (!currentInGlobal || localVp > currentInGlobal.vpPoints) {
+      upsertUserProfileInFirestore({
+        uid: resolvedUid,
+        displayName: displayUserName,
+        email:
+          auth?.currentUser?.email ||
+          (userStats?.username
+            ? userStats.username.includes('@')
+              ? userStats.username
+              : `${userStats.username}@svh.student`
+            : `${resolvedUid}@svh.student`),
+        username: userStats?.username || null,
+        role: userStats?.role === 'owner' ? 'owner' : 'student',
+        vpPoints: Math.max(localVp, currentInGlobal?.vpPoints || 0),
+        deviceId: getClientDeviceId(),
+        userStats,
+      }).catch(() => {});
+    }
+  }, [
+    identity?.userId,
+    userStats,
+    displayUserName,
+    myVPBreakdown.totalVP,
+    globalFirestoreLeaderboard,
   ]);
 
   // Handlers for Image Upload
@@ -926,7 +1045,7 @@ export const CommunitySection: React.FC<CommunitySectionProps> = React.memo(({
     }
   };
 
-  // Create Post / Ask Doubt
+  // Create Post / Ask Doubt (Directly saved in Firestore collection `community_posts`)
   const handleCreatePost = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newPostContent.trim() && !newPostImage) {
@@ -939,34 +1058,37 @@ export const CommunitySection: React.FC<CommunitySectionProps> = React.memo(({
 
     try {
       const activeIdentity = identity || (await ensureSessionIdentity());
-      if (!activeIdentity?.authToken) {
-        throw new Error('Could not verify your session identity. Please try again.');
-      }
+      const resolvedAuthorId =
+        auth?.currentUser?.uid ||
+        activeIdentity?.userId ||
+        userStats?.userId ||
+        currentUserId;
 
-      const res = await apiFetch('/api/community/posts', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${activeIdentity.authToken}`,
-        },
-        body: JSON.stringify({
-          subject: newPostSubject || 'General',
-          content: newPostContent.trim(),
-          imageUrl: newPostImage || undefined,
-          authorName: displayUserName,
-        }),
+      const nowIso = new Date().toISOString();
+      const postId = `post_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 9)}`;
+      const cleanMessageText = newPostContent.trim() || '[Image Doubt Attached]';
+
+      const firestorePostDoc = stripUndefinedFields({
+        id: postId,
+        authorId: resolvedAuthorId,
+        authorName: displayUserName,
+        authorAvatarUrl: userProfilePhotoUrl ?? null,
+        messageText: cleanMessageText,
+        content: newPostContent.trim(),
+        subject: newPostSubject || 'General',
+        timestamp: nowIso,
+        createdAt: nowIso,
+        replies: [],
+        replyCount: 0,
+        postType: 'doubt' as const,
+        ...(newPostImage ? { imageUrl: newPostImage } : {}),
       });
 
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || 'Failed to publish post.');
+      try {
+        await setDoc(doc(db, 'community_posts', postId), firestorePostDoc);
+      } catch (fsErr) {
+        handleFirestoreError(fsErr, OperationType.CREATE, `community_posts/${postId}`);
       }
-
-      const createdPost: CommunityPost = data.post;
-      setPosts((prev) => {
-        if (prev.some((p) => p.id === createdPost.id)) return prev;
-        return [createdPost, ...prev];
-      });
 
       setNewPostContent('');
       setNewPostImage(null);
@@ -979,7 +1101,7 @@ export const CommunitySection: React.FC<CommunitySectionProps> = React.memo(({
     }
   };
 
-  // Submit Reply / Solution
+  // Submit Reply / Solution (Allows all users to add replies to any post in `community_posts`)
   const handleCreateReply = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedPost) return;
@@ -993,40 +1115,58 @@ export const CommunitySection: React.FC<CommunitySectionProps> = React.memo(({
 
     try {
       const activeIdentity = identity || (await ensureSessionIdentity());
-      if (!activeIdentity?.authToken) {
-        throw new Error('Could not verify your session identity.');
-      }
+      const resolvedAuthorId =
+        auth?.currentUser?.uid ||
+        activeIdentity?.userId ||
+        userStats?.userId ||
+        currentUserId;
 
-      const res = await apiFetch(`/api/community/posts/${selectedPost.id}/replies`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${activeIdentity.authToken}`,
-        },
-        body: JSON.stringify({
-          content: replyContent.trim(),
-          imageUrl: replyImage || undefined,
-          authorName: displayUserName,
-        }),
+      const nowIso = new Date().toISOString();
+      const replyId = `rep_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 9)}`;
+      const cleanReplyText = replyContent.trim() || '[Solution Image Attached]';
+
+      const newReplyItem: CommunityReply = stripUndefinedFields({
+        id: replyId,
+        postId: selectedPost.id,
+        authorId: resolvedAuthorId,
+        authorName: displayUserName,
+        authorAvatarUrl: userProfilePhotoUrl ?? null,
+        messageText: cleanReplyText,
+        content: replyContent.trim(),
+        timestamp: nowIso,
+        createdAt: nowIso,
+        ...(replyImage ? { imageUrl: replyImage } : {}),
       });
 
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || 'Failed to submit reply.');
-      }
+      const postRef = doc(db, 'community_posts', selectedPost.id);
+      try {
+        const postSnap = await getDoc(postRef);
+        const existingData = postSnap.exists() ? postSnap.data() : {};
+        const currentReplies: CommunityReply[] = Array.isArray(existingData.replies)
+          ? existingData.replies
+          : Array.isArray(selectedPost.replies)
+          ? selectedPost.replies
+          : [];
+        const updatedReplies = [...currentReplies, newReplyItem];
 
-      const createdReply: CommunityReply = data.reply;
-      setReplies((prev) => {
-        if (prev.some((r) => r.id === createdReply.id)) return prev;
-        return [...prev, createdReply];
-      });
-
-      if (typeof data.replyCount === 'number') {
-        setPosts((prev) =>
-          prev.map((p) =>
-            p.id === selectedPost.id ? { ...p, replyCount: data.replyCount } : p
-          )
+        await setDoc(
+          postRef,
+          stripUndefinedFields({
+            authorId: String(existingData.authorId || selectedPost.authorId),
+            authorName: String(existingData.authorName || selectedPost.authorName),
+            messageText: String(
+              existingData.messageText || selectedPost.messageText || selectedPost.content || 'Doubt'
+            ),
+            timestamp: String(
+              existingData.timestamp || selectedPost.timestamp || selectedPost.createdAt || nowIso
+            ),
+            replies: updatedReplies,
+            replyCount: updatedReplies.length,
+          }),
+          { merge: true }
         );
+      } catch (fsErr) {
+        handleFirestoreError(fsErr, OperationType.UPDATE, `community_posts/${selectedPost.id}`);
       }
 
       setReplyContent('');
@@ -1039,7 +1179,7 @@ export const CommunitySection: React.FC<CommunitySectionProps> = React.memo(({
     }
   };
 
-  // Send Community Chat Message
+  // Send Community Chat Message (Stored in `community_posts` and immediately visible to all online users)
   const handleSendChatMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!chatInput.trim()) return;
@@ -1050,33 +1190,36 @@ export const CommunitySection: React.FC<CommunitySectionProps> = React.memo(({
 
     try {
       const activeIdentity = identity || (await ensureSessionIdentity());
-      if (!activeIdentity?.authToken) {
-        throw new Error('Could not verify your session identity.');
-      }
+      const resolvedAuthorId =
+        auth?.currentUser?.uid ||
+        activeIdentity?.userId ||
+        userStats?.userId ||
+        currentUserId;
 
-      const res = await apiFetch('/api/community/chat', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${activeIdentity.authToken}`,
-        },
-        body: JSON.stringify({
-          content: messageText,
-          subjectTag: activeGoal || undefined,
-          authorName: displayUserName,
-        }),
+      const nowIso = new Date().toISOString();
+      const chatId = `chat_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 9)}`;
+
+      const firestoreChatDoc = stripUndefinedFields({
+        id: chatId,
+        authorId: resolvedAuthorId,
+        authorName: displayUserName,
+        authorAvatarUrl: userProfilePhotoUrl ?? null,
+        messageText,
+        content: messageText,
+        subject: activeGoal || 'General',
+        ...(activeGoal ? { subjectTag: activeGoal } : {}),
+        timestamp: nowIso,
+        createdAt: nowIso,
+        replies: [],
+        replyCount: 0,
+        postType: 'chat' as const,
       });
 
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || 'Failed to send message.');
+      try {
+        await setDoc(doc(db, 'community_posts', chatId), firestoreChatDoc);
+      } catch (fsErr) {
+        handleFirestoreError(fsErr, OperationType.CREATE, `community_posts/${chatId}`);
       }
-
-      const createdMsg: CommunityChatMessage = data.message;
-      setChatMessages((prev) => {
-        if (prev.some((m) => m.id === createdMsg.id)) return prev;
-        return [...prev, createdMsg];
-      });
 
       setChatInput('');
     } catch (err) {
@@ -1086,54 +1229,92 @@ export const CommunitySection: React.FC<CommunitySectionProps> = React.memo(({
     }
   };
 
-  // Delete Own Post, Reply, or Chat Message
+  // Delete Post, Reply, or Chat Message (Permanently stored unless deleted by author `auth.currentUser.uid === post.authorId` or admin)
   const handleExecuteDelete = async () => {
     if (!confirmDelete) return;
     const { type, id } = confirmDelete;
 
     try {
-      const activeIdentity = identity || (await ensureSessionIdentity());
-      if (!activeIdentity?.authToken) {
-        throw new Error('Unauthorized');
-      }
-
-      const endpoint =
-        type === 'post'
-          ? `/api/community/posts/${id}`
-          : type === 'reply'
-          ? `/api/community/replies/${id}`
-          : `/api/community/chat/${id}`;
-
-      const res = await apiFetch(endpoint, {
-        method: 'DELETE',
-        headers: {
-          Authorization: `Bearer ${activeIdentity.authToken}`,
-        },
-      });
-
-      if (!res.ok) {
-        const errData = await res.json().catch(() => ({}));
-        throw new Error(errData.error || 'Could not delete item.');
-      }
-
       if (type === 'post') {
-        setPosts((prev) => prev.filter((p) => p.id !== id));
-        setReplies((prev) => prev.filter((r) => r.postId !== id));
+        const targetPost = posts.find((p) => p.id === id);
+        const canDelete =
+          isOwnerAuthenticated ||
+          (targetPost &&
+            (auth?.currentUser?.uid === targetPost.authorId ||
+              isUserAuthor(targetPost.authorId)));
+
+        if (!canDelete) {
+          throw new Error('Only the author or an admin can delete this post.');
+        }
+
+        try {
+          await deleteDoc(doc(db, 'community_posts', id));
+        } catch (fsErr) {
+          handleFirestoreError(fsErr, OperationType.DELETE, `community_posts/${id}`);
+        }
+
         if (selectedPostId === id) setSelectedPostId(null);
         showToast('Your post was deleted.');
       } else if (type === 'reply') {
-        const data = await res.json().catch(() => ({}));
-        setReplies((prev) => prev.filter((r) => r.id !== id));
-        if (data.postId && typeof data.replyCount === 'number') {
-          setPosts((prev) =>
-            prev.map((p) =>
-              p.id === data.postId ? { ...p, replyCount: data.replyCount } : p
-            )
-          );
+        const targetReply =
+          selectedPostReplies.find((r) => r.id === id) ||
+          replies.find((r) => r.id === id);
+        const parentPostId = targetReply?.postId || selectedPostId;
+        if (!parentPostId) {
+          throw new Error('Could not locate parent post for reply.');
         }
+
+        const parentPost = posts.find((p) => p.id === parentPostId);
+        const canDelete =
+          isOwnerAuthenticated ||
+          (targetReply &&
+            (auth?.currentUser?.uid === targetReply.authorId ||
+              isUserAuthor(targetReply.authorId))) ||
+          (parentPost &&
+            (auth?.currentUser?.uid === parentPost.authorId ||
+              isUserAuthor(parentPost.authorId)));
+
+        if (!canDelete) {
+          throw new Error('Only the reply author or an admin can delete this reply.');
+        }
+
+        const postRef = doc(db, 'community_posts', parentPostId);
+        try {
+          const postSnap = await getDoc(postRef);
+          if (postSnap.exists()) {
+            const existingData = postSnap.data();
+            const currentReplies: CommunityReply[] = Array.isArray(existingData.replies)
+              ? existingData.replies
+              : [];
+            const updatedReplies = currentReplies.filter((r) => r.id !== id);
+            await updateDoc(postRef, {
+              replies: updatedReplies,
+              replyCount: updatedReplies.length,
+            });
+          }
+        } catch (fsErr) {
+          handleFirestoreError(fsErr, OperationType.UPDATE, `community_posts/${parentPostId}`);
+        }
+
         showToast('Your reply was deleted.');
       } else if (type === 'chat') {
-        setChatMessages((prev) => prev.filter((m) => m.id !== id));
+        const targetChat = chatMessages.find((m) => m.id === id);
+        const canDelete =
+          isOwnerAuthenticated ||
+          (targetChat &&
+            (auth?.currentUser?.uid === targetChat.authorId ||
+              isUserAuthor(targetChat.authorId)));
+
+        if (!canDelete) {
+          throw new Error('Only the author or an admin can delete this message.');
+        }
+
+        try {
+          await deleteDoc(doc(db, 'community_posts', id));
+        } catch (fsErr) {
+          handleFirestoreError(fsErr, OperationType.DELETE, `community_posts/${id}`);
+        }
+
         showToast('Your message was deleted.');
       }
     } catch (err) {
@@ -1356,7 +1537,8 @@ export const CommunitySection: React.FC<CommunitySectionProps> = React.memo(({
                         <span className="font-display font-bold text-sm sm:text-base text-[#fbf9f4]">
                           {selectedPost.authorName}
                         </span>
-                        {identity?.userId === selectedPost.authorId && (
+                        {(auth?.currentUser?.uid === selectedPost.authorId ||
+                          isUserAuthor(selectedPost.authorId)) && (
                           <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-[#d4af37]/20 text-[#d4af37] border border-[#d4af37]/30">
                             You
                           </span>
@@ -1367,21 +1549,28 @@ export const CommunitySection: React.FC<CommunitySectionProps> = React.memo(({
                       </div>
                       <div className="flex items-center gap-1.5 text-[11px] text-[#9ca3af] mt-0.5">
                         <Clock className="w-3 h-3" />
-                        <span>{formatDateTime(selectedPost.createdAt)}</span>
+                        <span>
+                          {formatDateTime(
+                            String(selectedPost.timestamp || selectedPost.createdAt)
+                          )}
+                        </span>
                       </div>
                     </div>
                   </div>
 
                   {/* Moderation Actions */}
                   <div className="flex items-center gap-2">
-                    {identity?.userId === selectedPost.authorId || isOwnerAuthenticated ? (
+                    {auth?.currentUser?.uid === selectedPost.authorId ||
+                    isUserAuthor(selectedPost.authorId) ||
+                    isOwnerAuthenticated ? (
                       <button
                         onClick={() =>
                           setConfirmDelete({ type: 'post', id: selectedPost.id })
                         }
                         className="px-2.5 py-1.5 rounded-lg bg-rose-950/60 border border-rose-500/30 text-rose-300 hover:bg-rose-900/70 text-xs flex items-center gap-1.5 transition-colors"
                         title={
-                          identity?.userId === selectedPost.authorId
+                          auth?.currentUser?.uid === selectedPost.authorId ||
+                          isUserAuthor(selectedPost.authorId)
                             ? 'Delete your post'
                             : 'Delete post (Owner Moderation)'
                         }
@@ -1409,9 +1598,9 @@ export const CommunitySection: React.FC<CommunitySectionProps> = React.memo(({
                 </div>
 
                 {/* Post Text Content */}
-                {selectedPost.content && (
+                {(selectedPost.messageText || selectedPost.content) && (
                   <p className="text-sm sm:text-base text-[#f7f4ee] whitespace-pre-wrap leading-relaxed">
-                    {selectedPost.content}
+                    {selectedPost.messageText || selectedPost.content}
                   </p>
                 )}
 
@@ -1461,7 +1650,9 @@ export const CommunitySection: React.FC<CommunitySectionProps> = React.memo(({
                 ) : (
                   <div className="space-y-3">
                     {selectedPostReplies.map((reply) => {
-                      const isOwnReply = identity?.userId === reply.authorId;
+                      const isOwnReply =
+                        auth?.currentUser?.uid === reply.authorId ||
+                        isUserAuthor(reply.authorId);
                       return (
                         <div
                           key={reply.id}
@@ -1492,7 +1683,9 @@ export const CommunitySection: React.FC<CommunitySectionProps> = React.memo(({
                                   )}
                                 </div>
                                 <span className="text-[11px] text-[#9ca3af]">
-                                  {formatDateTime(reply.createdAt)}
+                                  {formatDateTime(
+                                    String(reply.timestamp || reply.createdAt)
+                                  )}
                                 </span>
                               </div>
                             </div>
@@ -1528,9 +1721,9 @@ export const CommunitySection: React.FC<CommunitySectionProps> = React.memo(({
                             )}
                           </div>
 
-                          {reply.content && (
+                          {(reply.messageText || reply.content) && (
                             <p className="text-xs sm:text-sm text-[#f7f4ee] whitespace-pre-wrap leading-relaxed">
-                              {reply.content}
+                              {reply.messageText || reply.content}
                             </p>
                           )}
 
@@ -1659,11 +1852,7 @@ export const CommunitySection: React.FC<CommunitySectionProps> = React.memo(({
 
               {/* Feed Posts or Authentic Empty State */}
               {isLoading ? (
-                <div className="p-10 rounded-2xl bg-[#0b1324] border border-[#d4af37]/20 text-center space-y-2">
-                  <p className="text-sm text-[#cbd5e1] font-mono">
-                    Loading real-time community discussions...
-                  </p>
-                </div>
+                <GlassMetallicSkeleton variant="community" count={3} />
               ) : visiblePosts.length === 0 ? (
                 <div className="p-8 sm:p-12 rounded-2xl sm:rounded-3xl bg-gradient-to-br from-[#0c1428] via-[#091020] to-[#060b18] border border-[#d4af37]/30 text-center space-y-4 shadow-lg">
                   <div className="w-14 h-14 rounded-2xl bg-[#131b2e] border border-[#d4af37]/35 flex items-center justify-center mx-auto text-[#d4af37]">
@@ -1693,12 +1882,17 @@ export const CommunitySection: React.FC<CommunitySectionProps> = React.memo(({
               ) : (
                 <div className="space-y-4">
                   {visiblePosts.map((post) => {
-                    const isOwnPost = identity?.userId === post.authorId;
+                    const isOwnPost =
+                      auth?.currentUser?.uid === post.authorId ||
+                      isUserAuthor(post.authorId);
+                    const postRepliesCount = Array.isArray(post.replies)
+                      ? post.replies.length
+                      : post.replyCount || 0;
                     return (
                       <article
                         key={post.id}
                         onClick={() => setSelectedPostId(post.id)}
-                        className="p-4 sm:p-5 rounded-2xl bg-[#0b1324] hover:bg-[#0e172c] border border-[#d4af37]/25 hover:border-[#d4af37]/60 transition-all cursor-pointer space-y-3.5 group shadow-md"
+                        className="svh-3d-tilt-card p-4 sm:p-5 rounded-2xl bg-[#0b1324] hover:bg-[#0e172c] border border-[#d4af37]/25 hover:border-[#d4af37]/60 transition-all cursor-pointer space-y-3.5 group shadow-md"
                       >
                         <div className="flex items-start justify-between gap-3">
                           <div className="flex items-center gap-3">
@@ -1729,7 +1923,9 @@ export const CommunitySection: React.FC<CommunitySectionProps> = React.memo(({
                               </div>
                               <div className="flex items-center gap-1.5 text-[11px] text-[#9ca3af] mt-0.5">
                                 <Clock className="w-3 h-3" />
-                                <span>{formatDateTime(post.createdAt)}</span>
+                                <span>
+                                  {formatDateTime(String(post.timestamp || post.createdAt))}
+                                </span>
                               </div>
                             </div>
                           </div>
@@ -1771,9 +1967,9 @@ export const CommunitySection: React.FC<CommunitySectionProps> = React.memo(({
                           </div>
                         </div>
 
-                        {post.content && (
+                        {(post.messageText || post.content) && (
                           <p className="text-xs sm:text-sm text-[#f7f4ee] whitespace-pre-wrap line-clamp-4 leading-relaxed">
-                            {post.content}
+                            {post.messageText || post.content}
                           </p>
                         )}
 
@@ -1797,8 +1993,8 @@ export const CommunitySection: React.FC<CommunitySectionProps> = React.memo(({
                           <span className="text-[#d4af37] font-semibold flex items-center gap-1.5">
                             <MessageCircle className="w-3.5 h-3.5" />
                             <span>
-                              {post.replyCount}{' '}
-                              {post.replyCount === 1 ? 'Reply' : 'Replies'}
+                              {postRepliesCount}{' '}
+                              {postRepliesCount === 1 ? 'Reply' : 'Replies'}
                             </span>
                           </span>
                           <span className="text-[#cbd5e1] group-hover:text-[#d4af37] font-medium transition-colors">
@@ -1851,7 +2047,9 @@ export const CommunitySection: React.FC<CommunitySectionProps> = React.memo(({
               </div>
             ) : (
               visibleChatMessages.map((msg) => {
-                const isOwn = identity?.userId === msg.authorId;
+                const isOwn =
+                  auth?.currentUser?.uid === msg.authorId ||
+                  isUserAuthor(msg.authorId);
                 return (
                   <div
                     key={msg.id}
@@ -1891,7 +2089,7 @@ export const CommunitySection: React.FC<CommunitySectionProps> = React.memo(({
 
                         <div className="flex items-center gap-1.5">
                           <span className="text-[10px] text-[#9ca3af]">
-                            {formatDateTime(msg.createdAt)}
+                            {formatDateTime(String(msg.timestamp || msg.createdAt))}
                           </span>
                           {isOwn || isOwnerAuthenticated ? (
                             <button
@@ -1926,7 +2124,7 @@ export const CommunitySection: React.FC<CommunitySectionProps> = React.memo(({
                       </div>
 
                       <p className="text-xs sm:text-sm whitespace-pre-wrap break-words leading-relaxed">
-                        {msg.content}
+                        {msg.messageText || msg.content}
                       </p>
                     </div>
                   </div>
@@ -1990,10 +2188,10 @@ export const CommunitySection: React.FC<CommunitySectionProps> = React.memo(({
                     </div>
                     <div>
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className="px-2.5 py-0.5 rounded-md bg-[#d4af37] text-[#080d1a] font-mono font-bold text-[11px]">
+                        <span className="svh-badge-shimmer px-2.5 py-0.5 rounded-md bg-[#d4af37] text-[#080d1a] font-mono font-bold text-[11px]">
                           RANK #{myPosition || 1}
                         </span>
-                        <span className="px-2.5 py-0.5 rounded-md bg-[#131b2e] border border-[#d4af37]/35 text-[#d4af37] font-mono font-semibold text-[11px]">
+                        <span className="svh-badge-shimmer px-2.5 py-0.5 rounded-md bg-[#131b2e] border border-[#d4af37]/35 text-[#d4af37] font-mono font-semibold text-[11px]">
                           LVL {rankInfo.currentTier.level} • {rankInfo.currentTier.title}
                         </span>
                       </div>
@@ -2010,12 +2208,12 @@ export const CommunitySection: React.FC<CommunitySectionProps> = React.memo(({
                   </div>
 
                   <div className="flex items-center gap-3 sm:gap-4 self-start md:self-center">
-                    <div className="px-4 py-2.5 rounded-2xl bg-[#070c18] border border-[#d4af37]/35 text-center">
+                    <div className="svh-badge-shimmer px-4 py-2.5 rounded-2xl bg-[#070c18] border border-[#d4af37]/35 text-center">
                       <p className="text-[10px] font-mono uppercase tracking-wider text-[#9ca3af]">
                         Total Vault Points
                       </p>
                       <p className="font-display text-xl sm:text-2xl font-bold text-[#d4af37] font-mono">
-                        {myRankEntry.vpPoints.toLocaleString()} VP
+                        <RollingVPCounter value={myRankEntry.vpPoints} formatLocale suffix=" VP" />
                       </p>
                     </div>
                     <div className="px-4 py-2.5 rounded-2xl bg-[#070c18] border border-emerald-500/30 text-center">
@@ -2035,8 +2233,8 @@ export const CommunitySection: React.FC<CommunitySectionProps> = React.memo(({
                     <span className="font-semibold text-[#cbd5e1] flex items-center gap-1.5">
                       <Sparkles className="w-3.5 h-3.5 text-[#d4af37]" />
                       {rankInfo.nextTier
-                        ? `Next Tier: ${rankInfo.nextTier.title} (Level ${rankInfo.nextTier.level})`
-                        : 'Maximum Grandmaster Tier Achieved!'}
+                        ? `Next Standing: ${rankInfo.nextTier.title} (Level ${rankInfo.nextTier.level})`
+                        : 'Highest Academic Standing Achieved — Master Educator (500+ VP)!'}
                     </span>
                     <span className="font-mono font-bold text-[#d4af37]">
                       {rankInfo.nextTier
@@ -2121,7 +2319,7 @@ export const CommunitySection: React.FC<CommunitySectionProps> = React.memo(({
                     >
                       <div className="flex items-center gap-3 min-w-0">
                         <div
-                          className={`w-8 h-8 rounded-xl flex items-center justify-center text-xs shrink-0 ${rankBadgeStyle}`}
+                          className={`svh-badge-shimmer w-8 h-8 rounded-xl flex items-center justify-center text-xs shrink-0 ${rankBadgeStyle}`}
                         >
                           #{rankPos}
                         </div>
@@ -2148,7 +2346,7 @@ export const CommunitySection: React.FC<CommunitySectionProps> = React.memo(({
                                 You
                               </span>
                             )}
-                            <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-[#131b2e] text-[#d4af37] border border-[#d4af37]/20">
+                            <span className="svh-badge-shimmer text-[10px] font-mono px-2 py-0.5 rounded bg-[#131b2e] text-[#d4af37] border border-[#d4af37]/20">
                               Lvl {tierInfo.currentTier.level} • {tierInfo.currentTier.title}
                             </span>
                           </div>
@@ -2179,12 +2377,15 @@ export const CommunitySection: React.FC<CommunitySectionProps> = React.memo(({
                       </div>
 
                       <div className="flex sm:flex-col items-center sm:items-end justify-between sm:justify-center gap-1 border-t sm:border-t-0 border-[#1e293b] pt-2.5 sm:pt-0 shrink-0">
-                        <span className="font-mono font-bold text-base sm:text-lg text-[#d4af37]">
-                          {entry.vpPoints.toLocaleString()} VP
-                        </span>
+                        <RollingVPCounter
+                          value={entry.vpPoints}
+                          formatLocale
+                          suffix=" VP"
+                          className="font-mono font-bold text-base sm:text-lg text-[#d4af37]"
+                        />
                         <div className="w-24 h-1.5 rounded-full bg-[#131b2e] overflow-hidden">
                           <div
-                            className="h-full bg-[#d4af37]"
+                            className="svh-animated-progress-fill h-full bg-[#d4af37]"
                             style={{ width: `${tierInfo.progressPercent}%` }}
                           />
                         </div>
@@ -2225,11 +2426,11 @@ export const CommunitySection: React.FC<CommunitySectionProps> = React.memo(({
                           {m.unlocked ? (
                             <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
                           ) : (
-                            <Flame className="w-3.5 h-3.5 text-[#d4af37]/70 shrink-0" />
+                            <Flame className="w-3.5 h-3.5 text-[#d4af37]/70 shrink-0 svh-live-streak-flame" />
                           )}
                           <span>{m.title}</span>
                         </span>
-                        <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-[#131b2e] text-[#d4af37]">
+                        <span className="svh-badge-shimmer text-[10px] font-mono px-1.5 py-0.5 rounded bg-[#131b2e] text-[#d4af37]">
                           +{m.vpReward} VP
                         </span>
                       </div>
@@ -2245,7 +2446,7 @@ export const CommunitySection: React.FC<CommunitySectionProps> = React.memo(({
                         </div>
                         <div className="w-full h-1.5 rounded-full bg-[#131b2e] overflow-hidden">
                           <div
-                            className={`h-full rounded-full transition-all duration-500 ${
+                            className={`svh-animated-progress-fill h-full rounded-full ${
                               m.unlocked ? 'bg-emerald-400' : 'bg-[#d4af37]'
                             }`}
                             style={{ width: `${m.progressPercent}%` }}
@@ -2290,7 +2491,7 @@ export const CommunitySection: React.FC<CommunitySectionProps> = React.memo(({
       {/* ========================================================================= */}
       {isCreateModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="w-full max-w-lg rounded-2xl sm:rounded-3xl bg-[#0b1324] border border-[#d4af37]/40 shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+          <div className="svh-spring-modal-card w-full max-w-lg rounded-2xl sm:rounded-3xl bg-[#0b1324] border border-[#d4af37]/40 shadow-2xl overflow-hidden">
             <div className="px-5 py-4 bg-[#0f1930] border-b border-[#d4af37]/25 flex items-center justify-between">
               <div>
                 <h2 className="font-display text-base sm:text-lg font-bold text-[#fbf9f4]">
@@ -2414,7 +2615,7 @@ export const CommunitySection: React.FC<CommunitySectionProps> = React.memo(({
       {/* ========================================================================= */}
       {confirmDelete && (
         <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="w-full max-w-sm rounded-2xl bg-[#0b1324] border border-rose-500/40 p-5 space-y-4 shadow-2xl">
+          <div className="svh-spring-modal-card w-full max-w-sm rounded-2xl bg-[#0b1324] border border-rose-500/40 p-5 space-y-4 shadow-2xl">
             <div className="flex items-center gap-2.5 text-rose-300">
               <Trash2 className="w-5 h-5 shrink-0" />
               <h3 className="font-display text-base font-bold text-[#fbf9f4]">
@@ -2453,7 +2654,7 @@ export const CommunitySection: React.FC<CommunitySectionProps> = React.memo(({
       {/* ========================================================================= */}
       {reportTarget && (
         <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="w-full max-w-md rounded-2xl bg-[#0b1324] border border-[#d4af37]/40 p-5 space-y-4 shadow-2xl">
+          <div className="svh-spring-modal-card w-full max-w-md rounded-2xl bg-[#0b1324] border border-[#d4af37]/40 p-5 space-y-4 shadow-2xl">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2 text-amber-300">
                 <Flag className="w-4 h-4" />
@@ -2538,7 +2739,7 @@ export const CommunitySection: React.FC<CommunitySectionProps> = React.memo(({
           <img
             src={zoomedImageUrl}
             alt="Full size view"
-            className="max-w-full max-h-[90vh] object-contain rounded-xl border border-[#d4af37]/30"
+            className="svh-spring-modal-card max-w-full max-h-[90vh] object-contain rounded-xl border border-[#d4af37]/30"
           />
         </div>
       )}

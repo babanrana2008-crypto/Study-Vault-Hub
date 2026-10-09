@@ -10,11 +10,12 @@ import {
   orderBy,
   limit,
 } from 'firebase/firestore';
-import { db } from '../firebase.ts';
+import { db, auth } from '../firebase.ts';
 import type {
   UserStats,
   VPTransaction,
   LoginSessionRecord,
+  ActiveDeviceRecord,
   CommunityPost,
   CommunityReply,
   CommunityChatMessage,
@@ -31,6 +32,317 @@ import {
 } from '../utils/securityAndVp.ts';
 
 const RESERVED_OWNER_USERNAMES = ['soumyadip_owner', 'owner_soumyadip', 'svh_owner'];
+const ANON_DEVICE_STORAGE_KEY = 'study_vault_anon_device_id_v1';
+
+enum OperationType {
+  CREATE = 'create',
+  UPDATE = 'update',
+  DELETE = 'delete',
+  LIST = 'list',
+  GET = 'get',
+  WRITE = 'write',
+}
+
+interface FirestoreErrorInfo {
+  error: string;
+  operationType: OperationType;
+  path: string | null;
+  authInfo: {
+    userId?: string | null;
+    email?: string | null;
+    emailVerified?: boolean | null;
+    isAnonymous?: boolean | null;
+    tenantId?: string | null;
+    providerInfo?: {
+      providerId?: string | null;
+      email?: string | null;
+    }[];
+  };
+}
+
+export function handleUserTrackingFirestoreError(
+  error: unknown,
+  operationType: OperationType,
+  path: string | null
+) {
+  const errInfo: FirestoreErrorInfo = {
+    error: error instanceof Error ? error.message : String(error),
+    authInfo: {
+      userId: auth?.currentUser?.uid || null,
+      email: auth?.currentUser?.email || null,
+      emailVerified: auth?.currentUser?.emailVerified || null,
+      isAnonymous: auth?.currentUser?.isAnonymous || null,
+      tenantId: auth?.currentUser?.tenantId || null,
+      providerInfo:
+        auth?.currentUser?.providerData?.map((provider) => ({
+          providerId: provider.providerId,
+          email: provider.email,
+        })) || [],
+    },
+    operationType,
+    path,
+  };
+  console.error('Firestore Error: ', JSON.stringify(errInfo));
+  throw new Error(JSON.stringify(errInfo));
+}
+
+export function getClientDeviceId(): string {
+  if (typeof window === 'undefined') return 'dev_default';
+  try {
+    let devId = localStorage.getItem(ANON_DEVICE_STORAGE_KEY);
+    if (!devId) {
+      devId = `dev_${Math.random().toString(36).slice(2)}_${Date.now().toString(36)}`;
+      localStorage.setItem(ANON_DEVICE_STORAGE_KEY, devId);
+    }
+    return devId;
+  } catch {
+    return 'dev_default';
+  }
+}
+
+export function getClientPlatformAndDeviceInfo(): {
+  platformType: 'Web' | 'APK';
+  deviceInfo: string;
+} {
+  if (typeof window === 'undefined' || typeof navigator === 'undefined') {
+    return { platformType: 'Web', deviceInfo: 'Web Browser' };
+  }
+  const ua = navigator.userAgent || '';
+  const isCapacitor = Boolean(
+    (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor?.isNativePlatform?.() ||
+      ua.includes('Capacitor') ||
+      window.location.protocol === 'file:' ||
+      window.location.protocol === 'capacitor:'
+  );
+  const platformType: 'Web' | 'APK' = isCapacitor ? 'APK' : 'Web';
+  const deviceInfo = detectClientDevicePlatform() || (isCapacitor ? 'Android APK (Capacitor)' : 'Web Browser');
+  return { platformType, deviceInfo };
+}
+
+/**
+ * Automatically creates or updates a user's profile document at `users/{uid}`
+ * with: displayName, email, role, createdAt, lastLogin, vpPoints, and activeDevices.
+ * NEVER stores or displays passwords in Firestore.
+ */
+export async function upsertUserProfileInFirestore(params: {
+  uid: string;
+  displayName?: string;
+  email?: string | null;
+  username?: string | null;
+  role?: 'student' | 'owner';
+  createdAt?: string;
+  lastLogin?: string;
+  vpPoints?: number;
+  deviceId?: string;
+  deviceInfo?: string;
+  platformType?: 'Web' | 'APK';
+  userStats?: Partial<UserStats>;
+  accountStatus?: 'active' | 'suspended';
+}) {
+  const uid = (params.uid || auth?.currentUser?.uid || '').trim();
+  if (!uid) return null;
+
+  const now = new Date().toISOString();
+  const userDocRef = doc(db, 'users', uid);
+
+  let existingData: Record<string, any> = {};
+  try {
+    const snap = await getDoc(userDocRef);
+    if (snap.exists()) {
+      existingData = snap.data() || {};
+    }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (msg.toLowerCase().includes('Missing or insufficient permissions'.toLowerCase())) {
+      handleUserTrackingFirestoreError(err, OperationType.GET, `users/${uid}`);
+    }
+  }
+
+  const { platformType: detectedPlatform, deviceInfo: detectedDeviceInfo } =
+    getClientPlatformAndDeviceInfo();
+  const resolvedPlatformType: 'Web' | 'APK' = params.platformType || detectedPlatform;
+  const resolvedDeviceInfo = (params.deviceInfo || detectedDeviceInfo).slice(0, 120);
+  const resolvedDeviceId = (params.deviceId || getClientDeviceId()).slice(0, 100);
+
+  const existingDevices: ActiveDeviceRecord[] = Array.isArray(existingData.activeDevices)
+    ? existingData.activeDevices.filter(
+        (d: any) => d && typeof d === 'object' && (d.deviceId || d.deviceInfo)
+      )
+    : [];
+
+  const updatedDeviceEntry: ActiveDeviceRecord = {
+    deviceId: resolvedDeviceId,
+    platformType: resolvedPlatformType,
+    deviceInfo: resolvedDeviceInfo,
+    lastActive: now,
+  };
+
+  const mergedActiveDevices: ActiveDeviceRecord[] = [
+    updatedDeviceEntry,
+    ...existingDevices.filter(
+      (d) =>
+        d.deviceId !== resolvedDeviceId &&
+        !(d.platformType === resolvedPlatformType && d.deviceInfo === resolvedDeviceInfo)
+    ),
+  ].slice(0, 15);
+
+  const cleanUsername = (
+    params.username ||
+    existingData.username ||
+    params.userStats?.username ||
+    ''
+  )
+    .trim()
+    .toLowerCase();
+
+  const rawEmail = (
+    params.email ||
+    auth?.currentUser?.email ||
+    existingData.email ||
+    (cleanUsername
+      ? cleanUsername.includes('@')
+        ? cleanUsername
+        : `${cleanUsername}@svh.student`
+      : `${uid}@svh.student`)
+  )
+    .trim()
+    .slice(0, 180);
+
+  const resolvedDisplayName = (
+    params.displayName ||
+    auth?.currentUser?.displayName ||
+    params.userStats?.name ||
+    existingData.displayName ||
+    cleanUsername ||
+    'Student'
+  )
+    .trim()
+    .slice(0, 100);
+
+  const resolvedRole: 'student' | 'owner' =
+    params.role === 'owner' || existingData.role === 'owner' ? 'owner' : 'student';
+
+  const resolvedCreatedAt =
+    existingData.createdAt || params.createdAt || now;
+  const resolvedLastLogin =
+    params.lastLogin || now;
+
+  const resolvedVpPoints = Math.max(
+    0,
+    Number(params.vpPoints) || 0,
+    Number(params.userStats?.vpPoints) || 0,
+    Number(params.userStats?.vaultPoints) || 0,
+    Number(existingData.vpPoints) || 0,
+    Number(existingData.vaultPoints) || 0
+  );
+
+  // Sanitize userStats so passwords/hashes/tokens are NEVER stored
+  const sanitizedStats: Record<string, unknown> = {
+    ...(existingData.userStats || {}),
+    ...(params.userStats || {}),
+  };
+  delete sanitizedStats.password;
+  delete sanitizedStats.confirmPassword;
+  delete sanitizedStats.passwordHash;
+  delete sanitizedStats.passwordSalt;
+  delete sanitizedStats.portableHash;
+  delete sanitizedStats.authToken;
+  delete sanitizedStats.tokenHash;
+
+  const profileDoc = stripUndefined({
+    uid,
+    userId: uid,
+    displayName: resolvedDisplayName,
+    email: rawEmail,
+    ...(cleanUsername ? { username: cleanUsername } : {}),
+    role: resolvedRole,
+    accountStatus: params.accountStatus || existingData.accountStatus || 'active',
+    createdAt: resolvedCreatedAt,
+    lastLogin: resolvedLastLogin,
+    lastSeenAt: now,
+    vpPoints: resolvedVpPoints,
+    activeDevices: mergedActiveDevices,
+    questionsAttempted: Math.max(
+      0,
+      Number(sanitizedStats.questionsAttempted) || Number(existingData.questionsAttempted) || 0
+    ),
+    correctAnswers: Math.max(
+      0,
+      Number(sanitizedStats.correctAnswers) || Number(existingData.correctAnswers) || 0
+    ),
+    totalStudyMinutes: Math.max(
+      0,
+      Number(sanitizedStats.totalStudyMinutes) || Number(sanitizedStats.focusMinutes) || Number(existingData.totalStudyMinutes) || Number(existingData.focusMinutes) || 0
+    ),
+    focusMinutes: Math.max(
+      0,
+      Number(sanitizedStats.totalStudyMinutes) || Number(sanitizedStats.focusMinutes) || Number(existingData.totalStudyMinutes) || Number(existingData.focusMinutes) || 0
+    ),
+    streakDays: Math.max(
+      0,
+      Number((sanitizedStats.streak as any)?.current) || Number(sanitizedStats.streakDays) || Number(existingData.streakDays) || 0
+    ),
+    activityHistory: Array.isArray(sanitizedStats.activityHistory)
+      ? sanitizedStats.activityHistory
+      : Array.isArray(existingData.activityHistory)
+      ? existingData.activityHistory
+      : [],
+    activeGoal:
+      (typeof sanitizedStats.activeGoal === 'string' && sanitizedStats.activeGoal) ||
+      existingData.activeGoal ||
+      null,
+    userStats: sanitizedStats,
+  });
+
+  // Explicitly ensure no password field ever exists in users/{uid}
+  delete (profileDoc as Record<string, unknown>).password;
+  delete (profileDoc as Record<string, unknown>).passwordHash;
+  delete (profileDoc as Record<string, unknown>).passwordSalt;
+  delete (profileDoc as Record<string, unknown>).confirmPassword;
+
+  try {
+    await setDoc(userDocRef, profileDoc, { merge: true });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (msg.toLowerCase().includes('Missing or insufficient permissions'.toLowerCase())) {
+      handleUserTrackingFirestoreError(err, OperationType.WRITE, `users/${uid}`);
+    }
+    throw err;
+  }
+
+  return profileDoc;
+}
+
+/**
+ * Removes the current device from `users/{uid}.activeDevices` when a user logs out.
+ */
+export async function removeActiveDeviceOnLogoutInFirestore(uid?: string, deviceId?: string) {
+  const targetUid = (uid || auth?.currentUser?.uid || '').trim();
+  if (!targetUid) return;
+  const resolvedDeviceId = deviceId || getClientDeviceId();
+  const userDocRef = doc(db, 'users', targetUid);
+  try {
+    const snap = await getDoc(userDocRef);
+    if (!snap.exists()) return;
+    const data = snap.data() || {};
+    const existingDevices: ActiveDeviceRecord[] = Array.isArray(data.activeDevices)
+      ? data.activeDevices
+      : [];
+    const remainingDevices = existingDevices.filter(
+      (d) => d && d.deviceId !== resolvedDeviceId
+    );
+    await setDoc(
+      userDocRef,
+      stripUndefined({
+        activeDevices: remainingDevices,
+        lastSeenAt: new Date().toISOString(),
+      }),
+      { merge: true }
+    );
+  } catch {
+    // non-fatal
+  }
+}
 
 export function stripUndefined<T>(value: T): T {
   if (value === undefined) return null as unknown as T;
@@ -225,6 +537,21 @@ export async function registerAccountInFirestore(params: {
     })
   );
 
+  // Automatically create/update profile document at users/{uid} (never storing passwords)
+  await upsertUserProfileInFirestore({
+    uid: userId,
+    displayName: cleanName,
+    email: cleanUsername.includes('@') ? cleanUsername : `${cleanUsername}@svh.student`,
+    username: cleanUsername,
+    role: 'student',
+    createdAt: now,
+    lastLogin: now,
+    vpPoints: vpState.vaultPoints,
+    deviceId: params.deviceId,
+    deviceInfo: platform,
+    userStats: fullStats,
+  }).catch(() => {});
+
   return {
     ok: true,
     userId,
@@ -385,6 +712,23 @@ export async function loginAccountInFirestore(params: {
     { merge: true }
   );
 
+  // Automatically update/create profile document at users/{uid} (never storing passwords)
+  await upsertUserProfileInFirestore({
+    uid: account.userId,
+    displayName: account.displayName,
+    email: account.usernameLower.includes('@')
+      ? account.usernameLower
+      : `${account.usernameLower}@svh.student`,
+    username: account.usernameLower,
+    role: resolvedRole,
+    createdAt: account.createdAt || now,
+    lastLogin: now,
+    vpPoints: vpState.vaultPoints,
+    deviceId: params.deviceId,
+    deviceInfo: platform,
+    userStats: fullStats,
+  }).catch(() => {});
+
   return {
     ok: true,
     userId: account.userId,
@@ -413,6 +757,9 @@ export async function logoutAccountInFirestore(params: {
   const cleanUsername = (params.username || '').trim().toLowerCase();
 
   try {
+    if (params.userId) {
+      await removeActiveDeviceOnLogoutInFirestore(params.userId);
+    }
     if (cleanUsername) {
       const accRef = doc(db, 'svh_accounts', cleanUsername);
       const snap = await getDoc(accRef);
@@ -435,6 +782,7 @@ export async function logoutAccountInFirestore(params: {
           { merge: true }
         );
         if (data.userId) {
+          await removeActiveDeviceOnLogoutInFirestore(data.userId);
           await setDoc(
             doc(db, 'svh_users', data.userId),
             stripUndefined({
@@ -580,6 +928,27 @@ export async function syncUserProfileAndStatsInFirestore(params: {
   });
 
   await setDoc(userRef, userDocPayload, { merge: true });
+
+  // Also keep users/{uid} synced in real-time (never storing passwords)
+  await upsertUserProfileInFirestore({
+    uid: params.userId,
+    displayName: resolvedName,
+    email: resolvedUsername
+      ? resolvedUsername.includes('@')
+        ? resolvedUsername
+        : `${resolvedUsername}@svh.student`
+      : undefined,
+    username: resolvedUsername || undefined,
+    role: (existingData.role || fullStats.role || 'student') as 'student' | 'owner',
+    createdAt: existingData.createdAt || now,
+    lastLogin: existingData.lastLoginAt || now,
+    vpPoints: Math.max(
+      Number(fullStats.vpPoints) || 0,
+      Number(vpState.vaultPoints) || 0
+    ),
+    deviceInfo: platform,
+    userStats: fullStats,
+  }).catch(() => {});
 
   if (resolvedUsername) {
     const accRef = doc(db, 'svh_accounts', resolvedUsername);

@@ -46,7 +46,7 @@ export const NoteViewerModal: React.FC<NoteViewerModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200 overscroll-contain">
-      <div className="w-full max-w-2xl h-[90vh] h-[90dvh] max-h-[780px] bg-[#0c1326] border border-[#d4af37]/35 rounded-2xl sm:rounded-3xl shadow-2xl flex flex-col overflow-hidden text-[#f7f4ee]">
+      <div className="svh-spring-modal-card w-full max-w-2xl h-[90vh] h-[90dvh] max-h-[780px] bg-[#0c1326] border border-[#d4af37]/35 rounded-2xl sm:rounded-3xl shadow-2xl flex flex-col overflow-hidden text-[#f7f4ee]">
         {/* Header bar */}
         <div className="px-4 sm:px-6 py-3.5 bg-[#090e1c] border-b border-[#d4af37]/20 flex items-center justify-between gap-3">
           <div className="flex items-center gap-2.5 min-w-0">
@@ -68,22 +68,24 @@ export const NoteViewerModal: React.FC<NoteViewerModalProps> = ({
           <div className="flex items-center gap-1.5 shrink-0">
             {/* Mark as Completed */}
             <button
+              type="button"
               onClick={() => onToggleComplete(note.id)}
-              className={`px-2.5 py-1.5 rounded-lg border text-xs font-medium flex items-center gap-1.5 transition-colors ${
+              className={`min-h-[44px] min-w-[44px] px-3 py-2 rounded-xl border text-xs font-medium flex items-center justify-center gap-1.5 transition-colors cursor-pointer ${
                 isCompleted
                   ? 'bg-emerald-950/60 border-emerald-500/40 text-emerald-300'
                   : 'bg-[#131b2e] border-[#d4af37]/20 text-[#cbd5e1] hover:text-[#fbf9f4]'
               }`}
             >
-              <CheckCircle2 className={`w-3.5 h-3.5 ${isCompleted ? 'text-emerald-400' : ''}`} />
+              <CheckCircle2 className={`w-4 h-4 ${isCompleted ? 'text-emerald-400' : ''}`} />
               <span className="hidden sm:inline">{isCompleted ? 'Completed' : 'Mark Done'}</span>
             </button>
 
             {/* Bookmark button */}
             <button
+              type="button"
               onClick={() => onToggleBookmark(note.id)}
               aria-label="Bookmark Note"
-              className={`min-h-[36px] min-w-[36px] flex items-center justify-center rounded-lg border transition-colors ${
+              className={`min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl border transition-colors cursor-pointer ${
                 isBookmarked
                   ? 'bg-[#d4af37]/20 border-[#d4af37] text-[#d4af37]'
                   : 'bg-[#131b2e] border-[#d4af37]/20 text-[#9ca3af] hover:text-[#fbf9f4]'
@@ -94,9 +96,10 @@ export const NoteViewerModal: React.FC<NoteViewerModalProps> = ({
 
             {/* Close button */}
             <button
+              type="button"
               onClick={onClose}
               aria-label="Close Note"
-              className="min-h-[36px] min-w-[36px] flex items-center justify-center rounded-lg bg-[#131b2e] border border-[#d4af37]/20 text-[#9ca3af] hover:text-[#fbf9f4] hover:border-red-400/40 transition-colors"
+              className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl bg-[#131b2e] border border-[#d4af37]/20 text-[#9ca3af] hover:text-[#fbf9f4] hover:border-red-400/40 transition-colors cursor-pointer"
             >
               <X className="w-4 h-4" />
             </button>

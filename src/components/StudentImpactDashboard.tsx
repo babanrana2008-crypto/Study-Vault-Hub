@@ -13,6 +13,7 @@ import { collection, getDocs } from 'firebase/firestore';
 import { db } from '../firebase';
 import { apiFetch } from '../services/nativeApiBridge';
 import { UserStats } from '../types';
+import { GlassMetallicSkeleton } from './GlassMetallicSkeleton';
 
 interface StudentImpactDashboardProps {
   userStats: UserStats;
@@ -292,9 +293,12 @@ export const StudentImpactDashboard: React.FC<StudentImpactDashboardProps> = Rea
           </div>
         )}
 
+        {isLoading && !remoteMetrics ? (
+          <GlassMetallicSkeleton variant="exam-cards" count={3} />
+        ) : (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           {/* 1. Registered & Active Learners */}
-          <div className="p-4 rounded-2xl bg-[#0f172a] border border-[#d4af37]/25 flex flex-col justify-between space-y-2">
+          <div className="svh-3d-tilt-card p-4 rounded-2xl bg-[#0f172a] border border-[#d4af37]/25 flex flex-col justify-between space-y-2">
             <div className="flex items-center justify-between text-xs">
               <span className="text-[#9ca3af] font-medium flex items-center gap-1.5">
                 <Users className="w-3.5 h-3.5 text-[#d4af37]" />
@@ -313,7 +317,7 @@ export const StudentImpactDashboard: React.FC<StudentImpactDashboardProps> = Rea
           </div>
 
           {/* 2. Questions Practised */}
-          <div className="p-4 rounded-2xl bg-[#0f172a] border border-[#d4af37]/25 flex flex-col justify-between space-y-2">
+          <div className="svh-3d-tilt-card p-4 rounded-2xl bg-[#0f172a] border border-[#d4af37]/25 flex flex-col justify-between space-y-2">
             <div className="flex items-center justify-between text-xs">
               <span className="text-[#9ca3af] font-medium flex items-center gap-1.5">
                 <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
@@ -333,7 +337,7 @@ export const StudentImpactDashboard: React.FC<StudentImpactDashboardProps> = Rea
           </div>
 
           {/* 3. Verified Study Focus Time */}
-          <div className="p-4 rounded-2xl bg-[#0f172a] border border-[#d4af37]/25 flex flex-col justify-between space-y-2">
+          <div className="svh-3d-tilt-card p-4 rounded-2xl bg-[#0f172a] border border-[#d4af37]/25 flex flex-col justify-between space-y-2">
             <div className="flex items-center justify-between text-xs">
               <span className="text-[#9ca3af] font-medium flex items-center gap-1.5">
                 <Clock className="w-3.5 h-3.5 text-amber-400" />
@@ -353,7 +357,7 @@ export const StudentImpactDashboard: React.FC<StudentImpactDashboardProps> = Rea
           </div>
 
           {/* 4. Community Discussions & Solutions */}
-          <div className="p-4 rounded-2xl bg-[#0f172a] border border-[#d4af37]/25 flex flex-col justify-between space-y-2">
+          <div className="svh-3d-tilt-card p-4 rounded-2xl bg-[#0f172a] border border-[#d4af37]/25 flex flex-col justify-between space-y-2">
             <div className="flex items-center justify-between text-xs">
               <span className="text-[#9ca3af] font-medium flex items-center gap-1.5">
                 <MessagesSquare className="w-3.5 h-3.5 text-[#d4af37]" />
@@ -372,6 +376,7 @@ export const StudentImpactDashboard: React.FC<StudentImpactDashboardProps> = Rea
             </div>
           </div>
         </div>
+        )}
 
         {!combinedMetrics.hasAnyImpactData && !isLoading && (
           <div className="p-3.5 rounded-xl bg-[#090e1c] border border-[#d4af37]/20 text-xs text-[#cbd5e1] flex items-center justify-between gap-2">

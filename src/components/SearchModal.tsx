@@ -85,7 +85,7 @@ export const SearchModal: React.FC<SearchModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center p-3 sm:p-6 pt-8 sm:pt-16 bg-black/80 backdrop-blur-md animate-in fade-in duration-150 overscroll-contain">
-      <div className="w-full max-w-xl bg-[#0c1326] border border-[#d4af37]/35 rounded-2xl shadow-2xl overflow-hidden flex flex-col text-[#f7f4ee] max-h-[85vh] max-h-[85dvh]">
+      <div className="svh-spring-modal-card w-full max-w-xl bg-[#0c1326] border border-[#d4af37]/35 rounded-2xl shadow-2xl overflow-hidden flex flex-col text-[#f7f4ee] max-h-[85vh] max-h-[85dvh]">
         {/* Search Input Bar */}
         <div className="p-3.5 sm:p-4 bg-[#090e1c] border-b border-[#d4af37]/20 flex items-center gap-3">
           <Search className="w-5 h-5 text-[#d4af37] shrink-0" />
@@ -99,15 +99,18 @@ export const SearchModal: React.FC<SearchModalProps> = ({
           />
           {query && (
             <button
+              type="button"
               onClick={() => setQuery('')}
-              className="text-xs text-[#9ca3af] hover:text-[#fbf9f4] px-1.5 py-0.5 rounded"
+              className="min-h-[44px] px-2.5 py-1 rounded text-xs text-[#9ca3af] hover:text-[#fbf9f4] cursor-pointer"
             >
               Clear
             </button>
           )}
           <button
+            type="button"
             onClick={onClose}
-            className="w-8 h-8 rounded-lg bg-[#131b2e] border border-[#d4af37]/20 text-[#9ca3af] hover:text-[#fbf9f4] flex items-center justify-center shrink-0"
+            aria-label="Close Search"
+            className="min-h-[44px] min-w-[44px] w-11 h-11 rounded-xl bg-[#131b2e] border border-[#d4af37]/20 text-[#9ca3af] hover:text-[#fbf9f4] flex items-center justify-center shrink-0 cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
@@ -119,8 +122,9 @@ export const SearchModal: React.FC<SearchModalProps> = ({
           {['Endocrine', 'Lens Maker', 'Bond Order', 'Lysosome', 'Genetics', 'Organic'].map((keyword) => (
             <button
               key={keyword}
+              type="button"
               onClick={() => setQuery(keyword)}
-              className="px-2 py-1 rounded bg-[#131b2e] text-[#cbd5e1] hover:text-[#d4af37] hover:bg-[#1a2542] shrink-0 transition-colors"
+              className="min-h-[36px] px-2.5 py-1.5 rounded-lg bg-[#131b2e] text-[#cbd5e1] hover:text-[#d4af37] hover:bg-[#1a2542] shrink-0 transition-colors cursor-pointer"
             >
               {keyword}
             </button>

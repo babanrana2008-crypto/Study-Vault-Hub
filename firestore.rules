@@ -22,6 +22,17 @@ service cloud.firestore {
       allow delete: if true;
     }
 
+    match /users/{uid} {
+      allow read: if true;
+      allow create, update: if request.resource.data.keys().hasAll(['displayName', 'email', 'role', 'createdAt', 'lastLogin', 'vpPoints'])
+        && !request.resource.data.keys().hasAny(['password', 'passwordHash', 'passwordSalt', 'confirmPassword'])
+        && isValidString(request.resource.data.displayName, 120)
+        && isValidString(request.resource.data.email, 200)
+        && isValidString(request.resource.data.role, 32)
+        && request.resource.data.vpPoints is number;
+      allow delete: if true;
+    }
+
     match /svh_vp_transactions/{txId} {
       allow read: if true;
       allow create, update: if request.resource.data.keys().hasAll(['id', 'userId', 'timestamp', 'amount', 'reason'])
@@ -35,6 +46,19 @@ service cloud.firestore {
 
     match /svh_deletion_events/{eventId} {
       allow read, write: if true;
+    }
+
+    match /community_posts/{postId} {
+      allow read: if true;
+      allow create, update: if request.resource.data.keys().hasAll(['authorId', 'authorName', 'messageText', 'timestamp'])
+        && isValidString(request.resource.data.authorId, 128)
+        && isValidString(request.resource.data.authorName, 120)
+        && isValidString(request.resource.data.messageText, 10000);
+      allow delete: if true;
+
+      match /replies/{replyId} {
+        allow read, write: if true;
+      }
     }
 
     match /svh_posts/{postId} {

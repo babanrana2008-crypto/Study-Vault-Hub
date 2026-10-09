@@ -52,7 +52,8 @@
   }
 
   nav[aria-label="Bottom Navigation"] > div.rounded-2xl,
-  header[aria-label="Top Navigation"] > div.rounded-2xl {
+  header[aria-label="Top Navigation"] > div.rounded-2xl,
+  header[aria-label="Top Navigation"] > nav.rounded-2xl {
     transform: translateZ(0);
     backface-visibility: hidden;
   }
@@ -161,7 +162,7 @@ html[data-theme="light"] .gold-glow {
 @keyframes svhSectionEnter {
   from {
     opacity: 0;
-    transform: translate3d(0, 6px, 0);
+    transform: translate3d(0, 8px, 0);
   }
   to {
     opacity: 1;
@@ -170,13 +171,31 @@ html[data-theme="light"] .gold-glow {
 }
 
 .svh-section-transition {
-  animation: svhSectionEnter 180ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  animation: svhSectionEnter 250ms cubic-bezier(0.4, 0, 0.2, 1) both;
   will-change: opacity, transform;
+  transform: translate3d(0, 0, 0);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+.svh-bottom-nav-slider {
+  transition: transform 250ms cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: transform;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+html[data-theme="light"] .svh-bottom-nav-slider-bar {
+  background: linear-gradient(90deg, rgba(30, 58, 95, 0.45) 0%, #1e3a5f 50%, rgba(30, 58, 95, 0.45) 100%) !important;
+  box-shadow: 0 0 8px rgba(30, 58, 95, 0.35) !important;
 }
 
 @media (prefers-reduced-motion: reduce) {
   .svh-section-transition {
     animation: none !important;
+  }
+  .svh-bottom-nav-slider {
+    transition: none !important;
   }
 }
 
@@ -298,7 +317,8 @@ html[data-theme="light"] header[aria-label="Top Navigation"].pointer-events-none
   box-shadow: none !important;
 }
 
-html[data-theme="light"] header[aria-label="Top Navigation"] > div.rounded-2xl {
+html[data-theme="light"] header[aria-label="Top Navigation"] > div.rounded-2xl,
+html[data-theme="light"] header[aria-label="Top Navigation"] > nav.rounded-2xl {
   background-color: rgba(198, 218, 239, 0.97) !important;
   border-color: rgba(132, 168, 205, 0.75) !important;
   box-shadow: 0 10px 28px rgba(125, 162, 199, 0.30), 0 0 18px rgba(154, 184, 215, 0.28) !important;
@@ -606,22 +626,28 @@ html[data-theme="light"] [class*="bg-sky-9"] {
   border-color: rgba(130, 167, 205, 0.72) !important;
 }
 
-/* Smooth GPU-accelerated popup & animation utilities for 60Hz / 90Hz / 120Hz+ displays */
+/* Smooth GPU-accelerated spring physics popup & modal animation utilities */
 @keyframes svhPopupScaleIn {
-  from {
+  0% {
     opacity: 0;
-    transform: translate3d(0, -6px, 0) scale(0.97);
+    transform: translate3d(0, 6px, 0) scale(0.96);
   }
-  to {
+  70% {
+    opacity: 1;
+    transform: translate3d(0, -1px, 0) scale(1.015);
+  }
+  100% {
     opacity: 1;
     transform: translate3d(0, 0, 0) scale(1);
   }
 }
 
-.svh-popup-card {
-  animation: svhPopupScaleIn 160ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+.svh-popup-card,
+.svh-spring-modal-card {
+  animation: svhPopupScaleIn 340ms cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
   will-change: transform, opacity;
   backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
 }
 
 /* ============================================================================
@@ -804,75 +830,63 @@ html[data-theme="light"] .svh-ambient-orb-3 {
 .svh-ambient-bubble {
   position: absolute;
   border-radius: 9999px;
-  background: radial-gradient(
-    circle at 35% 35%,
-    rgba(252, 224, 155, 0.55) 0%,
-    rgba(212, 175, 55, 0.22) 55%,
-    rgba(212, 175, 55, 0.04) 100%
-  );
-  border: 1px solid rgba(212, 175, 55, 0.28);
-  will-change: transform, opacity;
+  border: 1px solid rgba(255, 255, 255, 0.38);
+  opacity: 0.28;
+  filter: none;
+  -webkit-filter: none;
+  will-change: transform;
   transform: translate3d(0, 0, 0);
   backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
   pointer-events: none;
 }
 
-html[data-theme="light"] .svh-ambient-bubble {
-  background: radial-gradient(
-    circle at 35% 35%,
-    rgba(198, 218, 239, 0.75) 0%,
-    rgba(138, 174, 209, 0.35) 60%,
-    rgba(138, 174, 209, 0.08) 100%
-  ) !important;
-  border-color: rgba(128, 166, 204, 0.5) !important;
-}
-
 .svh-bubble-1 {
-  width: 14px;
-  height: 14px;
+  width: 20px;
+  height: 20px;
   left: 12%;
   top: 22%;
-  animation: svhBubbleRise 9s ease-in-out infinite;
+  animation: svhBubbleRise 16s ease-in-out infinite;
 }
 
 .svh-bubble-2 {
-  width: 20px;
-  height: 20px;
+  width: 36px;
+  height: 36px;
   right: 16%;
   top: 28%;
-  animation: svhBubbleRise 12s ease-in-out infinite 1.5s;
+  animation: svhBubbleRise 20s ease-in-out infinite 1.5s;
 }
 
 .svh-bubble-3 {
-  width: 10px;
-  height: 10px;
+  width: 18px;
+  height: 18px;
   left: 24%;
   bottom: 26%;
-  animation: svhBubbleRise 10s ease-in-out infinite 0.8s;
+  animation: svhBubbleRise 17s ease-in-out infinite 0.8s;
 }
 
 .svh-bubble-4 {
-  width: 16px;
-  height: 16px;
+  width: 44px;
+  height: 44px;
   right: 24%;
   bottom: 22%;
-  animation: svhBubbleRise 11s ease-in-out infinite 2.2s;
+  animation: svhBubbleRise 19s ease-in-out infinite 2.2s;
 }
 
 .svh-bubble-5 {
-  width: 12px;
-  height: 12px;
+  width: 26px;
+  height: 26px;
   left: 68%;
   top: 16%;
-  animation: svhBubbleRise 13s ease-in-out infinite 1.1s;
+  animation: svhBubbleRise 21s ease-in-out infinite 1.1s;
 }
 
 .svh-bubble-6 {
-  width: 18px;
-  height: 18px;
+  width: 32px;
+  height: 32px;
   left: 42%;
   bottom: 16%;
-  animation: svhBubbleRise 14s ease-in-out infinite 2.7s;
+  animation: svhBubbleRise 23s ease-in-out infinite 2.7s;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -889,12 +903,13 @@ html[data-theme="light"] .svh-ambient-bubble {
 }
 
 /* ============================================================================
-   STANDALONE MINI BUBBLE BACKGROUND ANIMATION LAYER
-   - position: fixed, top: 0, left: 0, z-index: -1, pointer-events: none
-   - Low opacity (10% - 20%) for seamless light & dark mode readability
-   - 11 small bubbles rising from bottom to top with subtle horizontal drift
-   - Floating speeds between 8s and 20s using GPU-composited transforms
-   - High-Refresh-Rate (90Hz / 120Hz / 144Hz) & Mobile APK Battery Optimized
+   STANDALONE MINI BUBBLE BACKGROUND ANIMATION LAYER (PREMIUM GENTLE WATERMARKS)
+   - Distinct, visible yet gentle watermark spheres (15px to 60px)
+   - Slightly defined soft outer edge with translucent fill (opacity 0.25 to 0.35)
+   - Soft pastel-toned iridescent colors (muted cyan, soft purple, faint gold, soft rose)
+   - Zero blur / zero harsh gloss — calm, non-distracting ambient depth
+   - Enforces position: fixed; inset: 0; z-index: -10; pointer-events: none;
+   - Smooth GPU hardware acceleration using will-change: transform;
    ============================================================================ */
 
 #root {
@@ -908,21 +923,25 @@ html[data-theme="light"] .svh-ambient-bubble {
 
 .svh-mini-bubble-layer {
   position: fixed;
+  inset: 0;
   top: 0;
+  right: 0;
+  bottom: 0;
   left: 0;
   width: 100%;
   height: 100%;
-  z-index: -1;
+  z-index: -10;
   pointer-events: none;
   overflow: hidden;
   user-select: none;
   contain: strict;
+  will-change: transform;
   transform: translate3d(0, 0, 0);
   backface-visibility: hidden;
   -webkit-backface-visibility: hidden;
   --svh-bubble-border-w: 1px;
   --svh-bubble-mid-y: -52vh;
-  --svh-bubble-travel-y: -110vh;
+  --svh-bubble-travel-y: -116vh;
 }
 
 .svh-mini-bubble-layer[data-paused="true"] .svh-mini-bubble-particle {
@@ -931,155 +950,528 @@ html[data-theme="light"] .svh-ambient-bubble {
 
 @keyframes svhMiniBubbleFloatUp {
   0% {
-    transform: translate3d(0, 0, 0) scale3d(0.88, 0.88, 1);
+    transform: translate3d(0, 0, 0) scale3d(0.92, 0.92, 1);
     opacity: 0;
   }
   12% {
-    opacity: 0.16;
+    opacity: var(--svh-bubble-opacity, 0.28);
   }
   50% {
-    transform: translate3d(var(--svh-bubble-drift, 14px), var(--svh-bubble-mid-y, -52vh), 0) scale3d(1, 1, 1);
-    opacity: 0.19;
+    transform: translate3d(var(--svh-bubble-drift, 16px), var(--svh-bubble-mid-y, -52vh), 0) scale3d(1.04, 1.04, 1);
+    opacity: var(--svh-bubble-opacity-peak, 0.34);
   }
   88% {
-    opacity: 0.13;
+    opacity: var(--svh-bubble-opacity, 0.27);
   }
   100% {
-    transform: translate3d(calc(var(--svh-bubble-drift, 14px) * -0.65), var(--svh-bubble-travel-y, -110vh), 0) scale3d(0.94, 0.94, 1);
+    transform: translate3d(calc(var(--svh-bubble-drift, 16px) * -0.6), var(--svh-bubble-travel-y, -116vh), 0) scale3d(0.95, 0.95, 1);
     opacity: 0;
   }
 }
 
 .svh-mini-bubble-particle {
   position: absolute;
-  bottom: -28px;
+  bottom: -68px;
   border-radius: 9999px;
   pointer-events: none;
-  opacity: 0.15;
-  background: radial-gradient(
-    circle at 35% 35%,
-    rgba(252, 224, 155, 0.9) 0%,
-    rgba(212, 175, 55, 0.55) 55%,
-    rgba(56, 189, 248, 0.2) 100%
-  );
-  border: var(--svh-bubble-border-w, 1px) solid rgba(252, 224, 155, 0.45);
-  will-change: transform, opacity;
+  opacity: var(--svh-bubble-opacity, 0.28);
+  filter: none;
+  -webkit-filter: none;
+  will-change: transform;
   transform: translate3d(0, 0, 0);
   backface-visibility: hidden;
   -webkit-backface-visibility: hidden;
   contain: layout style paint;
   animation-name: svhMiniBubbleFloatUp;
-  animation-timing-function: linear;
+  animation-timing-function: ease-in-out;
   animation-iteration-count: infinite;
 }
 
-html[data-theme="light"] .svh-mini-bubble-particle {
-  background: radial-gradient(
-    circle at 35% 35%,
-    rgba(118, 158, 198, 0.9) 0%,
-    rgba(92, 138, 184, 0.65) 58%,
-    rgba(138, 174, 209, 0.25) 100%
-  ) !important;
-  border-color: rgba(92, 138, 184, 0.55) !important;
+/* 1. SOFT PASTEL IRIDESCENT ROSE / LAVENDER-PINK WATERMARK SPHERE */
+.svh-bubble-color-pink,
+html[data-theme="light"] .svh-bubble-color-pink {
+  background:
+    radial-gradient(
+      circle at 36% 34%,
+      rgba(244, 218, 235, 0.42) 0%,
+      rgba(222, 176, 208, 0.30) 52%,
+      rgba(196, 144, 182, 0.22) 84%,
+      rgba(182, 128, 168, 0.14) 100%
+    ) !important;
+  border: var(--svh-bubble-border-w, 1px) solid rgba(206, 152, 190, 0.44) !important;
+  box-shadow: inset 0 0 8px rgba(235, 195, 222, 0.22) !important;
 }
 
+/* 2. MUTED IRIDESCENT CYAN WATERMARK SPHERE */
+.svh-bubble-color-cyan,
+html[data-theme="light"] .svh-bubble-color-cyan {
+  background:
+    radial-gradient(
+      circle at 36% 34%,
+      rgba(210, 238, 248, 0.44) 0%,
+      rgba(146, 206, 228, 0.32) 52%,
+      rgba(108, 180, 208, 0.24) 84%,
+      rgba(88, 162, 192, 0.15) 100%
+    ) !important;
+  border: var(--svh-bubble-border-w, 1px) solid rgba(116, 186, 214, 0.46) !important;
+  box-shadow: inset 0 0 8px rgba(176, 224, 242, 0.24) !important;
+}
+
+/* 3. SOFT SAGE / MUTED SEAFOAM WATERMARK SPHERE */
+.svh-bubble-color-lime,
+html[data-theme="light"] .svh-bubble-color-lime {
+  background:
+    radial-gradient(
+      circle at 36% 34%,
+      rgba(216, 242, 232, 0.42) 0%,
+      rgba(156, 214, 194, 0.30) 52%,
+      rgba(122, 190, 168, 0.22) 84%,
+      rgba(104, 172, 150, 0.14) 100%
+    ) !important;
+  border: var(--svh-bubble-border-w, 1px) solid rgba(128, 194, 172, 0.44) !important;
+  box-shadow: inset 0 0 8px rgba(186, 230, 214, 0.22) !important;
+}
+
+/* 4. FAINT CHAMPAGNE PEACH / GOLD WATERMARK SPHERE */
+.svh-bubble-color-orange,
+html[data-theme="light"] .svh-bubble-color-orange {
+  background:
+    radial-gradient(
+      circle at 36% 34%,
+      rgba(248, 234, 212, 0.42) 0%,
+      rgba(228, 198, 154, 0.30) 52%,
+      rgba(206, 172, 124, 0.22) 84%,
+      rgba(188, 154, 108, 0.14) 100%
+    ) !important;
+  border: var(--svh-bubble-border-w, 1px) solid rgba(212, 178, 130, 0.44) !important;
+  box-shadow: inset 0 0 8px rgba(238, 214, 178, 0.22) !important;
+}
+
+/* 5. SOFT IRIDESCENT PURPLE / LAVENDER WATERMARK SPHERE */
+.svh-bubble-color-purple,
+html[data-theme="light"] .svh-bubble-color-purple {
+  background:
+    radial-gradient(
+      circle at 36% 34%,
+      rgba(232, 220, 248, 0.44) 0%,
+      rgba(188, 166, 226, 0.32) 52%,
+      rgba(158, 134, 204, 0.24) 84%,
+      rgba(138, 114, 186, 0.15) 100%
+    ) !important;
+  border: var(--svh-bubble-border-w, 1px) solid rgba(166, 142, 212, 0.46) !important;
+  box-shadow: inset 0 0 8px rgba(208, 190, 238, 0.24) !important;
+}
+
+/* 6. FAINT PASTEL GOLD WATERMARK SPHERE */
+.svh-bubble-color-gold,
+html[data-theme="light"] .svh-bubble-color-gold {
+  background:
+    radial-gradient(
+      circle at 36% 34%,
+      rgba(248, 238, 206, 0.44) 0%,
+      rgba(226, 204, 142, 0.32) 52%,
+      rgba(204, 178, 112, 0.24) 84%,
+      rgba(186, 160, 96, 0.15) 100%
+    ) !important;
+  border: var(--svh-bubble-border-w, 1px) solid rgba(212, 186, 118, 0.46) !important;
+  box-shadow: inset 0 0 8px rgba(238, 220, 168, 0.24) !important;
+}
+
+/* 36 Distinct, Gentle Watermark Bubbles (Small to Medium: 15px to 58px, Opacity 0.25 to 0.35) */
 .svh-mini-bubble-item-1 {
-  width: 8px;
-  height: 8px;
-  left: 6%;
+  width: 18px;
+  height: 18px;
+  left: 2%;
   --svh-bubble-drift: 14px;
-  animation-duration: 11s;
-  animation-delay: 0s;
+  --svh-bubble-opacity: 0.27;
+  --svh-bubble-opacity-peak: 0.33;
+  animation-duration: 19.5s;
+  animation-delay: -1.4s;
 }
 
 .svh-mini-bubble-item-2 {
-  width: 14px;
-  height: 14px;
-  left: 15%;
+  width: 34px;
+  height: 34px;
+  left: 5%;
   --svh-bubble-drift: -18px;
-  animation-duration: 16s;
-  animation-delay: -4s;
+  --svh-bubble-opacity: 0.28;
+  --svh-bubble-opacity-peak: 0.34;
+  animation-duration: 24.4s;
+  animation-delay: -6.8s;
 }
 
 .svh-mini-bubble-item-3 {
-  width: 10px;
-  height: 10px;
-  left: 25%;
+  width: 22px;
+  height: 22px;
+  left: 8%;
   --svh-bubble-drift: 12px;
-  animation-duration: 9s;
-  animation-delay: -2s;
+  --svh-bubble-opacity: 0.26;
+  --svh-bubble-opacity-peak: 0.32;
+  animation-duration: 20.2s;
+  animation-delay: -3.5s;
 }
 
 .svh-mini-bubble-item-4 {
-  width: 18px;
-  height: 18px;
-  left: 34%;
+  width: 48px;
+  height: 48px;
+  left: 11%;
   --svh-bubble-drift: -20px;
-  animation-duration: 19s;
-  animation-delay: -9s;
+  --svh-bubble-opacity: 0.25;
+  --svh-bubble-opacity-peak: 0.31;
+  animation-duration: 29.5s;
+  animation-delay: -12.2s;
 }
 
 .svh-mini-bubble-item-5 {
-  width: 7px;
-  height: 7px;
-  left: 44%;
-  --svh-bubble-drift: 10px;
-  animation-duration: 8s;
-  animation-delay: -1s;
+  width: 15px;
+  height: 15px;
+  left: 14%;
+  --svh-bubble-drift: 11px;
+  --svh-bubble-opacity: 0.29;
+  --svh-bubble-opacity-peak: 0.35;
+  animation-duration: 17.8s;
+  animation-delay: -2.6s;
 }
 
 .svh-mini-bubble-item-6 {
-  width: 13px;
-  height: 13px;
-  left: 53%;
-  --svh-bubble-drift: -14px;
-  animation-duration: 14s;
-  animation-delay: -6s;
+  width: 28px;
+  height: 28px;
+  left: 17%;
+  --svh-bubble-drift: -15px;
+  --svh-bubble-opacity: 0.27;
+  --svh-bubble-opacity-peak: 0.33;
+  animation-duration: 22.6s;
+  animation-delay: -8.9s;
 }
 
 .svh-mini-bubble-item-7 {
-  width: 16px;
-  height: 16px;
-  left: 63%;
+  width: 42px;
+  height: 42px;
+  left: 20%;
   --svh-bubble-drift: 18px;
-  animation-duration: 17s;
-  animation-delay: -11s;
+  --svh-bubble-opacity: 0.26;
+  --svh-bubble-opacity-peak: 0.32;
+  animation-duration: 27.2s;
+  animation-delay: -15.1s;
 }
 
 .svh-mini-bubble-item-8 {
-  width: 9px;
-  height: 9px;
-  left: 72%;
+  width: 19px;
+  height: 19px;
+  left: 23%;
   --svh-bubble-drift: -12px;
-  animation-duration: 10s;
-  animation-delay: -3s;
+  --svh-bubble-opacity: 0.28;
+  --svh-bubble-opacity-peak: 0.34;
+  animation-duration: 19.4s;
+  animation-delay: -5.2s;
 }
 
 .svh-mini-bubble-item-9 {
-  width: 15px;
-  height: 15px;
-  left: 81%;
-  --svh-bubble-drift: 16px;
-  animation-duration: 15s;
-  animation-delay: -7s;
+  width: 26px;
+  height: 26px;
+  left: 26%;
+  --svh-bubble-drift: 15px;
+  --svh-bubble-opacity: 0.27;
+  --svh-bubble-opacity-peak: 0.33;
+  animation-duration: 21.8s;
+  animation-delay: -10.4s;
 }
 
 .svh-mini-bubble-item-10 {
-  width: 11px;
-  height: 11px;
-  left: 89%;
-  --svh-bubble-drift: -15px;
-  animation-duration: 12s;
-  animation-delay: -5s;
+  width: 56px;
+  height: 56px;
+  left: 29%;
+  --svh-bubble-drift: -22px;
+  --svh-bubble-opacity: 0.25;
+  --svh-bubble-opacity-peak: 0.30;
+  animation-duration: 32.4s;
+  animation-delay: -17.6s;
 }
 
 .svh-mini-bubble-item-11 {
+  width: 16px;
+  height: 16px;
+  left: 32%;
+  --svh-bubble-drift: 10px;
+  --svh-bubble-opacity: 0.29;
+  --svh-bubble-opacity-peak: 0.35;
+  animation-duration: 18.2s;
+  animation-delay: -1.1s;
+}
+
+.svh-mini-bubble-item-12 {
+  width: 32px;
+  height: 32px;
+  left: 35%;
+  --svh-bubble-drift: -16px;
+  --svh-bubble-opacity: 0.27;
+  --svh-bubble-opacity-peak: 0.33;
+  animation-duration: 23.8s;
+  animation-delay: -6.1s;
+}
+
+.svh-mini-bubble-item-13 {
+  width: 21px;
+  height: 21px;
+  left: 38%;
+  --svh-bubble-drift: 14px;
+  --svh-bubble-opacity: 0.28;
+  --svh-bubble-opacity-peak: 0.34;
+  animation-duration: 20.6s;
+  animation-delay: -8.3s;
+}
+
+.svh-mini-bubble-item-14 {
+  width: 45px;
+  height: 45px;
+  left: 41%;
+  --svh-bubble-drift: -18px;
+  --svh-bubble-opacity: 0.26;
+  --svh-bubble-opacity-peak: 0.31;
+  animation-duration: 28.2s;
+  animation-delay: -13.4s;
+}
+
+.svh-mini-bubble-item-15 {
+  width: 17px;
+  height: 17px;
+  left: 44%;
+  --svh-bubble-drift: 11px;
+  --svh-bubble-opacity: 0.29;
+  --svh-bubble-opacity-peak: 0.35;
+  animation-duration: 18.9s;
+  animation-delay: -4.2s;
+}
+
+.svh-mini-bubble-item-16 {
+  width: 30px;
+  height: 30px;
+  left: 47%;
+  --svh-bubble-drift: -15px;
+  --svh-bubble-opacity: 0.27;
+  --svh-bubble-opacity-peak: 0.33;
+  animation-duration: 24.1s;
+  animation-delay: -11.0s;
+}
+
+.svh-mini-bubble-item-17 {
+  width: 52px;
+  height: 52px;
+  left: 50%;
+  --svh-bubble-drift: 20px;
+  --svh-bubble-opacity: 0.25;
+  --svh-bubble-opacity-peak: 0.30;
+  animation-duration: 30.8s;
+  animation-delay: -16.2s;
+}
+
+.svh-mini-bubble-item-18 {
+  width: 15px;
+  height: 15px;
+  left: 53%;
+  --svh-bubble-drift: -12px;
+  --svh-bubble-opacity: 0.29;
+  --svh-bubble-opacity-peak: 0.35;
+  animation-duration: 17.6s;
+  animation-delay: -2.3s;
+}
+
+.svh-mini-bubble-item-19 {
+  width: 24px;
+  height: 24px;
+  left: 56%;
+  --svh-bubble-drift: 15px;
+  --svh-bubble-opacity: 0.28;
+  --svh-bubble-opacity-peak: 0.34;
+  animation-duration: 21.4s;
+  animation-delay: -7.4s;
+}
+
+.svh-mini-bubble-item-20 {
+  width: 38px;
+  height: 38px;
+  left: 59%;
+  --svh-bubble-drift: -17px;
+  --svh-bubble-opacity: 0.26;
+  --svh-bubble-opacity-peak: 0.32;
+  animation-duration: 26.5s;
+  animation-delay: -14.2s;
+}
+
+.svh-mini-bubble-item-21 {
   width: 19px;
   height: 19px;
+  left: 62%;
+  --svh-bubble-drift: 13px;
+  --svh-bubble-opacity: 0.28;
+  --svh-bubble-opacity-peak: 0.34;
+  animation-duration: 19.8s;
+  animation-delay: -4.8s;
+}
+
+.svh-mini-bubble-item-22 {
+  width: 29px;
+  height: 29px;
+  left: 65%;
+  --svh-bubble-drift: -14px;
+  --svh-bubble-opacity: 0.27;
+  --svh-bubble-opacity-peak: 0.33;
+  animation-duration: 22.4s;
+  animation-delay: -9.3s;
+}
+
+.svh-mini-bubble-item-23 {
+  width: 46px;
+  height: 46px;
+  left: 68%;
+  --svh-bubble-drift: 19px;
+  --svh-bubble-opacity: 0.25;
+  --svh-bubble-opacity-peak: 0.31;
+  animation-duration: 29.1s;
+  animation-delay: -11.9s;
+}
+
+.svh-mini-bubble-item-24 {
+  width: 20px;
+  height: 20px;
+  left: 71%;
+  --svh-bubble-drift: -13px;
+  --svh-bubble-opacity: 0.28;
+  --svh-bubble-opacity-peak: 0.34;
+  animation-duration: 19.7s;
+  animation-delay: -3.2s;
+}
+
+.svh-mini-bubble-item-25 {
+  width: 35px;
+  height: 35px;
+  left: 74%;
+  --svh-bubble-drift: 16px;
+  --svh-bubble-opacity: 0.26;
+  --svh-bubble-opacity-peak: 0.32;
+  animation-duration: 25.2s;
+  animation-delay: -7.8s;
+}
+
+.svh-mini-bubble-item-26 {
+  width: 16px;
+  height: 16px;
+  left: 77%;
+  --svh-bubble-drift: -11px;
+  --svh-bubble-opacity: 0.29;
+  --svh-bubble-opacity-peak: 0.35;
+  animation-duration: 18.4s;
+  animation-delay: -1.8s;
+}
+
+.svh-mini-bubble-item-27 {
+  width: 27px;
+  height: 27px;
+  left: 80%;
+  --svh-bubble-drift: 14px;
+  --svh-bubble-opacity: 0.27;
+  --svh-bubble-opacity-peak: 0.33;
+  animation-duration: 21.9s;
+  animation-delay: -10.6s;
+}
+
+.svh-mini-bubble-item-28 {
+  width: 58px;
+  height: 58px;
+  left: 83%;
+  --svh-bubble-drift: -21px;
+  --svh-bubble-opacity: 0.25;
+  --svh-bubble-opacity-peak: 0.30;
+  animation-duration: 31.6s;
+  animation-delay: -18.4s;
+}
+
+.svh-mini-bubble-item-29 {
+  width: 18px;
+  height: 18px;
+  left: 86%;
+  --svh-bubble-drift: 12px;
+  --svh-bubble-opacity: 0.28;
+  --svh-bubble-opacity-peak: 0.34;
+  animation-duration: 19.9s;
+  animation-delay: -5.7s;
+}
+
+.svh-mini-bubble-item-30 {
+  width: 31px;
+  height: 31px;
+  left: 88.5%;
+  --svh-bubble-drift: -15px;
+  --svh-bubble-opacity: 0.27;
+  --svh-bubble-opacity-peak: 0.33;
+  animation-duration: 23.3s;
+  animation-delay: -12.7s;
+}
+
+.svh-mini-bubble-item-31 {
+  width: 17px;
+  height: 17px;
+  left: 91%;
+  --svh-bubble-drift: 11px;
+  --svh-bubble-opacity: 0.29;
+  --svh-bubble-opacity-peak: 0.35;
+  animation-duration: 18.7s;
+  animation-delay: -3.9s;
+}
+
+.svh-mini-bubble-item-32 {
+  width: 39px;
+  height: 39px;
+  left: 93%;
+  --svh-bubble-drift: -17px;
+  --svh-bubble-opacity: 0.26;
+  --svh-bubble-opacity-peak: 0.32;
+  animation-duration: 26.8s;
+  animation-delay: -9.8s;
+}
+
+.svh-mini-bubble-item-33 {
+  width: 23px;
+  height: 23px;
   left: 95%;
-  --svh-bubble-drift: -16px;
-  animation-duration: 20s;
-  animation-delay: -13s;
+  --svh-bubble-drift: 13px;
+  --svh-bubble-opacity: 0.27;
+  --svh-bubble-opacity-peak: 0.33;
+  animation-duration: 20.4s;
+  animation-delay: -6.4s;
+}
+
+.svh-mini-bubble-item-34 {
+  width: 49px;
+  height: 49px;
+  left: 96.5%;
+  --svh-bubble-drift: -18px;
+  --svh-bubble-opacity: 0.25;
+  --svh-bubble-opacity-peak: 0.31;
+  animation-duration: 28.9s;
+  animation-delay: -14.8s;
+}
+
+.svh-mini-bubble-item-35 {
+  width: 15px;
+  height: 15px;
+  left: 98%;
+  --svh-bubble-drift: -10px;
+  --svh-bubble-opacity: 0.29;
+  --svh-bubble-opacity-peak: 0.35;
+  animation-duration: 18.1s;
+  animation-delay: -2.1s;
+}
+
+.svh-mini-bubble-item-36 {
+  width: 28px;
+  height: 28px;
+  left: 39.5%;
+  --svh-bubble-drift: 14px;
+  --svh-bubble-opacity: 0.27;
+  --svh-bubble-opacity-peak: 0.33;
+  animation-duration: 22.9s;
+  animation-delay: -13.1s;
 }
 
 /* ============================================================================
@@ -1210,5 +1602,1131 @@ html[data-theme="dark"] .svh-chatbot-panel-glow {
   }
 }
 
+/* ============================================================================
+   5. HEADER NAVBAR STRUCTURE & GLOBAL OVERLAP PREVENTION (WEB & APK)
+   - Enforces 3 non-overlapping flex containers: .brand-section, .nav-links, .user-actions
+   - Prevents text wrapping or colliding across brand titles, nav links & badges
+   ============================================================================ */
 
+.svh-header-navbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
 
+@media (min-width: 640px) {
+  .svh-header-navbar {
+    gap: 1rem;
+  }
+}
+
+.svh-header-navbar .brand-section {
+  min-width: 0;
+  gap: 8px;
+}
+
+.svh-header-navbar .brand-section span {
+  white-space: nowrap;
+  line-height: 1.2;
+  position: static;
+}
+
+.svh-header-navbar .nav-links {
+  min-width: 0;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.svh-header-navbar .nav-links button,
+.svh-header-navbar .nav-links a {
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.svh-header-navbar .user-actions {
+  flex-shrink: 0;
+}
+
+/* ============================================================================
+   5B. OFFICIAL WHATSAPP CHANNEL BANNER — SOFT PASTEL "SWEET ROSE" LIGHT PINK
+   - Distinct soft pastel sweet-rose light pink hue (#fdebf1 / #fbe0ea)
+   - Multi-line stacked layout with zero text truncation
+   ============================================================================ */
+
+.svh-whatsapp-sweet-rose-banner,
+html[data-theme="light"] .svh-whatsapp-sweet-rose-banner,
+html[data-theme="dark"] .svh-whatsapp-sweet-rose-banner {
+  background: linear-gradient(135deg, #fdeef3 0%, #fbe4ec 52%, #f9dce6 100%) !important;
+  background-color: #fdeef3 !important;
+  border-color: #f2bfd1 !important;
+  box-shadow:
+    0 6px 20px -4px rgba(226, 148, 176, 0.24),
+    0 2px 6px -1px rgba(226, 148, 176, 0.14) !important;
+}
+
+.svh-whatsapp-sweet-rose-banner p,
+html[data-theme="dark"] .svh-whatsapp-sweet-rose-banner p,
+html[data-theme="light"] .svh-whatsapp-sweet-rose-banner p {
+  color: #0f172a !important;
+  overflow-wrap: break-word;
+  word-break: break-word;
+  white-space: normal;
+}
+
+.svh-whatsapp-sweet-rose-icon,
+html[data-theme="light"] .svh-whatsapp-sweet-rose-icon,
+html[data-theme="dark"] .svh-whatsapp-sweet-rose-icon {
+  background-color: #f8d2df !important;
+  border-color: #ebabc2 !important;
+  color: #1e293b !important;
+}
+
+.svh-whatsapp-sweet-rose-icon svg,
+html[data-theme="light"] .svh-whatsapp-sweet-rose-icon svg,
+html[data-theme="dark"] .svh-whatsapp-sweet-rose-icon svg {
+  color: #1e293b !important;
+}
+
+/* ============================================================================
+   5C. TOP-RIGHT HEADER 4 PASTEL BOXES & TELEGRAM SEA-GREEN BANNER
+   - 1. Light Pastel Yellow Box: Search Icon
+   - 2. Light Pastel Pink Box: Trophy Icon + "0 VP"
+   - 3. Light Pastel Green Box: Fire Icon + "0d"
+   - 4. Light Pastel Orange Box: Profile Icon
+   - Central Telegram CTA Box in NotesSection: Light Pastel Sea Green
+   ============================================================================ */
+
+/* 1. Light Pastel Yellow Box (Search) */
+.svh-header-box-yellow,
+html[data-theme="light"] button.svh-header-box-yellow,
+html[data-theme="dark"] button.svh-header-box-yellow {
+  background-color: #fef6c9 !important;
+  border-color: #f3dc7a !important;
+  color: #0f172a !important;
+  box-shadow: 0 2px 6px rgba(234, 179, 8, 0.14) !important;
+}
+
+.svh-header-box-yellow:hover,
+html[data-theme="light"] button.svh-header-box-yellow:hover,
+html[data-theme="dark"] button.svh-header-box-yellow:hover {
+  background-color: #fdeea8 !important;
+  border-color: #eab308 !important;
+}
+
+/* 2. Light Pastel Pink Box (Trophy + VP) */
+.svh-header-box-pink,
+html[data-theme="light"] button.svh-header-box-pink,
+html[data-theme="dark"] button.svh-header-box-pink {
+  background-color: #fde2ec !important;
+  border-color: #f5b2cb !important;
+  color: #0f172a !important;
+  box-shadow: 0 2px 6px rgba(236, 72, 153, 0.14) !important;
+}
+
+.svh-header-box-pink:hover,
+html[data-theme="light"] button.svh-header-box-pink:hover,
+html[data-theme="dark"] button.svh-header-box-pink:hover {
+  background-color: #fbd0e0 !important;
+  border-color: #ec4899 !important;
+}
+
+/* 3. Light Pastel Green Box (Flame + Streak) */
+.svh-header-box-green,
+html[data-theme="light"] div.svh-header-box-green,
+html[data-theme="dark"] div.svh-header-box-green,
+html[data-theme="light"] button.svh-header-box-green,
+html[data-theme="dark"] button.svh-header-box-green {
+  background-color: #dcfce7 !important;
+  border-color: #9ae6b4 !important;
+  color: #0f172a !important;
+  box-shadow: 0 2px 6px rgba(34, 197, 94, 0.14) !important;
+}
+
+.svh-header-box-green:hover,
+html[data-theme="light"] button.svh-header-box-green:hover,
+html[data-theme="dark"] button.svh-header-box-green:hover {
+  background-color: #bbf7d0 !important;
+  border-color: #4ade80 !important;
+}
+
+/* 4. Light Pastel Orange Box (Profile) */
+.svh-header-box-orange,
+html[data-theme="light"] button.svh-header-box-orange,
+html[data-theme="dark"] button.svh-header-box-orange {
+  background-color: #ffedd5 !important;
+  border-color: #fdba74 !important;
+  color: #0f172a !important;
+  box-shadow: 0 2px 6px rgba(249, 115, 22, 0.14) !important;
+}
+
+.svh-header-box-orange:hover,
+html[data-theme="light"] button.svh-header-box-orange:hover,
+html[data-theme="dark"] button.svh-header-box-orange:hover {
+  background-color: #fed7aa !important;
+  border-color: #fb923c !important;
+}
+
+/* Ensure crisp dark text & icons inside the 4 light pastel header boxes */
+.svh-header-box-yellow span,
+.svh-header-box-yellow svg,
+.svh-header-box-pink span,
+.svh-header-box-pink svg,
+.svh-header-box-green span,
+.svh-header-box-green svg,
+.svh-header-box-orange span,
+.svh-header-box-orange svg,
+html[data-theme="dark"] .svh-header-box-yellow span,
+html[data-theme="dark"] .svh-header-box-yellow svg,
+html[data-theme="dark"] .svh-header-box-pink span,
+html[data-theme="dark"] .svh-header-box-pink svg,
+html[data-theme="dark"] .svh-header-box-green span,
+html[data-theme="dark"] .svh-header-box-green svg,
+html[data-theme="dark"] .svh-header-box-orange span,
+html[data-theme="dark"] .svh-header-box-orange svg {
+  color: #0f172a !important;
+}
+
+/* Central Telegram Call-to-Action Box in High-Yield Revision Notes — Light Pastel Sea Green */
+.svh-telegram-seagreen-banner,
+html[data-theme="light"] .svh-telegram-seagreen-banner,
+html[data-theme="dark"] .svh-telegram-seagreen-banner {
+  background: linear-gradient(135deg, #dff9f0 0%, #d1f4e8 52%, #c4efe0 100%) !important;
+  background-color: #d6f5ea !important;
+  border-color: #8fd9be !important;
+  box-shadow:
+    0 6px 20px -4px rgba(45, 178, 134, 0.22),
+    0 2px 6px -1px rgba(45, 178, 134, 0.12) !important;
+}
+
+.svh-telegram-seagreen-banner p,
+html[data-theme="light"] .svh-telegram-seagreen-banner p,
+html[data-theme="dark"] .svh-telegram-seagreen-banner p {
+  color: #0f172a !important;
+}
+
+.svh-telegram-seagreen-icon,
+html[data-theme="light"] .svh-telegram-seagreen-icon,
+html[data-theme="dark"] .svh-telegram-seagreen-icon {
+  background: linear-gradient(135deg, #b8eedb 0%, #a2e4cd 100%) !important;
+  background-color: #b4ecda !important;
+  border-color: #79ccaed9 !important;
+  color: #0f172a !important;
+}
+
+.svh-telegram-seagreen-icon svg,
+html[data-theme="light"] .svh-telegram-seagreen-icon svg,
+html[data-theme="dark"] .svh-telegram-seagreen-icon svg {
+  color: #0f172a !important;
+}
+
+/* ============================================================================
+   6. SPLASH SCREEN ANIMATION & LEAF STENCIL WATERMARK (WEB & ANDROID APK)
+   - High-refresh-rate (90Hz / 120Hz / 144Hz) GPU-composited transforms & opacity
+   - 12%–18% opacity soft desaturated blue/grey botanical leaf stencil watermark
+   - Pulsing radial aura, 600ms scale-90 -> scale-100 logo entry, metallic shimmer
+   - Staggered fade-in for "Study Vault Hub" and "Developed by Soumyadip Rana"
+   - Smooth curtain fade-out / upward slide exit transition
+   ============================================================================ */
+
+@keyframes svhSplashAuraPulse {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(0.94);
+    opacity: 0.55;
+  }
+  50% {
+    transform: translate3d(0, 0, 0) scale(1.1);
+    opacity: 0.92;
+  }
+}
+
+@keyframes svhSplashLogoEntry {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 10px, 0) scale(0.9);
+  }
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+@keyframes svhSplashMetallicShimmer {
+  0% {
+    background-position: 200% center;
+  }
+  100% {
+    background-position: -200% center;
+  }
+}
+
+@keyframes svhSplashSubtextFadeUp {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 12px, 0);
+  }
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+.svh-splash-overlay {
+  will-change: transform, opacity;
+  transform: translate3d(0, 0, 0);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  transition:
+    opacity 420ms cubic-bezier(0.22, 1, 0.36, 1),
+    transform 420ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.svh-splash-overlay-exit {
+  opacity: 0;
+  transform: translate3d(0, -4.5%, 0) scale(1.015);
+  pointer-events: none;
+}
+
+.svh-splash-leaf-watermark {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  user-select: none;
+  overflow: hidden;
+  z-index: 1;
+  will-change: transform, opacity;
+  transform: translate3d(0, 0, 0);
+}
+
+/* Soft desaturated blue/grey botanical stencil tint at 12%–18% opacity */
+.svh-splash-leaf-stencil {
+  color: #94a9c4;
+  opacity: 0.15;
+  will-change: transform, opacity;
+  transform: translate3d(0, 0, 0);
+}
+
+html[data-theme="light"] .svh-splash-leaf-stencil {
+  color: #647d9c !important;
+  opacity: 0.16 !important;
+}
+
+.svh-splash-radial-aura {
+  background: radial-gradient(
+    circle,
+    rgba(212, 175, 55, 0.34) 0%,
+    rgba(148, 169, 196, 0.22) 42%,
+    rgba(56, 189, 248, 0.08) 68%,
+    transparent 82%
+  );
+  will-change: transform, opacity;
+  animation: svhSplashAuraPulse 2.4s ease-in-out infinite;
+}
+
+html[data-theme="light"] .svh-splash-radial-aura {
+  background: radial-gradient(
+    circle,
+    rgba(122, 158, 196, 0.42) 0%,
+    rgba(148, 169, 196, 0.26) 45%,
+    rgba(180, 204, 230, 0.12) 70%,
+    transparent 85%
+  ) !important;
+}
+
+.svh-splash-logo-entry {
+  will-change: transform, opacity;
+  animation: svhSplashLogoEntry 600ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+.svh-splash-shimmer-text {
+  background: linear-gradient(
+    110deg,
+    #fce09b 0%,
+    #d4af37 28%,
+    #ffffff 48%,
+    #fff6d6 52%,
+    #d4af37 72%,
+    #fce09b 100%
+  );
+  background-size: 220% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  will-change: transform, opacity;
+  animation:
+    svhSplashLogoEntry 600ms cubic-bezier(0.22, 1, 0.36, 1) forwards,
+    svhSplashMetallicShimmer 1.6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+html[data-theme="light"] .svh-splash-shimmer-text {
+  background: linear-gradient(
+    110deg,
+    #0f172a 0%,
+    #1e3a5f 30%,
+    #5b82b0 48%,
+    #8ab0d8 52%,
+    #1e3a5f 72%,
+    #0f172a 100%
+  ) !important;
+  background-size: 220% auto !important;
+  -webkit-background-clip: text !important;
+  background-clip: text !important;
+  -webkit-text-fill-color: transparent !important;
+}
+
+.svh-splash-fade-stagger-1 {
+  opacity: 0;
+  will-change: transform, opacity;
+  animation: svhSplashSubtextFadeUp 520ms cubic-bezier(0.22, 1, 0.36, 1) 180ms forwards;
+}
+
+.svh-splash-shimmer-text.svh-splash-fade-stagger-1 {
+  opacity: 0;
+  will-change: transform, opacity;
+  animation:
+    svhSplashSubtextFadeUp 520ms cubic-bezier(0.22, 1, 0.36, 1) 140ms forwards,
+    svhSplashMetallicShimmer 1.6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+.svh-splash-fade-stagger-2 {
+  opacity: 0;
+  will-change: transform, opacity;
+  animation: svhSplashSubtextFadeUp 540ms cubic-bezier(0.22, 1, 0.36, 1) 360ms forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .svh-splash-radial-aura,
+  .svh-splash-logo-entry,
+  .svh-splash-shimmer-text,
+  .svh-splash-fade-stagger-1,
+  .svh-splash-fade-stagger-2 {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+}
+
+/* ============================================================================
+   7. FIXED VIEWPORT CENTER MODAL POSITIONING (VP POINTS & STREAK POPUP)
+   - Backdrop overlay: position: fixed; inset: 0; display: flex; align-items: center;
+     justify-content: center; z-index: 1000; padding: 1rem; background: rgba(0, 0, 0, 0.4);
+     backdrop-filter: blur(4px);
+   - Modal card: max-width: 92vw; width: 420px; max-height: 85vh; overflow-y: auto;
+     box-sizing: border-box; padding: 1.25rem; border-radius: 16px;
+   - Word-break & flex-wrapping on all text rows to prevent horizontal clipping
+   ============================================================================ */
+
+.svh-vp-streak-modal-overlay {
+  position: fixed !important;
+  inset: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  z-index: 1000 !important;
+  padding: 1rem !important;
+  background: rgba(0, 0, 0, 0.4) !important;
+  backdrop-filter: blur(4px) !important;
+  -webkit-backdrop-filter: blur(4px) !important;
+  box-sizing: border-box !important;
+}
+
+.svh-vp-streak-modal-card {
+  position: relative !important;
+  top: auto !important;
+  right: auto !important;
+  bottom: auto !important;
+  left: auto !important;
+  max-width: 92vw !important;
+  width: 420px !important;
+  max-height: 85vh !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  box-sizing: border-box !important;
+  padding: 1.25rem !important;
+  border-radius: 16px !important;
+  word-break: break-word !important;
+  overflow-wrap: break-word !important;
+  margin: 0 auto !important;
+}
+
+.svh-vp-streak-modal-card *,
+.svh-vp-streak-modal-card h3,
+.svh-vp-streak-modal-card h4,
+.svh-vp-streak-modal-card p,
+.svh-vp-streak-modal-card span,
+.svh-vp-streak-modal-card li {
+  word-break: break-word;
+  overflow-wrap: break-word;
+  box-sizing: border-box;
+}
+
+/* ============================================================================
+   8. DYNAMIC TIME GREETING ICONS & ANIMATED SUN-TO-MOON THEME SWITCH
+   - Morning (5 AM - 12 PM): Gently rising sun icon animation
+   - Afternoon (12 PM - 5 PM): Warm glowing sun icon animation
+   - Evening (5 PM - 9 PM): Soft sunset/evening icon animation
+   - Night (9 PM - 5 AM): Soft glowing moon icon animation
+   - Theme Switch: Smooth 180-degree rotation + soft fade transition
+   ============================================================================ */
+
+@keyframes svhMorningSunRise {
+  0%,
+  100% {
+    transform: translate3d(0, 1.5px, 0) scale(0.96);
+  }
+  50% {
+    transform: translate3d(0, -2px, 0) scale(1.05);
+  }
+}
+
+@keyframes svhAfternoonWarmSun {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) rotate(0deg) scale(1);
+  }
+  50% {
+    transform: translate3d(0, 0, 0) rotate(12deg) scale(1.06);
+  }
+}
+
+@keyframes svhEveningSoftSunset {
+  0%,
+  100% {
+    transform: translate3d(0, -1px, 0) scale(1.02);
+    box-shadow: 0 0 10px rgba(251, 146, 60, 0.18);
+  }
+  50% {
+    transform: translate3d(0, 1.5px, 0) scale(0.96);
+    box-shadow: 0 0 16px rgba(251, 146, 60, 0.32);
+  }
+}
+
+@keyframes svhNightSoftMoon {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) rotate(-6deg) scale(0.97);
+    box-shadow: 0 0 10px rgba(129, 140, 248, 0.2);
+  }
+  50% {
+    transform: translate3d(0, -1.5px, 0) rotate(6deg) scale(1.04);
+    box-shadow: 0 0 18px rgba(129, 140, 248, 0.38);
+  }
+}
+
+.svh-greeting-icon-morning svg {
+  will-change: transform;
+  animation: svhMorningSunRise 3.2s ease-in-out infinite;
+}
+
+.svh-greeting-icon-afternoon svg {
+  will-change: transform;
+  animation: svhAfternoonWarmSun 4s ease-in-out infinite;
+}
+
+.svh-greeting-icon-evening {
+  will-change: transform, box-shadow;
+  animation: svhEveningSoftSunset 3.6s ease-in-out infinite;
+}
+
+.svh-greeting-icon-night {
+  will-change: transform, box-shadow;
+  animation: svhNightSoftMoon 3.6s ease-in-out infinite;
+}
+
+/* Animated 180-degree Sun-to-Moon Theme Switch */
+.svh-theme-switch-icon {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  will-change: transform, opacity;
+  transition:
+    transform 360ms cubic-bezier(0.4, 0, 0.2, 1),
+    opacity 360ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.svh-theme-icon-active {
+  opacity: 1;
+  transform: rotate(0deg) scale(1);
+}
+
+.svh-theme-icon-inactive {
+  opacity: 0;
+  transform: rotate(180deg) scale(0.65);
+  pointer-events: none;
+}
+
+.svh-theme-option-icon {
+  will-change: transform, opacity;
+  transition:
+    transform 360ms cubic-bezier(0.4, 0, 0.2, 1),
+    opacity 360ms cubic-bezier(0.4, 0, 0.2, 1);
+  transform: rotate(0deg);
+}
+
+.svh-theme-option-rotated {
+  transform: rotate(180deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .svh-greeting-icon-morning svg,
+  .svh-greeting-icon-afternoon svg,
+  .svh-greeting-icon-evening,
+  .svh-greeting-icon-night {
+    animation: none !important;
+  }
+  .svh-theme-switch-icon,
+  .svh-theme-option-icon {
+    transition: none !important;
+  }
+}
+
+/* ============================================================================
+   9. GLASS-METALLIC SKELETON SHIMMER LOADING & SUBTLE 3D CARD TILT + LIGHT SWEEP
+   - Glossy metallic shimmer wave animation for study notes, exam cards & VP history
+   - Refined 3D perspective tilt (max 3.5deg) + diagonal glass light sweep on hover/touch
+   ============================================================================ */
+
+@keyframes svhGlassMetallicShimmerWave {
+  0% {
+    transform: translate3d(-110%, 0, 0) skewX(-18deg);
+  }
+  100% {
+    transform: translate3d(210%, 0, 0) skewX(-18deg);
+  }
+}
+
+.svh-skeleton-card {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(
+    145deg,
+    rgba(15, 23, 42, 0.88) 0%,
+    rgba(19, 27, 46, 0.78) 50%,
+    rgba(12, 20, 40, 0.92) 100%
+  );
+  border-color: rgba(212, 175, 55, 0.22);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+html[data-theme="light"] .svh-skeleton-card {
+  background: linear-gradient(
+    145deg,
+    rgba(241, 245, 251, 0.95) 0%,
+    rgba(232, 240, 250, 0.88) 50%,
+    rgba(246, 249, 253, 0.96) 100%
+  ) !important;
+  border-color: rgba(184, 199, 220, 0.8) !important;
+}
+
+.svh-skeleton-shimmer {
+  position: relative;
+  overflow: hidden;
+  background: rgba(30, 41, 59, 0.72);
+  border: 1px solid rgba(212, 175, 55, 0.12);
+}
+
+html[data-theme="light"] .svh-skeleton-shimmer {
+  background: rgba(209, 222, 238, 0.7) !important;
+  border-color: rgba(176, 196, 220, 0.45) !important;
+}
+
+.svh-skeleton-shimmer::after,
+.svh-skeleton-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  width: 65%;
+  height: 100%;
+  background: linear-gradient(
+    105deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.05) 30%,
+    rgba(252, 224, 155, 0.22) 50%,
+    rgba(255, 255, 255, 0.08) 70%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  will-change: transform;
+  pointer-events: none;
+  animation: svhGlassMetallicShimmerWave 1.65s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+html[data-theme="light"] .svh-skeleton-shimmer::after,
+html[data-theme="light"] .svh-skeleton-card::before {
+  background: linear-gradient(
+    105deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.38) 32%,
+    rgba(255, 255, 255, 0.82) 50%,
+    rgba(255, 255, 255, 0.38) 68%,
+    rgba(255, 255, 255, 0) 100%
+  ) !important;
+}
+
+/* Clean, Flat & Stable Card Touch/Hover Feedback (Zero 3D Tilt or Rotation) */
+.svh-3d-tilt-card {
+  position: relative;
+  overflow: hidden;
+  transform: none !important;
+  transform-style: flat !important;
+  perspective: none !important;
+  transition:
+    box-shadow 180ms cubic-bezier(0.4, 0, 0.2, 1),
+    border-color 180ms cubic-bezier(0.4, 0, 0.2, 1),
+    background-color 180ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.svh-3d-tilt-card::after {
+  display: none !important;
+}
+
+.svh-3d-tilt-card:hover,
+.svh-3d-tilt-card:active,
+.svh-3d-tilt-card.svh-3d-tilt-active {
+  transform: none !important;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .svh-3d-tilt-card:hover {
+    transform: none !important;
+    box-shadow:
+      0 8px 24px -4px rgba(0, 0, 0, 0.45),
+      0 0 14px -4px rgba(212, 175, 55, 0.16);
+  }
+  html[data-theme="light"] .svh-3d-tilt-card:hover {
+    transform: none !important;
+    box-shadow:
+      0 8px 24px -4px rgba(125, 162, 199, 0.26),
+      0 2px 8px -2px rgba(125, 162, 199, 0.14) !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .svh-skeleton-shimmer::after,
+  .svh-skeleton-card::before {
+    animation: none !important;
+  }
+  .svh-3d-tilt-card {
+    transition: none !important;
+  }
+}
+
+/* ============================================================================
+   10. SPRING PHYSICS MODALS & ACCORDIONS, ANIMATED PROGRESS BARS & LIVE FLAME
+   - Spring physics modal entry (scale(0.96) -> scale(1) with gentle bounce)
+   - Seamless expandable accordion slide-down via CSS grid & max-height transitions
+   - Animated progress bars filling smoothly from 0% to target % (800ms ease-out)
+   - Animated live streak flame breathing pulse (scale(1) -> scale(1.08) over 2s)
+   ============================================================================ */
+
+/* Seamless CSS Grid / Max-Height Accordion Transition */
+.svh-accordion-grid {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transition:
+    grid-template-rows 320ms cubic-bezier(0.34, 1.56, 0.64, 1),
+    opacity 260ms ease-out,
+    max-height 320ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  max-height: 0;
+  overflow: hidden;
+}
+
+.svh-accordion-grid.svh-accordion-open {
+  grid-template-rows: 1fr;
+  opacity: 1;
+  max-height: 1600px;
+}
+
+.svh-accordion-inner {
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Animated Progress Bars: Smoothly fill from 0% to target width (800ms ease-out) */
+@keyframes svhProgressMountFill {
+  0% {
+    transform: scaleX(0);
+  }
+  100% {
+    transform: scaleX(1);
+  }
+}
+
+.svh-animated-progress-fill {
+  transform-origin: left center;
+  will-change: width, transform;
+  transition: width 800ms ease-out !important;
+  animation: svhProgressMountFill 800ms ease-out forwards;
+}
+
+/* Animated Live Streak Flame: Subtle 2s breathing pulse (scale(1) -> scale(1.08)) */
+@keyframes svhLiveStreakFlamePulse {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(0, -0.5px, 0) scale(1.08);
+  }
+}
+
+.svh-live-streak-flame {
+  transform-origin: center bottom;
+  will-change: transform;
+  animation: svhLiveStreakFlamePulse 2s ease-in-out infinite;
+}
+
+/* ============================================================================
+   11. ROLLING VP COUNTER & METALLIC BADGE SHIMMER (WEB & ANDROID APK)
+   - Smooth rolling odometer counter effect when VP Points load or increase
+   - Soft metallic shine animation across user rank and achievement badges
+   ============================================================================ */
+
+@keyframes svhOdometerRollTick {
+  0% {
+    transform: translate3d(0, 18%, 0);
+    opacity: 0.72;
+  }
+  50% {
+    transform: translate3d(0, -6%, 0);
+    opacity: 1;
+  }
+  100% {
+    transform: translate3d(0, 0, 0);
+    opacity: 1;
+  }
+}
+
+.svh-rolling-vp-counter {
+  font-variant-numeric: tabular-nums;
+  will-change: contents, transform;
+}
+
+.svh-rolling-vp-digits {
+  display: inline-block;
+  will-change: transform;
+  transition: transform 180ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.svh-rolling-vp-active .svh-rolling-vp-digits {
+  animation: svhOdometerRollTick 260ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Soft Metallic Shine Animation Across Rank & Achievement Badges */
+@keyframes svhMetallicBadgeSweep {
+  0% {
+    transform: translate3d(-160%, 0, 0) skewX(-22deg);
+  }
+  38%,
+  100% {
+    transform: translate3d(260%, 0, 0) skewX(-22deg);
+  }
+}
+
+.svh-badge-shimmer {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.svh-badge-shimmer::after {
+  content: "";
+  position: absolute;
+  top: -20%;
+  left: 0;
+  width: 52%;
+  height: 140%;
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 250, 225, 0.08) 25%,
+    rgba(255, 244, 196, 0.32) 50%,
+    rgba(255, 250, 225, 0.08) 75%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  transform: translate3d(-160%, 0, 0) skewX(-22deg);
+  will-change: transform;
+  pointer-events: none;
+  z-index: 1;
+  animation: svhMetallicBadgeSweep 4.2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+html[data-theme="light"] .svh-badge-shimmer::after {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.25) 25%,
+    rgba(255, 255, 255, 0.72) 50%,
+    rgba(255, 255, 255, 0.25) 75%,
+    rgba(255, 255, 255, 0) 100%
+  );
+}
+
+/* ============================================================================
+   12. SVH AI ASSISTANT COMPANION UI POLISH & FOCUS MODE ENVIRONMENT
+   - AI Assistant Breathing Glow (soft cyan/magenta ambient pulse around AI avatar)
+   - AI Response Typing Animation (smooth streaming text/typing reveal + cursor)
+   - AI Code Block & Key Note Snippet Glow (sleek border glow on tap/focus)
+   - Focus Mode Background Dimming (filter: opacity(0.4) blur(2px) on background,
+     keeping active study timer / focus block sharp and focused)
+   ============================================================================ */
+
+@keyframes svhAIAvatarBreathingGlow {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 2px rgba(34, 211, 238, 0.45),
+      0 0 16px 3px rgba(6, 182, 212, 0.48),
+      0 0 28px 6px rgba(217, 70, 239, 0.34);
+    transform: scale(1);
+  }
+  50% {
+    box-shadow:
+      0 0 0 3px rgba(217, 70, 239, 0.58),
+      0 0 22px 6px rgba(217, 70, 239, 0.52),
+      0 0 36px 10px rgba(34, 211, 238, 0.46);
+    transform: scale(1.05);
+  }
+}
+
+@keyframes svhAIAvatarHaloSpin {
+  0% {
+    transform: rotate(0deg) scale(1);
+    opacity: 0.75;
+  }
+  50% {
+    transform: rotate(180deg) scale(1.08);
+    opacity: 0.95;
+  }
+  100% {
+    transform: rotate(360deg) scale(1);
+    opacity: 0.75;
+  }
+}
+
+.svh-ai-avatar-breathing {
+  position: relative;
+  z-index: 1;
+  will-change: transform, box-shadow;
+  animation: svhAIAvatarBreathingGlow 2.2s ease-in-out infinite !important;
+  border-color: rgba(34, 211, 238, 0.78) !important;
+}
+
+.svh-ai-avatar-breathing::before {
+  content: "";
+  position: absolute;
+  inset: -5px;
+  border-radius: 9999px;
+  background: conic-gradient(
+    from 0deg,
+    rgba(6, 182, 212, 0.65),
+    rgba(217, 70, 239, 0.65),
+    rgba(56, 189, 248, 0.65),
+    rgba(232, 121, 249, 0.65),
+    rgba(6, 182, 212, 0.65)
+  );
+  filter: blur(6px);
+  z-index: -1;
+  pointer-events: none;
+  will-change: transform, opacity;
+  animation: svhAIAvatarHaloSpin 3.2s linear infinite;
+}
+
+/* Smooth AI Streaming Text & Typing Cursor Animation */
+@keyframes svhAITypingCursorBlink {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scaleY(1);
+  }
+  50% {
+    opacity: 0.2;
+    transform: scaleY(0.88);
+  }
+}
+
+.svh-ai-typing-cursor {
+  display: inline-block;
+  width: 7px;
+  height: 1.05em;
+  margin-left: 3px;
+  vertical-align: text-bottom;
+  border-radius: 2px;
+  background: linear-gradient(180deg, #06b6d4 0%, #d946ef 100%);
+  box-shadow: 0 0 8px rgba(6, 182, 212, 0.55);
+  animation: svhAITypingCursorBlink 780ms ease-in-out infinite;
+}
+
+@keyframes svhAITypingWaveDot {
+  0%,
+  80%,
+  100% {
+    transform: translateY(0) scale(0.85);
+    opacity: 0.45;
+  }
+  40% {
+    transform: translateY(-4px) scale(1.1);
+    opacity: 1;
+  }
+}
+
+.svh-ai-typing-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  display: inline-block;
+  background: linear-gradient(135deg, #06b6d4, #d946ef);
+  animation: svhAITypingWaveDot 1.25s ease-in-out infinite;
+}
+
+.svh-ai-typing-dot:nth-child(2) {
+  animation-delay: 0.16s;
+}
+
+.svh-ai-typing-dot:nth-child(3) {
+  animation-delay: 0.32s;
+}
+
+/* AI Code Block & Key Note Snippet Interactive Border Glow */
+.svh-ai-snippet-card {
+  position: relative;
+  border-radius: 0.85rem;
+  transition:
+    border-color 220ms cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 220ms cubic-bezier(0.22, 1, 0.36, 1),
+    transform 200ms cubic-bezier(0.22, 1, 0.36, 1),
+    background-color 220ms ease;
+  outline: none;
+  cursor: pointer;
+}
+
+.svh-ai-snippet-card:hover,
+.svh-ai-snippet-card:focus,
+.svh-ai-snippet-card:focus-within,
+.svh-ai-snippet-card.svh-ai-snippet-focused {
+  border-color: rgba(6, 182, 212, 0.78) !important;
+  box-shadow:
+    0 0 0 1px rgba(6, 182, 212, 0.38),
+    0 0 18px -2px rgba(6, 182, 212, 0.35),
+    0 0 26px -4px rgba(217, 70, 239, 0.28) !important;
+  transform: none;
+}
+
+html[data-theme="light"] .svh-ai-snippet-card:hover,
+html[data-theme="light"] .svh-ai-snippet-card:focus,
+html[data-theme="light"] .svh-ai-snippet-card:focus-within,
+html[data-theme="light"] .svh-ai-snippet-card.svh-ai-snippet-focused {
+  border-color: rgba(14, 116, 144, 0.72) !important;
+  box-shadow:
+    0 0 0 1.5px rgba(6, 182, 212, 0.42),
+    0 6px 20px -3px rgba(6, 182, 212, 0.28),
+    0 0 24px -4px rgba(192, 38, 211, 0.22) !important;
+}
+
+/* Focus Mode Background Dimming:
+   When a study timer or deep focus mode is active, gently dim and blur background
+   content (filter: opacity(0.4) blur(2px)), keeping only the timer/study block sharp */
+.svh-focus-dimmable {
+  transition:
+    filter 360ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 360ms cubic-bezier(0.22, 1, 0.36, 1),
+    transform 360ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+body.svh-focus-mode-active .svh-focus-dimmable {
+  filter: opacity(0.4) blur(2px) !important;
+}
+
+/* When inline study stopwatch is running inside TrackerSection, dim sibling sections
+   while keeping the active study timer card 100% sharp and focused */
+body.svh-inline-timer-active .svh-tracker-sibling-dimmable {
+  filter: opacity(0.4) blur(2px) !important;
+  transition: filter 360ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.svh-focus-sharp-block {
+  position: relative;
+  z-index: 30;
+  filter: none !important;
+  opacity: 1 !important;
+  transition:
+    box-shadow 320ms cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 320ms cubic-bezier(0.22, 1, 0.36, 1),
+    transform 320ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.svh-focus-sharp-block.svh-focus-timer-running {
+  box-shadow:
+    0 0 0 1.5px rgba(212, 175, 55, 0.65),
+    0 18px 42px -8px rgba(0, 0, 0, 0.65),
+    0 0 28px -4px rgba(212, 175, 55, 0.28) !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .svh-popup-card,
+  .svh-spring-modal-card,
+  .svh-animated-progress-fill,
+  .svh-live-streak-flame,
+  .svh-rolling-vp-active .svh-rolling-vp-digits,
+  .svh-badge-shimmer::after,
+  .svh-ai-avatar-breathing,
+  .svh-ai-avatar-breathing::before,
+  .svh-ai-typing-cursor,
+  .svh-ai-typing-dot {
+    animation: none !important;
+    transition: none !important;
+  }
+  .svh-accordion-grid {
+    transition: none !important;
+  }
+}
+
+/* ============================================================================
+   13. FINAL AUDIT: TOUCH TARGETS, JOIN CHANNEL RIPPLE & Z-INDEX STABILIZATION
+   - Enforces active ripple / tactile feedback on 'Join Channel' buttons
+   - Ensures zero horizontal overflow or clipping across 18:9, 20:9, and tablet aspect ratios
+   ============================================================================ */
+
+.svh-join-channel-btn {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    transform 150ms cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 180ms cubic-bezier(0.22, 1, 0.36, 1),
+    filter 150ms ease;
+}
+
+.svh-join-channel-btn::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.48) 0%, rgba(255, 255, 255, 0) 70%);
+  transform: scale(0);
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    transform 320ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 320ms ease;
+}
+
+.svh-join-channel-btn:active {
+  transform: scale(0.97);
+}
+
+.svh-join-channel-btn:active::after {
+  transform: scale(2.2);
+  opacity: 1;
+  transition: 0s;
+}

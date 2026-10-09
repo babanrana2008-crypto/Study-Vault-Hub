@@ -107,13 +107,235 @@ async function compressQuestionImage(file: File): Promise<string> {
   });
 }
 
+// Interactive Code Block & Key Note Snippet parser with tap/focus border glow
+const FormattedAIMessageContent: React.FC<{
+  content: string;
+  isActivelyTyping?: boolean;
+}> = React.memo(({ content, isActivelyTyping = false }) => {
+  const [focusedBlockIdx, setFocusedBlockIdx] = useState<number | null>(null);
+  const [copiedBlockIdx, setCopiedBlockIdx] = useState<number | null>(null);
+
+  const segments = useMemo(() => {
+    if (!content) return [];
+    // Split by triple-backtick code/formula blocks first
+    const fenceRegex = /```([a-zA-Z0-9_-]*)\n?([\s\S]*?)```/g;
+    const rawParts: Array<{
+      type: 'text' | 'code' | 'keynote';
+      lang?: string;
+      text: string;
+    }> = [];
+
+    let lastIndex = 0;
+    let match: RegExpExecArray | null;
+    while ((match = fenceRegex.exec(content)) !== null) {
+      if (match.index > lastIndex) {
+        rawParts.push({
+          type: 'text',
+          text: content.slice(lastIndex, match.index),
+        });
+      }
+      rawParts.push({
+        type: 'code',
+        lang: (match[1] || 'formula / code').trim(),
+        text: (match[2] || '').replace(/\n$/, ''),
+      });
+      lastIndex = fenceRegex.lastIndex;
+    }
+    if (lastIndex < content.length) {
+      rawParts.push({
+        type: 'text',
+        text: content.slice(lastIndex),
+      });
+    }
+
+    // Further split plain text segments so Key Notes / Formula callouts / Step blocks can also be tapped/focused with sleek border glow
+    const finalSegments: Array<{
+      type: 'text' | 'code' | 'keynote';
+      lang?: string;
+      text: string;
+    }> = [];
+
+    for (const part of rawParts) {
+      if (part.type !== 'text') {
+        finalSegments.push(part);
+        continue;
+      }
+      const paragraphs = part.text.split(/\n{2,}/);
+      paragraphs.forEach((para, idx) => {
+        const trimmed = para.trim();
+        if (!trimmed) return;
+        const isKeyNoteCard =
+          /^(#{1,4}\s+|>\s+|\*\*(Key\s*Note|Formula|Important|Exam\s*Tip|Concept|Summary|Step\s*\d+|Actionable\s*Tip|\d+\.\s))/i.test(
+            trimmed
+          ) ||
+          (trimmed.includes('• **Activity:**') && trimmed.includes('• **Actionable Tip:**'));
+
+        if (isKeyNoteCard) {
+          finalSegments.push({
+            type: 'keynote',
+            text: trimmed,
+          });
+        } else {
+          finalSegments.push({
+            type: 'text',
+            text: idx < paragraphs.length - 1 ? `${para}\n\n` : para,
+          });
+        }
+      });
+    }
+
+    return finalSegments;
+  }, [content]);
+
+  const handleCopySnippet = (e: React.MouseEvent, text: string, idx: number) => {
+    e.stopPropagation();
+    navigator.clipboard?.writeText(text).catch(() => {});
+    setCopiedBlockIdx(idx);
+    setTimeout(() => {
+      setCopiedBlockIdx((prev) => (prev === idx ? null : prev));
+    }, 1600);
+  };
+
+  return (
+    <div className="svh-ai-message-body text-xs sm:text-sm whitespace-pre-wrap break-words leading-[1.65] text-[#162438] space-y-2.5">
+      {segments.map((seg, idx) => {
+        const isLastSegment = idx === segments.length - 1;
+        const isFocused = focusedBlockIdx === idx;
+
+        if (seg.type === 'code') {
+          return (
+            <div
+              key={idx}
+              tabIndex={0}
+              role="region"
+              aria-label={`Code or formula snippet ${seg.lang || ''}`}
+              onClick={() => setFocusedBlockIdx((prev) => (prev === idx ? null : idx))}
+              onFocus={() => setFocusedBlockIdx(idx)}
+              onBlur={() => setFocusedBlockIdx((prev) => (prev === idx ? null : prev))}
+              className={`svh-ai-snippet-card my-2 rounded-xl overflow-hidden border bg-[#0d172a] text-[#eef5ff] ${
+                isFocused ? 'svh-ai-snippet-focused border-cyan-400' : 'border-[#2b4263]'
+              }`}
+            >
+              <div className="px-3 py-1.5 bg-[#15233d] border-b border-[#253a59] flex items-center justify-between gap-2 text-[10px] font-mono text-[#9ec0e6]">
+                <span className="uppercase tracking-wider font-semibold text-cyan-300">
+                  {seg.lang || 'Formula / Snippet'}
+                </span>
+                <button
+                  type="button"
+                  onClick={(e) => handleCopySnippet(e, seg.text, idx)}
+                  className="px-2 py-0.5 rounded bg-[#1e3152] hover:bg-[#29426b] text-[#d8e8fa] flex items-center gap-1 transition-colors cursor-pointer"
+                >
+                  {copiedBlockIdx === idx ? (
+                    <>
+                      <Check className="w-3 h-3 text-emerald-400" />
+                      <span>Copied</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-3 h-3" />
+                      <span>Copy</span>
+                    </>
+                  )}
+                </button>
+              </div>
+              <pre className="p-3 text-xs font-mono overflow-x-auto leading-relaxed text-[#e6f1ff]">
+                <code>{seg.text}</code>
+                {isActivelyTyping && isLastSegment && (
+                  <span className="svh-ai-typing-cursor" aria-hidden="true" />
+                )}
+              </pre>
+            </div>
+          );
+        }
+
+        if (seg.type === 'keynote') {
+          return (
+            <div
+              key={idx}
+              tabIndex={0}
+              onClick={() => setFocusedBlockIdx((prev) => (prev === idx ? null : idx))}
+              onFocus={() => setFocusedBlockIdx(idx)}
+              onBlur={() => setFocusedBlockIdx((prev) => (prev === idx ? null : prev))}
+              className={`svh-ai-snippet-card p-3 rounded-xl border bg-[#e3edf8]/90 text-[#132338] ${
+                isFocused ? 'svh-ai-snippet-focused border-cyan-500' : 'border-[#b5cbe3]'
+              }`}
+            >
+              <div className="whitespace-pre-wrap break-words">
+                {seg.text}
+                {isActivelyTyping && isLastSegment && (
+                  <span className="svh-ai-typing-cursor" aria-hidden="true" />
+                )}
+              </div>
+            </div>
+          );
+        }
+
+        return (
+          <span key={idx} className="inline">
+            {seg.text}
+            {isActivelyTyping && isLastSegment && (
+              <span className="svh-ai-typing-cursor" aria-hidden="true" />
+            )}
+          </span>
+        );
+      })}
+    </div>
+  );
+});
+
 // Memoized individual message bubble for 144Hz-class rendering performance
+// Includes smooth streaming typing animation for AI-generated responses
 const SVHAIMessageItem = React.memo<{
   msg: SVHAIMessage;
   displayUserName: string;
-}>(({ msg, displayUserName }) => {
+  isLatestAssistantMessage?: boolean;
+  isGeneratingResponse?: boolean;
+}>(({ msg, displayUserName, isLatestAssistantMessage = false, isGeneratingResponse = false }) => {
   const isUser = msg.role === 'user';
   const [copied, setCopied] = useState(false);
+
+  // Smooth typing reveal state so even fast/chunked or unary AI responses animate smoothly
+  const [displayedContent, setDisplayedContent] = useState<string>(() => {
+    if (isUser) return msg.content;
+    const ageMs = Date.now() - new Date(msg.createdAt).getTime();
+    if (!isLatestAssistantMessage && ageMs > 4000) {
+      return msg.content;
+    }
+    return isLatestAssistantMessage ? '' : msg.content;
+  });
+
+  useEffect(() => {
+    if (isUser) {
+      setDisplayedContent(msg.content);
+      return;
+    }
+    const target = msg.content || '';
+    if (!isLatestAssistantMessage) {
+      setDisplayedContent(target);
+      return;
+    }
+    if (displayedContent === target) return;
+
+    // If target shrunk or reset, sync immediately
+    if (target.length < displayedContent.length) {
+      setDisplayedContent(target);
+      return;
+    }
+
+    const remaining = target.length - displayedContent.length;
+    // Adaptive step so typing feels fluid and natural at 60-120fps without lagging behind stream
+    const step = Math.max(2, Math.ceil(remaining / 14));
+    const timer = window.setTimeout(() => {
+      setDisplayedContent(target.slice(0, displayedContent.length + step));
+    }, 18);
+
+    return () => window.clearTimeout(timer);
+  }, [msg.content, isUser, isLatestAssistantMessage, displayedContent]);
+
+  const isActivelyTyping =
+    !isUser &&
+    isLatestAssistantMessage &&
+    (isGeneratingResponse || displayedContent.length < (msg.content || '').length);
 
   const handleCopy = () => {
     if (!msg.content) return;
@@ -129,21 +351,32 @@ const SVHAIMessageItem = React.memo<{
       }`}
     >
       <div
-        className={`max-w-[92%] sm:max-w-[86%] min-w-0 rounded-2xl p-3.5 sm:p-4 space-y-2 border shadow-sm overflow-hidden ${
+        className={`max-w-[92%] sm:max-w-[86%] min-w-0 rounded-2xl p-3.5 sm:p-4 space-y-2 border shadow-sm overflow-hidden transition-shadow duration-200 ${
           isUser
             ? 'bg-gradient-to-br from-[#d3dfed] to-[#c4d4e6] border-[#96b0cb] text-[#162438]'
-            : 'bg-[#edf3f9] border-[#c5d4e5] text-[#1c2b3e]'
+            : 'svh-ai-snippet-card bg-[#edf3f9] border-[#c5d4e5] text-[#1c2b3e]'
         }`}
+        tabIndex={isUser ? undefined : 0}
       >
         <div className="flex items-center justify-between gap-2 text-[10px] font-mono min-w-0">
           <span
             className={
               isUser
                 ? 'text-[#1e3554] font-bold truncate max-w-[160px] sm:max-w-[240px]'
-                : 'text-[#244166] font-bold flex items-center gap-1 shrink-0'
+                : 'text-[#244166] font-bold flex items-center gap-1.5 shrink-0'
             }
           >
-            {!isUser && <Sparkles className="w-3 h-3 text-[#2d5380] shrink-0" />}
+            {!isUser && (
+              <span
+                className={`w-4 h-4 rounded-full flex items-center justify-center shrink-0 ${
+                  isActivelyTyping
+                    ? 'svh-ai-avatar-breathing bg-cyan-950/20'
+                    : ''
+                }`}
+              >
+                <Sparkles className="w-3 h-3 text-[#2d5380] shrink-0" />
+              </span>
+            )}
             <span className="truncate">{isUser ? displayUserName || 'You' : 'SVH AI'}</span>
           </span>
 
@@ -184,9 +417,16 @@ const SVHAIMessageItem = React.memo<{
           </div>
         )}
 
-        <div className="svh-ai-message-body text-xs sm:text-sm whitespace-pre-wrap break-words leading-[1.65] text-[#162438]">
-          {msg.content}
-        </div>
+        {isUser ? (
+          <div className="svh-ai-message-body text-xs sm:text-sm whitespace-pre-wrap break-words leading-[1.65] text-[#162438]">
+            {msg.content}
+          </div>
+        ) : (
+          <FormattedAIMessageContent
+            content={displayedContent}
+            isActivelyTyping={isActivelyTyping}
+          />
+        )}
       </div>
     </div>
   );
@@ -260,7 +500,7 @@ export const SVHAIFloatingAssistant: React.FC<SVHAIFloatingAssistantProps> = Rea
     const minX = EDGE_MARGIN;
     const maxX = Math.max(minX, vw - BUTTON_SIZE - EDGE_MARGIN);
 
-    const topNavClearance = isFloatingTopDock ? 78 : 66;
+    const topNavClearance = isFloatingTopDock ? 88 : 74;
     const minY = topNavClearance;
 
     const isNativeAndroid =
@@ -271,12 +511,12 @@ export const SVHAIFloatingAssistant: React.FC<SVHAIFloatingAssistantProps> = Rea
       );
 
     const bottomNavClearance = isFloatingBottomDock
-      ? 88
+      ? 96
       : isNativeAndroid
-      ? 20
+      ? 24
       : isMobileWidth
-      ? 76
-      : 20;
+      ? 88
+      : 24;
     const maxY = Math.max(minY, vh - BUTTON_SIZE - bottomNavClearance);
 
     return { minX, maxX, minY, maxY, vw, vh };
@@ -1441,7 +1681,11 @@ export const SVHAIFloatingAssistant: React.FC<SVHAIFloatingAssistantProps> = Rea
             <span className="absolute -inset-0.5 rounded-full bg-gradient-to-r from-[#d4af37]/20 via-amber-400/10 to-[#d4af37]/20 blur-sm animate-pulse pointer-events-none" />
 
             {/* Existing SVH AI Brand Logo */}
-            <div className="relative w-10 h-10 rounded-full overflow-hidden flex items-center justify-center shrink-0 aspect-square pointer-events-none">
+            <div
+              className={`relative w-10 h-10 rounded-full overflow-hidden flex items-center justify-center shrink-0 aspect-square pointer-events-none ${
+                isGenerating || isGeneratingPlan ? 'svh-ai-avatar-breathing' : ''
+              }`}
+            >
               <img
                 src={logoSrc}
                 alt="SVH AI"
@@ -1485,7 +1729,11 @@ export const SVHAIFloatingAssistant: React.FC<SVHAIFloatingAssistantProps> = Rea
             {/* Top Header */}
             <div className="px-4 py-3.5 bg-[#d8e5f3]/95 border-b border-[#b5c8de] flex items-center justify-between gap-2 shrink-0 min-w-0">
               <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                <div className="w-9 h-9 rounded-full overflow-hidden flex items-center justify-center shrink-0 aspect-square border border-[#9eb8d4] bg-[#eef4fa]">
+                <div
+                  className={`w-9 h-9 rounded-full overflow-hidden flex items-center justify-center shrink-0 aspect-square border border-[#9eb8d4] bg-[#eef4fa] ${
+                    isGenerating || isGeneratingPlan ? 'svh-ai-avatar-breathing' : ''
+                  }`}
+                >
                   <img
                     src={logoSrc}
                     alt="SVH AI"
@@ -1518,18 +1766,20 @@ export const SVHAIFloatingAssistant: React.FC<SVHAIFloatingAssistantProps> = Rea
               {/* Header Controls: New Chat, History, Expand (Desktop), Close */}
               <div className="flex items-center gap-1.5 shrink-0">
                 <button
+                  type="button"
                   onClick={handleStartNewChat}
                   title="New Chat"
-                  className="px-2.5 py-1.5 rounded-xl bg-[#e8f0f8] hover:bg-[#d7e5f3] border border-[#b2c7df] text-xs text-[#1f3654] hover:text-[#112033] flex items-center gap-1 transition-colors cursor-pointer font-medium"
+                  className="min-h-[44px] min-w-[44px] px-2.5 py-1.5 rounded-xl bg-[#e8f0f8] hover:bg-[#d7e5f3] border border-[#b2c7df] text-xs text-[#1f3654] hover:text-[#112033] flex items-center justify-center gap-1 transition-colors cursor-pointer font-medium"
                 >
                   <Plus className="w-3.5 h-3.5 text-[#2b4c73]" />
                   <span className="hidden sm:inline">New</span>
                 </button>
 
                 <button
+                  type="button"
                   onClick={() => setShowHistoryView((prev) => !prev)}
                   title="Conversation History"
-                  className={`p-2 rounded-xl border text-xs flex items-center gap-1 transition-colors cursor-pointer ${
+                  className={`min-h-[44px] min-w-[44px] p-2 rounded-xl border text-xs flex items-center justify-center gap-1 transition-colors cursor-pointer ${
                     showHistoryView
                       ? 'bg-[#b3cae3] text-[#112033] border-[#7b9bc0] font-bold'
                       : 'bg-[#e8f0f8] hover:bg-[#d7e5f3] border-[#b2c7df] text-[#284263] hover:text-[#112033]'
@@ -1540,9 +1790,10 @@ export const SVHAIFloatingAssistant: React.FC<SVHAIFloatingAssistantProps> = Rea
                 </button>
 
                 <button
+                  type="button"
                   onClick={() => setIsExpandedDesktop((prev) => !prev)}
                   title={isExpandedDesktop ? 'Compact Panel' : 'Expand Panel'}
-                  className="hidden sm:flex p-2 rounded-xl bg-[#e8f0f8] hover:bg-[#d7e5f3] border border-[#b2c7df] text-[#284263] hover:text-[#112033] transition-colors cursor-pointer"
+                  className="hidden sm:flex min-h-[44px] min-w-[44px] p-2 rounded-xl bg-[#e8f0f8] hover:bg-[#d7e5f3] border border-[#b2c7df] text-[#284263] hover:text-[#112033] items-center justify-center transition-colors cursor-pointer"
                 >
                   {isExpandedDesktop ? (
                     <Minimize2 className="w-3.5 h-3.5" />
@@ -1552,10 +1803,11 @@ export const SVHAIFloatingAssistant: React.FC<SVHAIFloatingAssistantProps> = Rea
                 </button>
 
                 <button
+                  type="button"
                   onClick={() => setIsOpen(false)}
                   aria-label="Minimize SVH AI"
                   title="Minimize / Close"
-                  className="p-2 rounded-xl bg-[#e8f0f8] hover:bg-[#f5dce0] border border-[#b2c7df] hover:border-[#d99aa5] text-[#284263] hover:text-[#7a2030] transition-colors cursor-pointer"
+                  className="min-h-[44px] min-w-[44px] p-2 rounded-xl bg-[#e8f0f8] hover:bg-[#f5dce0] border border-[#b2c7df] hover:border-[#d99aa5] text-[#284263] hover:text-[#7a2030] flex items-center justify-center transition-colors cursor-pointer"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -1734,7 +1986,11 @@ export const SVHAIFloatingAssistant: React.FC<SVHAIFloatingAssistantProps> = Rea
                 {currentMessages.length === 0 ? (
                   /* Clean, Authentic Empty State for New Chat / New User */
                   <div className="h-full flex flex-col items-center justify-center text-center px-3 py-6 space-y-5">
-                    <div className="w-16 h-16 rounded-full overflow-hidden flex items-center justify-center shrink-0 aspect-square border border-[#adc3dc] bg-[#f0f5fb] shadow-xs">
+                    <div
+                      className={`w-16 h-16 rounded-full overflow-hidden flex items-center justify-center shrink-0 aspect-square border border-[#adc3dc] bg-[#f0f5fb] shadow-xs ${
+                        isGenerating || isGeneratingPlan ? 'svh-ai-avatar-breathing' : ''
+                      }`}
+                    >
                       <img
                         src={logoSrc}
                         alt="SVH AI"
@@ -1773,21 +2029,39 @@ export const SVHAIFloatingAssistant: React.FC<SVHAIFloatingAssistantProps> = Rea
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    {currentMessages.map((msg) => (
-                      <SVHAIMessageItem
-                        key={msg.id}
-                        msg={msg}
-                        displayUserName={displayUserName}
-                      />
-                    ))}
+                    {currentMessages.map((msg, idx) => {
+                      const isLastAssistant =
+                        msg.role === 'assistant' && idx === currentMessages.length - 1;
+                      return (
+                        <SVHAIMessageItem
+                          key={msg.id}
+                          msg={msg}
+                          displayUserName={displayUserName}
+                          isLatestAssistantMessage={isLastAssistant}
+                          isGeneratingResponse={isGenerating && isLastAssistant}
+                        />
+                      );
+                    })}
 
                     {/* Loading Indicator (shown until first streaming chunk arrives) */}
                     {isGenerating &&
                       currentMessages[currentMessages.length - 1]?.role !== 'assistant' && (
                         <div className="flex items-start">
-                          <div className="rounded-2xl px-4 py-3 bg-[#edf3f9] border border-[#bfd1e5] text-xs text-[#243b57] flex items-center gap-2.5 shadow-2xs">
-                            <Sparkles className="w-4 h-4 text-[#2b4c73] animate-spin" />
-                            <span>SVH AI is analyzing and preparing your explanation...</span>
+                          <div className="rounded-2xl px-4 py-3 bg-[#edf3f9] border border-[#bfd1e5] text-xs text-[#243b57] flex items-center gap-3 shadow-2xs">
+                            <div className="w-6 h-6 rounded-full overflow-hidden border border-cyan-400/60 shrink-0 svh-ai-avatar-breathing">
+                              <img
+                                src={logoSrc}
+                                alt="SVH AI"
+                                className="w-full h-full object-contain rounded-full"
+                                referrerPolicy="no-referrer"
+                              />
+                            </div>
+                            <span>SVH AI is analyzing and preparing your explanation</span>
+                            <span className="inline-flex items-center gap-1" aria-hidden="true">
+                              <span className="svh-ai-typing-dot" />
+                              <span className="svh-ai-typing-dot" />
+                              <span className="svh-ai-typing-dot" />
+                            </span>
                           </div>
                         </div>
                       )}

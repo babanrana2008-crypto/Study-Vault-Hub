@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { UserStats, StudyTask, StudySession, AISmartRevisionPlan, AISmartStudyBlock } from '../types';
 import { apiFetch } from '../services/nativeApiBridge';
+import { GlassMetallicSkeleton } from './GlassMetallicSkeleton';
 
 interface TrackerSectionProps {
   activeGoal: string;
@@ -62,11 +63,24 @@ const ActiveStopwatchCard: React.FC<ActiveStopwatchCardProps> = React.memo(
     }, [activeSubjects, timerSubject]);
 
     useEffect(() => {
-      if (!timerRunning) return;
+      if (!timerRunning) {
+        if (typeof document !== 'undefined') {
+          document.body.classList.remove('svh-inline-timer-active');
+        }
+        return;
+      }
+      if (typeof document !== 'undefined') {
+        document.body.classList.add('svh-inline-timer-active');
+      }
       const interval = setInterval(() => {
         setTimerSeconds((prev) => prev + 1);
       }, 1000);
-      return () => clearInterval(interval);
+      return () => {
+        clearInterval(interval);
+        if (typeof document !== 'undefined') {
+          document.body.classList.remove('svh-inline-timer-active');
+        }
+      };
     }, [timerRunning]);
 
     const handleStartTimer = () => setTimerRunning(true);
@@ -110,7 +124,11 @@ const ActiveStopwatchCard: React.FC<ActiveStopwatchCardProps> = React.memo(
     };
 
     return (
-      <section className="p-5 sm:p-6 rounded-2xl sm:rounded-3xl bg-gradient-to-br from-[#0c1428] via-[#090f20] to-[#070b16] border border-[#d4af37]/35 shadow-xl space-y-5 overflow-hidden">
+      <section
+        className={`svh-focus-sharp-block ${
+          timerRunning ? 'svh-focus-timer-running' : ''
+        } p-5 sm:p-6 rounded-2xl sm:rounded-3xl bg-gradient-to-br from-[#0c1428] via-[#090f20] to-[#070b16] border border-[#d4af37]/35 shadow-xl space-y-5 overflow-hidden`}
+      >
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-center gap-2 text-xs font-semibold text-[#d4af37] uppercase tracking-wider">
             <Clock className="w-4 h-4 shrink-0" />
@@ -568,7 +586,7 @@ export const TrackerSection: React.FC<TrackerSectionProps> = React.memo(({
   return (
     <div className="space-y-6 pb-12 max-w-full overflow-x-hidden">
       {/* Title & Introduction */}
-      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+      <div className="svh-tracker-sibling-dimmable flex flex-col sm:flex-row sm:items-end justify-between gap-4">
         <div className="space-y-1.5">
           <div className="flex items-center gap-2 text-xs font-semibold text-[#d4af37]">
             <BarChart3 className="w-3.5 h-3.5 shrink-0" />
@@ -614,7 +632,7 @@ export const TrackerSection: React.FC<TrackerSectionProps> = React.memo(({
       />
 
       {/* 2. Today's Targets & Goal Progress */}
-      <section className="space-y-3">
+      <section className="svh-tracker-sibling-dimmable space-y-3">
         <div className="flex items-center justify-between px-1">
           <div className="flex items-center gap-2">
             <Target className="w-4 h-4 text-[#d4af37]" />
@@ -630,68 +648,70 @@ export const TrackerSection: React.FC<TrackerSectionProps> = React.memo(({
           </button>
         </div>
 
-        {editingGoals && (
-          <div className="p-4 rounded-xl bg-[#0f172a] border border-[#d4af37]/30 space-y-3 animate-in fade-in duration-150">
-            <h3 className="text-xs font-semibold text-[#d4af37] uppercase tracking-wider">
-              Set Personal Daily Milestones
-            </h3>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
-              <div>
-                <label className="text-[#9ca3af] block mb-1">
-                  Study Goal (Minutes)
-                </label>
-                <input
-                  type="number"
-                  value={goalStudyMinutes}
-                  onChange={(e) => setGoalStudyMinutes(Number(e.target.value))}
-                  min={15}
-                  step={15}
-                  className="w-full px-3 py-1.5 rounded-lg bg-[#131b2e] border border-[#273557] text-[#fbf9f4] focus:border-[#d4af37] focus:outline-none"
-                />
+        <div className={`svh-accordion-grid ${editingGoals ? 'svh-accordion-open' : ''}`}>
+          <div className="svh-accordion-inner">
+            <div className="p-4 rounded-xl bg-[#0f172a] border border-[#d4af37]/30 space-y-3">
+              <h3 className="text-xs font-semibold text-[#d4af37] uppercase tracking-wider">
+                Set Personal Daily Milestones
+              </h3>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                <div>
+                  <label className="text-[#9ca3af] block mb-1">
+                    Study Goal (Minutes)
+                  </label>
+                  <input
+                    type="number"
+                    value={goalStudyMinutes}
+                    onChange={(e) => setGoalStudyMinutes(Number(e.target.value))}
+                    min={15}
+                    step={15}
+                    className="w-full px-3 py-1.5 rounded-lg bg-[#131b2e] border border-[#273557] text-[#fbf9f4] focus:border-[#d4af37] focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="text-[#9ca3af] block mb-1">
+                    Question Goal (Count)
+                  </label>
+                  <input
+                    type="number"
+                    value={goalQuestions}
+                    onChange={(e) => setGoalQuestions(Number(e.target.value))}
+                    min={5}
+                    step={5}
+                    className="w-full px-3 py-1.5 rounded-lg bg-[#131b2e] border border-[#273557] text-[#fbf9f4] focus:border-[#d4af37] focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="text-[#9ca3af] block mb-1">
+                    Task Goal (Count)
+                  </label>
+                  <input
+                    type="number"
+                    value={goalTasks}
+                    onChange={(e) => setGoalTasks(Number(e.target.value))}
+                    min={1}
+                    step={1}
+                    className="w-full px-3 py-1.5 rounded-lg bg-[#131b2e] border border-[#273557] text-[#fbf9f4] focus:border-[#d4af37] focus:outline-none"
+                  />
+                </div>
               </div>
-              <div>
-                <label className="text-[#9ca3af] block mb-1">
-                  Question Goal (Count)
-                </label>
-                <input
-                  type="number"
-                  value={goalQuestions}
-                  onChange={(e) => setGoalQuestions(Number(e.target.value))}
-                  min={5}
-                  step={5}
-                  className="w-full px-3 py-1.5 rounded-lg bg-[#131b2e] border border-[#273557] text-[#fbf9f4] focus:border-[#d4af37] focus:outline-none"
-                />
+              <div className="flex justify-end gap-2 pt-1">
+                <button
+                  onClick={() => setEditingGoals(false)}
+                  className="px-3 py-1 text-xs text-[#9ca3af] hover:text-[#fbf9f4]"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSaveGoals}
+                  className="px-3.5 py-1 rounded-lg bg-[#d4af37] text-[#080d1a] font-semibold text-xs hover:brightness-110"
+                >
+                  Save Targets
+                </button>
               </div>
-              <div>
-                <label className="text-[#9ca3af] block mb-1">
-                  Task Goal (Count)
-                </label>
-                <input
-                  type="number"
-                  value={goalTasks}
-                  onChange={(e) => setGoalTasks(Number(e.target.value))}
-                  min={1}
-                  step={1}
-                  className="w-full px-3 py-1.5 rounded-lg bg-[#131b2e] border border-[#273557] text-[#fbf9f4] focus:border-[#d4af37] focus:outline-none"
-                />
-              </div>
-            </div>
-            <div className="flex justify-end gap-2 pt-1">
-              <button
-                onClick={() => setEditingGoals(false)}
-                className="px-3 py-1 text-xs text-[#9ca3af] hover:text-[#fbf9f4]"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleSaveGoals}
-                className="px-3.5 py-1 rounded-lg bg-[#d4af37] text-[#080d1a] font-semibold text-xs hover:brightness-110"
-              >
-                Save Targets
-              </button>
             </div>
           </div>
-        )}
+        </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           {/* Study Goal */}
@@ -712,7 +732,7 @@ export const TrackerSection: React.FC<TrackerSectionProps> = React.memo(({
             </div>
             <div className="w-full h-2 bg-[#131b2e] rounded-full overflow-hidden border border-[#d4af37]/20">
               <div
-                className="h-full bg-gradient-to-r from-[#d4af37] to-amber-300 transition-all duration-300"
+                className="svh-animated-progress-fill h-full bg-gradient-to-r from-[#d4af37] to-amber-300"
                 style={{ width: `${studyMinutesProgress}%` }}
               />
             </div>
@@ -736,7 +756,7 @@ export const TrackerSection: React.FC<TrackerSectionProps> = React.memo(({
             </div>
             <div className="w-full h-2 bg-[#131b2e] rounded-full overflow-hidden border border-[#d4af37]/20">
               <div
-                className="h-full bg-gradient-to-r from-[#d4af37] to-emerald-400 transition-all duration-300"
+                className="svh-animated-progress-fill h-full bg-gradient-to-r from-[#d4af37] to-emerald-400"
                 style={{ width: `${questionProgress}%` }}
               />
             </div>
@@ -760,7 +780,7 @@ export const TrackerSection: React.FC<TrackerSectionProps> = React.memo(({
             </div>
             <div className="w-full h-2 bg-[#131b2e] rounded-full overflow-hidden border border-[#d4af37]/20">
               <div
-                className="h-full bg-gradient-to-r from-[#d4af37] to-blue-400 transition-all duration-300"
+                className="svh-animated-progress-fill h-full bg-gradient-to-r from-[#d4af37] to-blue-400"
                 style={{ width: `${taskProgress}%` }}
               />
             </div>
@@ -769,7 +789,7 @@ export const TrackerSection: React.FC<TrackerSectionProps> = React.memo(({
       </section>
 
       {/* 2.5 AI Smart Revision Plan & AI Study Planner */}
-      <section className="p-5 sm:p-6 rounded-2xl sm:rounded-3xl bg-gradient-to-br from-[#0d162c] via-[#091122] to-[#060b16] border border-[#d4af37]/35 shadow-xl space-y-4">
+      <section className="svh-tracker-sibling-dimmable p-5 sm:p-6 rounded-2xl sm:rounded-3xl bg-gradient-to-br from-[#0d162c] via-[#091122] to-[#060b16] border border-[#d4af37]/35 shadow-xl space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="space-y-1">
             <div className="flex items-center gap-2 text-xs font-semibold text-[#d4af37] uppercase tracking-wider">
@@ -858,6 +878,10 @@ export const TrackerSection: React.FC<TrackerSectionProps> = React.memo(({
           </div>
         )}
 
+        {isGeneratingAIPlan && (
+          <GlassMetallicSkeleton variant="notes" count={2} />
+        )}
+
         {/* Active AI Smart Revision Plan Display */}
         {userStats.aiSmartRevisionPlan &&
           Array.isArray(userStats.aiSmartRevisionPlan.blocks) &&
@@ -935,7 +959,10 @@ export const TrackerSection: React.FC<TrackerSectionProps> = React.memo(({
                         </p>
                       </div>
 
-                      <p className="text-[11px] text-[#cbd5e1] leading-relaxed bg-[#070c18] p-2.5 rounded-xl border border-[#1e293b]">
+                      <p
+                        tabIndex={0}
+                        className="svh-ai-snippet-card text-[11px] text-[#cbd5e1] leading-relaxed bg-[#070c18] p-2.5 rounded-xl border border-[#1e293b]"
+                      >
                         {block.keyTakeawayOrTip}
                       </p>
                     </div>
@@ -969,7 +996,7 @@ export const TrackerSection: React.FC<TrackerSectionProps> = React.memo(({
       </section>
 
       {/* 3. Smart Daily Planner */}
-      <section className="space-y-3">
+      <section className="svh-tracker-sibling-dimmable space-y-3">
         <div className="flex items-center justify-between px-1">
           <div className="flex items-center gap-2">
             <CheckCircle2 className="w-4 h-4 text-[#d4af37]" />
@@ -1011,79 +1038,81 @@ export const TrackerSection: React.FC<TrackerSectionProps> = React.memo(({
             </button>
           </div>
 
-          {showDetailedTaskFields && (
-            <div className="p-3.5 rounded-xl bg-[#0f172a] border border-[#d4af37]/25 grid grid-cols-1 sm:grid-cols-4 gap-2.5 text-xs">
-              <div>
-                <label className="text-[11px] text-[#9ca3af] block mb-1">
-                  Subject
-                </label>
-                <input
-                  type="text"
-                  value={newTaskSubject}
-                  onChange={(e) => setNewTaskSubject(e.target.value)}
-                  placeholder="e.g. Physics"
-                  className="w-full px-2.5 py-1.5 rounded-lg bg-[#090e1c] border border-[#d4af37]/20 text-[#fbf9f4]"
-                />
-              </div>
-              <div>
-                <label className="text-[11px] text-[#9ca3af] block mb-1">
-                  Chapter / Topic
-                </label>
-                <input
-                  type="text"
-                  value={newTaskChapter}
-                  onChange={(e) => setNewTaskChapter(e.target.value)}
-                  placeholder="e.g. Current Electricity"
-                  className="w-full px-2.5 py-1.5 rounded-lg bg-[#090e1c] border border-[#d4af37]/20 text-[#fbf9f4]"
-                />
-              </div>
-              <div>
-                <label className="text-[11px] text-[#9ca3af] block mb-1">
-                  Target Time (min)
-                </label>
-                <input
-                  type="number"
-                  min={5}
-                  max={600}
-                  value={newTaskMinutes}
-                  onChange={(e) => setNewTaskMinutes(e.target.value)}
-                  placeholder="e.g. 45"
-                  className="w-full px-2.5 py-1.5 rounded-lg bg-[#090e1c] border border-[#d4af37]/20 text-[#fbf9f4]"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-1.5">
+          <div className={`svh-accordion-grid ${showDetailedTaskFields ? 'svh-accordion-open' : ''}`}>
+            <div className="svh-accordion-inner">
+              <div className="p-3.5 rounded-xl bg-[#0f172a] border border-[#d4af37]/25 grid grid-cols-1 sm:grid-cols-4 gap-2.5 text-xs">
                 <div>
                   <label className="text-[11px] text-[#9ca3af] block mb-1">
-                    Deadline
+                    Subject
                   </label>
                   <input
-                    type="date"
-                    value={newTaskDeadline}
-                    onChange={(e) => setNewTaskDeadline(e.target.value)}
-                    className="w-full px-2 py-1.5 rounded-lg bg-[#090e1c] border border-[#d4af37]/20 text-[#fbf9f4]"
+                    type="text"
+                    value={newTaskSubject}
+                    onChange={(e) => setNewTaskSubject(e.target.value)}
+                    placeholder="e.g. Physics"
+                    className="w-full px-2.5 py-1.5 rounded-lg bg-[#090e1c] border border-[#d4af37]/20 text-[#fbf9f4]"
                   />
                 </div>
                 <div>
                   <label className="text-[11px] text-[#9ca3af] block mb-1">
-                    Priority
+                    Chapter / Topic
                   </label>
-                  <select
-                    value={newTaskPriority}
-                    onChange={(e) =>
-                      setNewTaskPriority(
-                        e.target.value as 'High' | 'Medium' | 'Normal'
-                      )
-                    }
-                    className="w-full px-2 py-1.5 rounded-lg bg-[#090e1c] border border-[#d4af37]/20 text-[#fbf9f4]"
-                  >
-                    <option value="High">High</option>
-                    <option value="Medium">Medium</option>
-                    <option value="Normal">Normal</option>
-                  </select>
+                  <input
+                    type="text"
+                    value={newTaskChapter}
+                    onChange={(e) => setNewTaskChapter(e.target.value)}
+                    placeholder="e.g. Current Electricity"
+                    className="w-full px-2.5 py-1.5 rounded-lg bg-[#090e1c] border border-[#d4af37]/20 text-[#fbf9f4]"
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] text-[#9ca3af] block mb-1">
+                    Target Time (min)
+                  </label>
+                  <input
+                    type="number"
+                    min={5}
+                    max={600}
+                    value={newTaskMinutes}
+                    onChange={(e) => setNewTaskMinutes(e.target.value)}
+                    placeholder="e.g. 45"
+                    className="w-full px-2.5 py-1.5 rounded-lg bg-[#090e1c] border border-[#d4af37]/20 text-[#fbf9f4]"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-1.5">
+                  <div>
+                    <label className="text-[11px] text-[#9ca3af] block mb-1">
+                      Deadline
+                    </label>
+                    <input
+                      type="date"
+                      value={newTaskDeadline}
+                      onChange={(e) => setNewTaskDeadline(e.target.value)}
+                      className="w-full px-2 py-1.5 rounded-lg bg-[#090e1c] border border-[#d4af37]/20 text-[#fbf9f4]"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[11px] text-[#9ca3af] block mb-1">
+                      Priority
+                    </label>
+                    <select
+                      value={newTaskPriority}
+                      onChange={(e) =>
+                        setNewTaskPriority(
+                          e.target.value as 'High' | 'Medium' | 'Normal'
+                        )
+                      }
+                      className="w-full px-2 py-1.5 rounded-lg bg-[#090e1c] border border-[#d4af37]/20 text-[#fbf9f4]"
+                    >
+                      <option value="High">High</option>
+                      <option value="Medium">Medium</option>
+                      <option value="Normal">Normal</option>
+                    </select>
+                  </div>
                 </div>
               </div>
             </div>
-          )}
+          </div>
         </form>
 
         <div className="grid gap-2">
@@ -1175,7 +1204,7 @@ export const TrackerSection: React.FC<TrackerSectionProps> = React.memo(({
       </section>
 
       {/* 4. Verified Focus Sessions & Subject Allocation */}
-      <section className="p-4 sm:p-5 rounded-2xl bg-[#0f172a] border border-[#d4af37]/25 space-y-4">
+      <section className="svh-tracker-sibling-dimmable p-4 sm:p-5 rounded-2xl bg-[#0f172a] border border-[#d4af37]/25 space-y-4">
         <div className="flex items-center justify-between">
           <h3 className="font-display text-sm sm:text-base font-bold text-[#fbf9f4]">
             Logged Focus Time &amp; Subject Allocation
@@ -1270,7 +1299,7 @@ export const TrackerSection: React.FC<TrackerSectionProps> = React.memo(({
       </section>
 
       {/* 5. Practice History Log */}
-      <section className="space-y-3">
+      <section className="svh-tracker-sibling-dimmable space-y-3">
         <div className="flex items-center justify-between px-1">
           <h2 className="font-display text-base font-bold text-[#fbf9f4] tracking-tight">
             Practice &amp; Test History
@@ -1304,7 +1333,7 @@ export const TrackerSection: React.FC<TrackerSectionProps> = React.memo(({
             {userStats.practiceHistory.slice(0, 5).map((entry) => (
               <div
                 key={entry.id}
-                className="p-3 rounded-xl bg-[#0f172a] border border-[#d4af37]/20 flex items-center justify-between gap-3 text-xs"
+                className="svh-3d-tilt-card p-3 rounded-xl bg-[#0f172a] border border-[#d4af37]/20 flex items-center justify-between gap-3 text-xs"
               >
                 <div>
                   <div className="flex items-center gap-1.5 text-[#9ca3af]">

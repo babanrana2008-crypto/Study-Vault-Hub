@@ -67,7 +67,7 @@ export const NCERTBookModal: React.FC<NCERTBookModalProps> = ({
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-3xl max-h-[90vh] max-h-[90dvh] bg-[#090e1c] border border-[#d4af37]/30 rounded-2xl sm:rounded-3xl shadow-2xl flex flex-col overflow-hidden"
+        className="svh-spring-modal-card w-full max-w-3xl max-h-[90vh] max-h-[90dvh] bg-[#090e1c] border border-[#d4af37]/30 rounded-2xl sm:rounded-3xl shadow-2xl flex flex-col overflow-hidden"
       >
         {/* Modal Top Header */}
         <div className="p-4 sm:p-5 bg-[#0f172a] border-b border-[#d4af37]/20 flex items-center justify-between gap-3 shrink-0">
@@ -204,62 +204,64 @@ export const NCERTBookModal: React.FC<NCERTBookModalProps> = ({
                       </div>
                     </div>
 
-                    {isExpanded && (
-                      <div className="px-3.5 pb-4 sm:px-4 sm:pb-4 pt-1 border-t border-[#1e293b]/70 space-y-3.5 text-xs text-[#cbd5e1] animate-in fade-in duration-150">
-                        {chap.summary && (
-                          <div className="space-y-1">
-                            <span className="text-[11px] font-semibold text-[#d4af37] uppercase tracking-wider">
-                              Chapter Overview
-                            </span>
-                            <p className="leading-relaxed bg-[#131b2e]/60 p-2.5 rounded-xl border border-[#d4af37]/15">
-                              {chap.summary}
-                            </p>
-                          </div>
-                        )}
-
-                        {chap.keyPoints && chap.keyPoints.length > 0 && (
-                          <div className="space-y-1.5">
-                            <span className="text-[11px] font-semibold text-[#d4af37] uppercase tracking-wider">
-                              High-Yield Concepts & Exam Pointers
-                            </span>
-                            <ul className="space-y-1">
-                              {chap.keyPoints.map((pt, pIdx) => (
-                                <li key={pIdx} className="flex items-start gap-2">
-                                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
-                                  <span className="leading-relaxed">{pt}</span>
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
-                        )}
-
-                        {/* Direct Chapter Actions */}
-                        <div className="flex flex-wrap items-center gap-2 pt-2">
-                          <a
-                            href={chap.pdfUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="px-3 py-1.5 rounded-xl bg-[#131b2e] hover:bg-[#1a253f] border border-[#d4af37]/25 text-xs text-[#cbd5e1] hover:text-white flex items-center gap-1.5 transition-colors"
-                          >
-                            <ExternalLink className="w-3 h-3 text-[#d4af37]" />
-                            <span>Read Official NCERT PDF</span>
-                          </a>
-
-                          {onPracticeChapter && (
-                            <button
-                              onClick={() => {
-                                onPracticeChapter(book.subject, chap.title, book.classLevel);
-                                onClose();
-                              }}
-                              className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-[#d4af37] to-[#b88c1b] text-[#080d1a] hover:brightness-110 text-xs font-bold flex items-center gap-1.5 transition-all shadow-sm"
-                            >
-                              <Play className="w-3 h-3 fill-[#080d1a]" />
-                              <span>Practice Chapter Questions</span>
-                            </button>
+                    <div className={`svh-accordion-grid ${isExpanded ? 'svh-accordion-open' : ''}`}>
+                      <div className="svh-accordion-inner">
+                        <div className="px-3.5 pb-4 sm:px-4 sm:pb-4 pt-1 border-t border-[#1e293b]/70 space-y-3.5 text-xs text-[#cbd5e1]">
+                          {chap.summary && (
+                            <div className="space-y-1">
+                              <span className="text-[11px] font-semibold text-[#d4af37] uppercase tracking-wider">
+                                Chapter Overview
+                              </span>
+                              <p className="leading-relaxed bg-[#131b2e]/60 p-2.5 rounded-xl border border-[#d4af37]/15">
+                                {chap.summary}
+                              </p>
+                            </div>
                           )}
+
+                          {chap.keyPoints && chap.keyPoints.length > 0 && (
+                            <div className="space-y-1.5">
+                              <span className="text-[11px] font-semibold text-[#d4af37] uppercase tracking-wider">
+                                High-Yield Concepts & Exam Pointers
+                              </span>
+                              <ul className="space-y-1">
+                                {chap.keyPoints.map((pt, pIdx) => (
+                                  <li key={pIdx} className="flex items-start gap-2">
+                                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
+                                    <span className="leading-relaxed">{pt}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+
+                          {/* Direct Chapter Actions */}
+                          <div className="flex flex-wrap items-center gap-2 pt-2">
+                            <a
+                              href={chap.pdfUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="px-3 py-1.5 rounded-xl bg-[#131b2e] hover:bg-[#1a253f] border border-[#d4af37]/25 text-xs text-[#cbd5e1] hover:text-white flex items-center gap-1.5 transition-colors"
+                            >
+                              <ExternalLink className="w-3 h-3 text-[#d4af37]" />
+                              <span>Read Official NCERT PDF</span>
+                            </a>
+
+                            {onPracticeChapter && (
+                              <button
+                                onClick={() => {
+                                  onPracticeChapter(book.subject, chap.title, book.classLevel);
+                                  onClose();
+                                }}
+                                className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-[#d4af37] to-[#b88c1b] text-[#080d1a] hover:brightness-110 text-xs font-bold flex items-center gap-1.5 transition-all shadow-sm"
+                              >
+                                <Play className="w-3 h-3 fill-[#080d1a]" />
+                                <span>Practice Chapter Questions</span>
+                              </button>
+                            )}
+                          </div>
                         </div>
                       </div>
-                    )}
+                    </div>
                   </div>
                 );
               })}

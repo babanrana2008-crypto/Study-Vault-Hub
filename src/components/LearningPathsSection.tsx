@@ -195,7 +195,7 @@ export const LearningPathsSection: React.FC<LearningPathsSectionProps> = React.m
             return (
               <div
                 key={path.id}
-                className={`p-4 rounded-2xl border flex flex-col justify-between space-y-3.5 transition-all ${
+                className={`svh-3d-tilt-card p-4 rounded-2xl border flex flex-col justify-between space-y-3.5 transition-all ${
                   isCurrentGoal
                     ? 'bg-[#101c35] border-[#d4af37]/60 shadow-md'
                     : 'bg-[#0f172a] border-[#d4af37]/25 hover:border-[#d4af37]/50'

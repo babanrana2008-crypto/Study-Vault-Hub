@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { HIGH_YIELD_TOPICS, MNEMONICS_BANK, GOAL_SUBJECTS_MAP } from '../data/sampleData';
 import { HighYieldTopic, MnemonicItem } from '../types';
+import { GlassMetallicSkeleton, useBriefShimmerTransition } from './GlassMetallicSkeleton';
 
 interface ExamPrepSectionProps {
   activeGoal: string;
@@ -94,13 +95,21 @@ export const ExamPrepSection: React.FC<ExamPrepSectionProps> = React.memo(({
   const displayTopics = filteredTopics.length > 0 ? filteredTopics : topics;
   const masteredCount = displayTopics.filter((t) => t.status === 'Mastered').length;
   const progressPercent = Math.round((masteredCount / displayTopics.length) * 100) || 0;
+  const isExamBlueprintShimmering = useBriefShimmerTransition(
+    [activeGoal, selectedSubjectFilter],
+    220
+  );
 
   // Stream-specific blueprint
   const renderBlueprint = () => {
+    if (isExamBlueprintShimmering) {
+      return <GlassMetallicSkeleton variant="exam-cards" count={3} />;
+    }
+
     if (activeGoal === 'JEE Main' || activeGoal === 'JEE Advanced') {
       return (
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <div className="p-4 rounded-2xl bg-[#0f172a] border border-[#d4af37]/25 space-y-2">
+          <div className="svh-3d-tilt-card p-4 rounded-2xl bg-[#0f172a] border border-[#d4af37]/25 space-y-2">
             <span className="text-purple-400 font-bold uppercase tracking-wider text-xs">Mathematics</span>
             <div className="font-display text-2xl font-bold text-[#fbf9f4]">100 Marks</div>
             <p className="text-xs text-[#cbd5e1]">Calculus, Vectors 3D, Coordinate Geometry, Matrices.</p>
@@ -108,7 +117,7 @@ export const ExamPrepSection: React.FC<ExamPrepSectionProps> = React.memo(({
               Practice Math MCQs →
             </button>
           </div>
-          <div className="p-4 rounded-2xl bg-[#0f172a] border border-[#d4af37]/25 space-y-2">
+          <div className="svh-3d-tilt-card p-4 rounded-2xl bg-[#0f172a] border border-[#d4af37]/25 space-y-2">
             <span className="text-blue-400 font-bold uppercase tracking-wider text-xs">Physics</span>
             <div className="font-display text-2xl font-bold text-[#fbf9f4]">100 Marks</div>
             <p className="text-xs text-[#cbd5e1]">Mechanics, Electrodynamics, Modern Physics, Optics.</p>
@@ -116,7 +125,7 @@ export const ExamPrepSection: React.FC<ExamPrepSectionProps> = React.memo(({
               Practice Physics MCQs →
             </button>
           </div>
-          <div className="p-4 rounded-2xl bg-[#0f172a] border border-[#d4af37]/25 space-y-2">
+          <div className="svh-3d-tilt-card p-4 rounded-2xl bg-[#0f172a] border border-[#d4af37]/25 space-y-2">
             <span className="text-amber-400 font-bold uppercase tracking-wider text-xs">Chemistry</span>
             <div className="font-display text-2xl font-bold text-[#fbf9f4]">100 Marks</div>
             <p className="text-xs text-[#cbd5e1]">Organic mechanisms, Physical kinetics, Periodic trends.</p>
@@ -131,7 +140,7 @@ export const ExamPrepSection: React.FC<ExamPrepSectionProps> = React.memo(({
     if (activeGoal === 'Commerce' || activeGoal === 'CA') {
       return (
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <div className="p-4 rounded-2xl bg-[#0f172a] border border-[#d4af37]/25 space-y-2">
+          <div className="svh-3d-tilt-card p-4 rounded-2xl bg-[#0f172a] border border-[#d4af37]/25 space-y-2">
             <span className="text-emerald-400 font-bold uppercase tracking-wider text-xs">Accountancy</span>
             <div className="font-display text-2xl font-bold text-[#fbf9f4]">Core Domain</div>
             <p className="text-xs text-[#cbd5e1]">Partnership accounts, Share capital, Cash flow statements.</p>
@@ -139,7 +148,7 @@ export const ExamPrepSection: React.FC<ExamPrepSectionProps> = React.memo(({
               Practice Accountancy →
             </button>
           </div>
-          <div className="p-4 rounded-2xl bg-[#0f172a] border border-[#d4af37]/25 space-y-2">
+          <div className="svh-3d-tilt-card p-4 rounded-2xl bg-[#0f172a] border border-[#d4af37]/25 space-y-2">
             <span className="text-amber-400 font-bold uppercase tracking-wider text-xs">Economics</span>
             <div className="font-display text-2xl font-bold text-[#fbf9f4]">Macro & Indian Econ</div>
             <p className="text-xs text-[#cbd5e1]">National income, Money & banking, Aggregate demand.</p>
@@ -147,7 +156,7 @@ export const ExamPrepSection: React.FC<ExamPrepSectionProps> = React.memo(({
               Practice Economics →
             </button>
           </div>
-          <div className="p-4 rounded-2xl bg-[#0f172a] border border-[#d4af37]/25 space-y-2">
+          <div className="svh-3d-tilt-card p-4 rounded-2xl bg-[#0f172a] border border-[#d4af37]/25 space-y-2">
             <span className="text-blue-400 font-bold uppercase tracking-wider text-xs">Business Studies / Law</span>
             <div className="font-display text-2xl font-bold text-[#fbf9f4]">Management & Law</div>
             <p className="text-xs text-[#cbd5e1]">Principles of management, Financial markets, Business law.</p>
@@ -162,17 +171,17 @@ export const ExamPrepSection: React.FC<ExamPrepSectionProps> = React.memo(({
     if (activeGoal.includes('Board')) {
       return (
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <div className="p-4 rounded-2xl bg-[#0f172a] border border-[#d4af37]/25 space-y-2">
+          <div className="svh-3d-tilt-card p-4 rounded-2xl bg-[#0f172a] border border-[#d4af37]/25 space-y-2">
             <span className="text-emerald-400 font-bold uppercase tracking-wider text-xs">Core Concepts</span>
             <div className="font-display text-2xl font-bold text-[#fbf9f4]">NCERT Theory</div>
             <p className="text-xs text-[#cbd5e1]">Definitions, Derivations, Diagrams, Exemplar problems.</p>
           </div>
-          <div className="p-4 rounded-2xl bg-[#0f172a] border border-[#d4af37]/25 space-y-2">
+          <div className="svh-3d-tilt-card p-4 rounded-2xl bg-[#0f172a] border border-[#d4af37]/25 space-y-2">
             <span className="text-amber-400 font-bold uppercase tracking-wider text-xs">Sample Papers</span>
             <div className="font-display text-2xl font-bold text-[#fbf9f4]">Board Pattern</div>
             <p className="text-xs text-[#cbd5e1]">Case-based questions, Assertion-Reason, Long answers.</p>
           </div>
-          <div className="p-4 rounded-2xl bg-[#0f172a] border border-[#d4af37]/25 space-y-2">
+          <div className="svh-3d-tilt-card p-4 rounded-2xl bg-[#0f172a] border border-[#d4af37]/25 space-y-2">
             <span className="text-blue-400 font-bold uppercase tracking-wider text-xs">Answer Writing</span>
             <div className="font-display text-2xl font-bold text-[#fbf9f4]">Marking Scheme</div>
             <p className="text-xs text-[#cbd5e1]">Step-by-step point presentation, units & formulas.</p>
@@ -187,7 +196,7 @@ export const ExamPrepSection: React.FC<ExamPrepSectionProps> = React.memo(({
         {activeSubjects.slice(0, 3).map((sub, idx) => {
           const colors = ['text-emerald-400', 'text-amber-400', 'text-blue-400'];
           return (
-            <div key={sub} className="p-4 rounded-2xl bg-[#0f172a] border border-[#d4af37]/25 space-y-2">
+            <div key={sub} className="svh-3d-tilt-card p-4 rounded-2xl bg-[#0f172a] border border-[#d4af37]/25 space-y-2">
               <span className={`${colors[idx % 3]} font-bold uppercase tracking-wider text-xs`}>{sub}</span>
               <div className="font-display text-2xl font-bold text-[#fbf9f4]">High-Yield</div>
               <p className="text-xs text-[#cbd5e1]">Comprehensive subject theory, formulas and practice problems.</p>
@@ -321,7 +330,7 @@ export const ExamPrepSection: React.FC<ExamPrepSectionProps> = React.memo(({
             </div>
             <div className="w-20 h-2 bg-[#131b2e] rounded-full overflow-hidden border border-[#d4af37]/20">
               <div
-                className="h-full bg-gradient-to-r from-[#d4af37] to-emerald-400 transition-all duration-300"
+                className="svh-animated-progress-fill h-full bg-gradient-to-r from-[#d4af37] to-emerald-400"
                 style={{ width: `${progressPercent}%` }}
               />
             </div>
@@ -357,7 +366,7 @@ export const ExamPrepSection: React.FC<ExamPrepSectionProps> = React.memo(({
             return (
               <div
                 key={item.id}
-                className="p-3 sm:p-4 rounded-xl bg-[#0f172a] border border-[#d4af37]/20 hover:border-[#d4af37]/50 flex items-center justify-between gap-3 transition-colors"
+                className="svh-3d-tilt-card p-3 sm:p-4 rounded-xl bg-[#0f172a] border border-[#d4af37]/20 hover:border-[#d4af37]/50 flex items-center justify-between gap-3 transition-colors"
               >
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 text-[11px] text-[#9ca3af] mb-0.5">
@@ -430,27 +439,29 @@ export const ExamPrepSection: React.FC<ExamPrepSectionProps> = React.memo(({
                   )}
                 </button>
 
-                {isExpanded && (
-                  <div className="px-4 pb-4 pt-1 border-t border-[#1f293d] space-y-3 animate-in fade-in duration-150">
-                    <p className="text-xs sm:text-sm text-[#cbd5e1] leading-relaxed">
-                      {m.explanation}
-                    </p>
+                <div className={`svh-accordion-grid ${isExpanded ? 'svh-accordion-open' : ''}`}>
+                  <div className="svh-accordion-inner">
+                    <div className="px-4 pb-4 pt-1 border-t border-[#1f293d] space-y-3">
+                      <p className="text-xs sm:text-sm text-[#cbd5e1] leading-relaxed">
+                        {m.explanation}
+                      </p>
 
-                    <div className="p-3 rounded-lg bg-[#121c35] border border-[#d4af37]/20">
-                      <span className="text-[11px] text-[#d4af37] uppercase font-semibold block mb-1">
-                        Expansion:
-                      </span>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 text-xs text-[#fbf9f4]">
-                        {m.standsFor.map((item, idx) => (
-                          <div key={idx} className="flex items-center gap-2">
-                            <span className="text-[#d4af37] font-mono text-[10px]">#{idx + 1}</span>
-                            <span>{item}</span>
-                          </div>
-                        ))}
+                      <div className="p-3 rounded-lg bg-[#121c35] border border-[#d4af37]/20">
+                        <span className="text-[11px] text-[#d4af37] uppercase font-semibold block mb-1">
+                          Expansion:
+                        </span>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 text-xs text-[#fbf9f4]">
+                          {m.standsFor.map((item, idx) => (
+                            <div key={idx} className="flex items-center gap-2">
+                              <span className="text-[#d4af37] font-mono text-[10px]">#{idx + 1}</span>
+                              <span>{item}</span>
+                            </div>
+                          ))}
+                        </div>
                       </div>
                     </div>
                   </div>
-                )}
+                </div>
               </div>
             );
           })}

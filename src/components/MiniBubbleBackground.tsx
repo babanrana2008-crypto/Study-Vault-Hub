@@ -1,38 +1,66 @@
 import React, { useEffect, useRef } from 'react';
 
+export type BubbleColorVariant =
+  | 'cyan'
+  | 'purple'
+  | 'gold'
+  | 'pink'
+  | 'lime'
+  | 'orange';
+
 interface MiniBubbleItem {
   id: number;
-  sizePx: number;
-  leftPercent: number;
-  durationSec: number;
-  delaySec: number;
-  driftPx: number;
+  color: BubbleColorVariant;
 }
 
 const MINI_BUBBLES: MiniBubbleItem[] = [
-  { id: 1, sizePx: 8, leftPercent: 6, durationSec: 11, delaySec: 0, driftPx: 14 },
-  { id: 2, sizePx: 14, leftPercent: 15, durationSec: 16, delaySec: -4, driftPx: -18 },
-  { id: 3, sizePx: 10, leftPercent: 25, durationSec: 9, delaySec: -2, driftPx: 12 },
-  { id: 4, sizePx: 18, leftPercent: 34, durationSec: 19, delaySec: -9, driftPx: -20 },
-  { id: 5, sizePx: 7, leftPercent: 44, durationSec: 8, delaySec: -1, driftPx: 10 },
-  { id: 6, sizePx: 13, leftPercent: 53, durationSec: 14, delaySec: -6, driftPx: -14 },
-  { id: 7, sizePx: 16, leftPercent: 63, durationSec: 17, delaySec: -11, driftPx: 18 },
-  { id: 8, sizePx: 9, leftPercent: 72, durationSec: 10, delaySec: -3, driftPx: -12 },
-  { id: 9, sizePx: 15, leftPercent: 81, durationSec: 15, delaySec: -7, driftPx: 16 },
-  { id: 10, sizePx: 11, leftPercent: 89, durationSec: 12, delaySec: -5, driftPx: -15 },
-  { id: 11, sizePx: 19, leftPercent: 95, durationSec: 20, delaySec: -13, driftPx: -16 },
+  { id: 1, color: 'cyan' },
+  { id: 2, color: 'purple' },
+  { id: 3, color: 'gold' },
+  { id: 4, color: 'cyan' },
+  { id: 5, color: 'purple' },
+  { id: 6, color: 'gold' },
+  { id: 7, color: 'pink' },
+  { id: 8, color: 'cyan' },
+  { id: 9, color: 'purple' },
+  { id: 10, color: 'gold' },
+  { id: 11, color: 'lime' },
+  { id: 12, color: 'cyan' },
+  { id: 13, color: 'purple' },
+  { id: 14, color: 'gold' },
+  { id: 15, color: 'pink' },
+  { id: 16, color: 'cyan' },
+  { id: 17, color: 'purple' },
+  { id: 18, color: 'gold' },
+  { id: 19, color: 'cyan' },
+  { id: 20, color: 'purple' },
+  { id: 21, color: 'gold' },
+  { id: 22, color: 'lime' },
+  { id: 23, color: 'cyan' },
+  { id: 24, color: 'purple' },
+  { id: 25, color: 'gold' },
+  { id: 26, color: 'pink' },
+  { id: 27, color: 'cyan' },
+  { id: 28, color: 'purple' },
+  { id: 29, color: 'gold' },
+  { id: 30, color: 'cyan' },
+  { id: 31, color: 'purple' },
+  { id: 32, color: 'gold' },
+  { id: 33, color: 'pink' },
+  { id: 34, color: 'cyan' },
+  { id: 35, color: 'purple' },
+  { id: 36, color: 'gold' },
 ];
 
 /**
- * Standalone subtle Mini Bubble background animation layer optimized for 90Hz / 120Hz / 144Hz
- * mobile WebView (Android/iOS APK) and desktop displays.
+ * Standalone Background Floating Bubble Animation Layer optimized for Web and Android APK builds.
  *
- * Performance & Battery Guarantees:
- * - Capped at 11 lightweight nodes (strictly within the 12-15 mobile budget).
- * - Pure GPU compositor layer promotion via translate3d(...) and will-change: transform, opacity.
- * - Zero layout thrashing: syncs viewport height/DPR metrics inside a debounced + requestAnimationFrame
- *   passive resize/orientation listener, and pauses animations when document.hidden is true.
- * - Enforces position: fixed, top: 0, left: 0, z-index: -1, pointer-events: none for zero touch latency.
+ * Features:
+ * - Distinct, visible yet gentle watermark bubbles (15px to 58px) with a soft, slightly defined outer edge
+ * - Highly translucent pastel iridescent fills (muted cyan, soft purple, faint gold, soft rose) at 0.25–0.35 opacity
+ * - No blur or heavy gloss — crisp, calm, non-distracting watermark spheres
+ * - Enforces position: fixed; inset: 0; z-index: -10; pointer-events: none;
+ * - Smooth GPU-accelerated ambient floating motion via will-change: transform;
  */
 export const MiniBubbleBackground: React.FC = React.memo(() => {
   const layerRef = useRef<HTMLDivElement | null>(null);
@@ -47,11 +75,10 @@ export const MiniBubbleBackground: React.FC = React.memo(() => {
     const syncViewportAndDprMetrics = () => {
       rafId = null;
       if (!layer) return;
-      // Clamp devicePixelRatio between 1 and 2 so high-DPI mobile screens stay crisp without GPU overdraw
       const rawDpr = window.devicePixelRatio || 1;
       const clampedDpr = Math.min(Math.max(rawDpr, 1), 2);
-      const borderWidthPx = clampedDpr >= 1.5 ? '0.75px' : '1px';
-      const travelDistancePx = Math.round((window.innerHeight || 800) * 1.12);
+      const borderWidthPx = clampedDpr >= 1.5 ? '1px' : '1.15px';
+      const travelDistancePx = Math.round((window.innerHeight || 800) * 1.16);
 
       layer.style.setProperty('--svh-bubble-border-w', borderWidthPx);
       layer.style.setProperty('--svh-bubble-travel-y', `-${travelDistancePx}px`);
@@ -75,7 +102,6 @@ export const MiniBubbleBackground: React.FC = React.memo(() => {
       layer.setAttribute('data-paused', document.hidden ? 'true' : 'false');
     };
 
-    // Initial sync via rAF
     rafId = window.requestAnimationFrame(syncViewportAndDprMetrics);
 
     window.addEventListener('resize', scheduleMetricsUpdate, { passive: true });
@@ -105,7 +131,7 @@ export const MiniBubbleBackground: React.FC = React.memo(() => {
       {MINI_BUBBLES.map((bubble) => (
         <span
           key={bubble.id}
-          className={`svh-mini-bubble-particle svh-mini-bubble-item-${bubble.id}`}
+          className={`svh-mini-bubble-particle svh-bubble-color-${bubble.color} svh-mini-bubble-item-${bubble.id}`}
         />
       ))}
     </div>

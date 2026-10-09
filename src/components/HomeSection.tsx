@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import {
   BookOpen,
   FileText,
@@ -22,6 +22,10 @@ import {
   X,
   Compass,
   Trophy,
+  Sunrise,
+  Sunset,
+  Sun,
+  Moon,
 } from 'lucide-react';
 import {
   ActiveSection,
@@ -31,6 +35,7 @@ import {
   UserStats,
   StudyTask,
   ExamCountdownConfig,
+  ThemePreference,
 } from '../types';
 import {
   SAMPLE_BOOKS,
@@ -41,6 +46,8 @@ import {
 } from '../data/sampleData';
 import { PWAInstallButton } from './PWAInstallButton';
 import { calculateUserVPBreakdown } from '../utils/vpPoints';
+import { VaultPointsPopup, VaultModalTab } from './VaultPointsPopup';
+import { RollingVPCounter } from './RollingVPCounter';
 import { HomeAmbientAnimation } from './HomeAmbientAnimation';
 import { StudentImpactDashboard } from './StudentImpactDashboard';
 import { LearningPathsSection } from './LearningPathsSection';
@@ -59,6 +66,8 @@ interface HomeSectionProps {
   onSelectActiveGoal: (goal: string) => void;
   onOpenGoalsManager: () => void;
   onOpenFocusMode: () => void;
+  resolvedTheme?: 'light' | 'dark';
+  onChangeTheme?: (theme: ThemePreference) => void;
 }
 
 export const HomeSection: React.FC<HomeSectionProps> = React.memo(({
@@ -72,116 +81,50 @@ export const HomeSection: React.FC<HomeSectionProps> = React.memo(({
   onSelectActiveGoal,
   onOpenGoalsManager,
   onOpenFocusMode,
+  resolvedTheme = 'light',
+  onChangeTheme,
 }) => {
   const [goalDropdownOpen, setGoalDropdownOpen] = useState(false);
   const [isVpPopupOpen, setIsVpPopupOpen] = useState(false);
-  const vpBadgeButtonRef = useRef<HTMLButtonElement | null>(null);
-  const vpPopupPanelRef = useRef<HTMLDivElement | null>(null);
-  const [vpPopupCoords, setVpPopupCoords] = useState<{
-    top: number;
-    left: number;
-    width: number;
-    maxHeight: number;
-    placement: 'below' | 'above';
-    arrowLeft: number;
-  }>({
-    top: 72,
-    left: 16,
-    width: 340,
-    maxHeight: 420,
-    placement: 'below',
-    arrowLeft: 280,
-  });
+  const [vpPopupTab, setVpPopupTab] = useState<VaultModalTab>('vp');
+  const handleCloseVpPopup = useCallback(() => setIsVpPopupOpen(false), []);
+
+  // Real-time local device hour for dynamic time greeting
+  const [currentHour, setCurrentHour] = useState<number>(() => new Date().getHours());
+  useEffect(() => {
+    const updateHour = () => setCurrentHour(new Date().getHours());
+    const interval = setInterval(updateHour, 60000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const dynamicGreeting = useMemo(() => {
+    if (currentHour >= 5 && currentHour < 12) {
+      return {
+        label: 'Good Morning',
+        period: 'morning' as const,
+      };
+    }
+    if (currentHour >= 12 && currentHour < 17) {
+      return {
+        label: 'Good Afternoon',
+        period: 'afternoon' as const,
+      };
+    }
+    if (currentHour >= 17 && currentHour < 21) {
+      return {
+        label: 'Good Evening',
+        period: 'evening' as const,
+      };
+    }
+    return {
+      label: 'Good Night',
+      period: 'night' as const,
+    };
+  }, [currentHour]);
 
   const vpBreakdown = useMemo(() => {
     return calculateUserVPBreakdown(userStats);
   }, [userStats]);
-
-  const updateVpPopupPosition = useCallback(() => {
-    const btn = vpBadgeButtonRef.current;
-    if (!btn || typeof window === 'undefined') return;
-    const rect = btn.getBoundingClientRect();
-    const vw = window.innerWidth;
-    const vh = window.innerHeight;
-    const margin = 12;
-    const desiredWidth = Math.min(356, vw - margin * 2);
-
-    // Align right edge of popup with right edge of badge when possible, clamped to viewport
-    let left = rect.right - desiredWidth;
-    if (left < margin) left = margin;
-    if (left + desiredWidth > vw - margin) {
-      left = Math.max(margin, vw - margin - desiredWidth);
-    }
-
-    const badgeCenter = rect.left + rect.width / 2;
-    const arrowLeft = Math.max(20, Math.min(desiredWidth - 28, badgeCenter - left));
-
-    const spaceBelow = vh - rect.bottom - margin - 12;
-    const spaceAbove = rect.top - margin - 12;
-    const preferAbove = spaceBelow < 250 && spaceAbove > spaceBelow;
-
-    if (preferAbove) {
-      const maxHeight = Math.max(200, Math.min(430, spaceAbove));
-      const top = Math.max(margin, rect.top - 8);
-      setVpPopupCoords({
-        top,
-        left,
-        width: desiredWidth,
-        maxHeight,
-        placement: 'above',
-        arrowLeft,
-      });
-    } else {
-      const maxHeight = Math.max(220, Math.min(440, spaceBelow));
-      const top = Math.min(vh - margin - 180, Math.max(margin, rect.bottom + 8));
-      setVpPopupCoords({
-        top,
-        left,
-        width: desiredWidth,
-        maxHeight,
-        placement: 'below',
-        arrowLeft,
-      });
-    }
-  }, []);
-
-  useEffect(() => {
-    if (!isVpPopupOpen) return;
-    updateVpPopupPosition();
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        setIsVpPopupOpen(false);
-      }
-    };
-    const handleReposition = () => {
-      updateVpPopupPosition();
-    };
-    const handlePointerDownOutside = (e: MouseEvent | TouchEvent) => {
-      const target = e.target as Node | null;
-      if (!target) return;
-      if (vpPopupPanelRef.current?.contains(target)) return;
-      if (vpBadgeButtonRef.current?.contains(target)) return;
-      setIsVpPopupOpen(false);
-    };
-
-    const scrollContainer = document.getElementById('main-scroll-container');
-    window.addEventListener('keydown', handleKeyDown);
-    window.addEventListener('resize', handleReposition, { passive: true });
-    window.addEventListener('scroll', handleReposition, { passive: true, capture: true });
-    scrollContainer?.addEventListener('scroll', handleReposition, { passive: true });
-    document.addEventListener('mousedown', handlePointerDownOutside);
-    document.addEventListener('touchstart', handlePointerDownOutside, { passive: true });
-
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-      window.removeEventListener('resize', handleReposition);
-      window.removeEventListener('scroll', handleReposition, true);
-      scrollContainer?.removeEventListener('scroll', handleReposition);
-      document.removeEventListener('mousedown', handlePointerDownOutside);
-      document.removeEventListener('touchstart', handlePointerDownOutside);
-    };
-  }, [isVpPopupOpen, updateVpPopupPosition]);
 
   // Exam Countdown Editor State
   const [isEditingCountdown, setIsEditingCountdown] = useState(false);
@@ -451,7 +394,10 @@ export const HomeSection: React.FC<HomeSectionProps> = React.memo(({
       : null;
   const realRevisionItemsCount =
     userStats.completedNoteIds.length + userStats.bookmarkedItemIds.length;
-  const realStreakDays = userStats.streak?.current || 0;
+  const realStreakDays = Math.max(
+    0,
+    Number(userStats.streak?.current ?? userStats.streakDays) || 0
+  );
 
   const hasAnyRealActivity =
     userStats.totalStudyMinutes > 0 ||
@@ -501,49 +447,123 @@ export const HomeSection: React.FC<HomeSectionProps> = React.memo(({
 
             <div className="flex flex-col items-end gap-1.5 shrink-0">
               <button
-                ref={vpBadgeButtonRef}
                 type="button"
                 onClick={(e) => {
                   e.stopPropagation();
-                  if (!isVpPopupOpen) {
-                    updateVpPopupPosition();
-                    setIsVpPopupOpen(true);
-                  } else {
-                    setIsVpPopupOpen(false);
-                  }
+                  setVpPopupTab('vp');
+                  setIsVpPopupOpen(true);
                 }}
-                aria-expanded={isVpPopupOpen}
+                aria-expanded={isVpPopupOpen && vpPopupTab === 'vp'}
                 aria-haspopup="dialog"
                 aria-label="Open VP Points Details"
                 title="Tap to view your real VP Points balance and how you earn VP"
-                className={`inline-flex w-fit items-center gap-1 px-2 sm:px-2.5 py-1 rounded-full bg-[#131b2e] hover:bg-[#19243d] border ${
-                  isVpPopupOpen ? 'border-[#d4af37] ring-2 ring-[#d4af37]/30' : 'border-[#d4af37]/40 hover:border-[#d4af37]'
+                className={`svh-badge-shimmer inline-flex w-fit items-center gap-1 px-2 sm:px-2.5 py-1 rounded-full bg-[#131b2e] hover:bg-[#19243d] border ${
+                  isVpPopupOpen && vpPopupTab === 'vp'
+                    ? 'border-[#d4af37] ring-2 ring-[#d4af37]/30'
+                    : 'border-[#d4af37]/40 hover:border-[#d4af37]'
                 } text-[10px] sm:text-xs font-semibold text-[#fbf9f4] shrink-0 transition-all cursor-pointer shadow-sm`}
               >
                 <Trophy className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-[#d4af37] shrink-0" />
                 <span className="text-[#cbd5e1] font-medium whitespace-nowrap">VP Points</span>
-                <span className="text-[#d4af37] font-mono font-bold tabular-nums whitespace-nowrap">
-                  {vpBreakdown.totalVP} VP
-                </span>
+                <RollingVPCounter
+                  value={Math.max(0, Number(vpBreakdown.totalVP) || 0)}
+                  suffix=" VP"
+                  className="text-[#d4af37] font-mono font-bold tabular-nums whitespace-nowrap"
+                />
               </button>
 
-              <div className="inline-flex w-fit items-center gap-1 px-2 sm:px-2.5 py-1 rounded-full bg-[#131b2e] border border-[#d4af37]/30 text-[10px] sm:text-xs font-semibold text-[#fbf9f4] shrink-0">
-                <Flame className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-amber-400 fill-amber-400 shrink-0" />
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setVpPopupTab('streak');
+                  setIsVpPopupOpen(true);
+                }}
+                aria-expanded={isVpPopupOpen && vpPopupTab === 'streak'}
+                aria-haspopup="dialog"
+                aria-label="Open Study Streak Details"
+                title="Tap to view your Daily Study Streak & VP rules"
+                className={`inline-flex w-fit items-center gap-1 px-2 sm:px-2.5 py-1 rounded-full bg-[#131b2e] hover:bg-[#19243d] border ${
+                  isVpPopupOpen && vpPopupTab === 'streak'
+                    ? 'border-[#d4af37] ring-2 ring-[#d4af37]/30'
+                    : 'border-[#d4af37]/30 hover:border-[#d4af37]'
+                } text-[10px] sm:text-xs font-semibold text-[#fbf9f4] shrink-0 transition-all cursor-pointer shadow-sm`}
+              >
+                <Flame className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-amber-400 fill-amber-400 shrink-0 svh-live-streak-flame" />
                 <span className="text-amber-300 tabular-nums whitespace-nowrap">
-                  {realStreakDays > 0 ? `${realStreakDays}d Streak` : 'No streak yet'}
+                  {realStreakDays > 0 ? `${realStreakDays}d Streak` : '0d (No streak yet)'}
                 </span>
-              </div>
+              </button>
             </div>
           </div>
 
-          {/* Welcome User Statement */}
+          {/* Dynamic Time-Based Greeting with Animated Time Icon & Animated Sun-to-Moon Theme Switch */}
           <div className="space-y-1.5 min-w-0 max-w-full">
-            <h2 className="font-display text-xl sm:text-2xl font-bold text-[#fbf9f4] break-words leading-snug">
-              Welcome{userStats.name ? `, ` : ' to Study Vault Hub'}
-              {userStats.name && (
-                <span className="gold-gradient-text break-words">{userStats.name}</span>
+            <div className="flex flex-wrap items-center justify-between gap-2.5">
+              <h2 className="font-display text-xl sm:text-2xl font-bold text-[#fbf9f4] break-words leading-snug flex flex-wrap items-center gap-2">
+                <span
+                  aria-hidden="true"
+                  className={`inline-flex items-center justify-center w-8 h-8 sm:w-9 sm:h-9 rounded-xl border shrink-0 ${
+                    dynamicGreeting.period === 'morning'
+                      ? 'bg-amber-500/15 border-amber-400/40 text-amber-400 svh-greeting-icon-morning'
+                      : dynamicGreeting.period === 'afternoon'
+                      ? 'bg-amber-500/15 border-amber-400/45 text-amber-400 svh-greeting-icon-afternoon'
+                      : dynamicGreeting.period === 'evening'
+                      ? 'bg-orange-500/15 border-orange-400/40 text-orange-400 svh-greeting-icon-evening'
+                      : 'bg-indigo-500/15 border-indigo-400/40 text-indigo-300 svh-greeting-icon-night'
+                  }`}
+                >
+                  {dynamicGreeting.period === 'morning' && (
+                    <Sunrise className="w-4 h-4 sm:w-5 sm:h-5 text-amber-400" />
+                  )}
+                  {dynamicGreeting.period === 'afternoon' && (
+                    <Sun className="w-4 h-4 sm:w-5 sm:h-5 text-amber-400" />
+                  )}
+                  {dynamicGreeting.period === 'evening' && (
+                    <Sunset className="w-4 h-4 sm:w-5 sm:h-5 text-orange-400" />
+                  )}
+                  {dynamicGreeting.period === 'night' && (
+                    <Moon className="w-4 h-4 sm:w-5 sm:h-5 text-indigo-300" />
+                  )}
+                </span>
+                <span className="break-words">
+                  {dynamicGreeting.label},{' '}
+                  <span className="gold-gradient-text break-words">
+                    {userStats.name || 'Scholar'}
+                  </span>
+                </span>
+              </h2>
+
+              {onChangeTheme && (
+                <button
+                  type="button"
+                  onClick={() => onChangeTheme(resolvedTheme === 'dark' ? 'light' : 'dark')}
+                  aria-label={`Switch to ${resolvedTheme === 'dark' ? 'Light' : 'Dark'} Mode`}
+                  title={`Switch to ${resolvedTheme === 'dark' ? 'Light' : 'Dark'} Mode`}
+                  className="svh-theme-switch-btn inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-[#131b2e] hover:bg-[#19243d] border border-[#d4af37]/35 hover:border-[#d4af37] text-[11px] font-semibold text-[#fbf9f4] shrink-0 cursor-pointer shadow-xs"
+                >
+                  <span className="relative w-4 h-4 inline-flex items-center justify-center overflow-hidden">
+                    <Sun
+                      className={`w-4 h-4 text-amber-400 svh-theme-switch-icon ${
+                        resolvedTheme === 'light'
+                          ? 'svh-theme-icon-active'
+                          : 'svh-theme-icon-inactive'
+                      }`}
+                    />
+                    <Moon
+                      className={`w-4 h-4 text-[#d4af37] svh-theme-switch-icon ${
+                        resolvedTheme === 'dark'
+                          ? 'svh-theme-icon-active'
+                          : 'svh-theme-icon-inactive'
+                      }`}
+                    />
+                  </span>
+                  <span className="whitespace-nowrap">
+                    {resolvedTheme === 'dark' ? 'Dark' : 'Light'}
+                  </span>
+                </button>
               )}
-            </h2>
+            </div>
             <p className="text-xs sm:text-sm text-[#cbd5e1] leading-relaxed break-words">
               {hasExplicitGoal ? (
                 <>
@@ -577,7 +597,7 @@ export const HomeSection: React.FC<HomeSectionProps> = React.memo(({
                   </button>
 
                   {goalDropdownOpen && (
-                    <div className="absolute left-0 top-full mt-1.5 w-48 bg-[#0c1428] border border-[#d4af37]/40 rounded-xl shadow-2xl py-1.5 z-40 animate-in fade-in duration-100">
+                    <div className="svh-popup-card absolute left-0 top-full mt-1.5 w-48 bg-[#0c1428] border border-[#d4af37]/40 rounded-xl shadow-2xl py-1.5 z-40">
                       <div className="px-3 py-1 text-[10px] text-[#9ca3af] uppercase font-mono border-b border-[#1f293d]">
                         Switch Active Goal
                       </div>
@@ -645,7 +665,7 @@ export const HomeSection: React.FC<HomeSectionProps> = React.memo(({
       {/* ===================================================================== */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
         {/* HOME EXAM COUNTDOWN (7 cols) */}
-        <section className="lg:col-span-7 p-5 sm:p-6 rounded-2xl sm:rounded-3xl bg-gradient-to-br from-[#0c1428] via-[#0a1122] to-[#060b18] border border-[#d4af37]/35 shadow-lg flex flex-col justify-between space-y-4">
+        <section className="svh-3d-tilt-card lg:col-span-7 p-5 sm:p-6 rounded-2xl sm:rounded-3xl bg-gradient-to-br from-[#0c1428] via-[#0a1122] to-[#060b18] border border-[#d4af37]/35 shadow-lg flex flex-col justify-between space-y-4">
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2 text-xs font-semibold text-[#d4af37] uppercase tracking-wider">
               <Calendar className="w-4 h-4" />
@@ -814,7 +834,7 @@ export const HomeSection: React.FC<HomeSectionProps> = React.memo(({
         </section>
 
         {/* PREMIUM STUDY FOCUS MODE LAUNCHER (5 cols) */}
-        <section className="lg:col-span-5 p-5 sm:p-6 rounded-2xl sm:rounded-3xl bg-gradient-to-br from-[#0c1428] via-[#0a1122] to-[#060b18] border border-[#d4af37]/35 shadow-lg flex flex-col justify-between space-y-4">
+        <section className="svh-3d-tilt-card lg:col-span-5 p-5 sm:p-6 rounded-2xl sm:rounded-3xl bg-gradient-to-br from-[#0c1428] via-[#0a1122] to-[#060b18] border border-[#d4af37]/35 shadow-lg flex flex-col justify-between space-y-4">
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2 text-xs font-semibold text-[#d4af37] uppercase tracking-wider">
               <Clock className="w-4 h-4" />
@@ -947,7 +967,7 @@ export const HomeSection: React.FC<HomeSectionProps> = React.memo(({
           /* Real User Telemetry Cards (Only shown once genuine activity exists) */
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             {/* 1. Actual Study Time */}
-            <div className="p-4 rounded-2xl bg-[#0f172a] border border-[#d4af37]/25 flex flex-col justify-between space-y-2">
+            <div className="p-4 rounded-2xl bg-[#0f172a] border border-[#d4af37]/25 flex flex-col justify-between space-y-2.5">
               <div className="flex items-center justify-between text-xs">
                 <span className="text-[#9ca3af] font-medium flex items-center gap-1.5">
                   <Clock className="w-3.5 h-3.5 text-[#d4af37]" />
@@ -961,13 +981,28 @@ export const HomeSection: React.FC<HomeSectionProps> = React.memo(({
               </div>
 
               {userStats.totalStudyMinutes > 0 ? (
-                <div>
+                <div className="space-y-1.5">
                   <div className="font-display text-2xl font-bold text-[#fbf9f4] tabular-nums">
                     {userStats.totalStudyMinutes} min
                   </div>
-                  <p className="text-[11px] text-[#9ca3af] mt-0.5">
+                  <p className="text-[11px] text-[#9ca3af]">
                     Daily target: {userStats.dailyGoals.studyMinutes} min
                   </p>
+                  <div className="w-full h-1.5 bg-[#131b2e] rounded-full overflow-hidden border border-[#d4af37]/20">
+                    <div
+                      className="svh-animated-progress-fill h-full bg-gradient-to-r from-[#d4af37] to-amber-300"
+                      style={{
+                        width: `${Math.min(
+                          100,
+                          Math.round(
+                            (userStats.totalStudyMinutes /
+                              Math.max(1, userStats.dailyGoals.studyMinutes)) *
+                              100
+                          )
+                        )}%`,
+                      }}
+                    />
+                  </div>
                 </div>
               ) : (
                 <button
@@ -980,7 +1015,7 @@ export const HomeSection: React.FC<HomeSectionProps> = React.memo(({
             </div>
 
             {/* 2. Practice & Verified Accuracy */}
-            <div className="p-4 rounded-2xl bg-[#0f172a] border border-[#d4af37]/25 flex flex-col justify-between space-y-2">
+            <div className="p-4 rounded-2xl bg-[#0f172a] border border-[#d4af37]/25 flex flex-col justify-between space-y-2.5">
               <div className="flex items-center justify-between text-xs">
                 <span className="text-[#9ca3af] font-medium flex items-center gap-1.5">
                   <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
@@ -994,13 +1029,28 @@ export const HomeSection: React.FC<HomeSectionProps> = React.memo(({
               </div>
 
               {userStats.questionsAttempted > 0 ? (
-                <div>
+                <div className="space-y-1.5">
                   <div className="font-display text-2xl font-bold text-[#fbf9f4] tabular-nums">
                     {userStats.questionsAttempted} Solved
                   </div>
-                  <p className="text-[11px] text-[#9ca3af] mt-0.5">
+                  <p className="text-[11px] text-[#9ca3af]">
                     {userStats.correctAnswers} correct · {userStats.incorrectAnswers} incorrect
                   </p>
+                  <div className="w-full h-1.5 bg-[#131b2e] rounded-full overflow-hidden border border-[#d4af37]/20">
+                    <div
+                      className="svh-animated-progress-fill h-full bg-gradient-to-r from-[#d4af37] to-emerald-400"
+                      style={{
+                        width: `${Math.min(
+                          100,
+                          Math.round(
+                            (userStats.questionsAttempted /
+                              Math.max(1, userStats.dailyGoals.questionCount)) *
+                              100
+                          )
+                        )}%`,
+                      }}
+                    />
+                  </div>
                 </div>
               ) : (
                 <button
@@ -1013,7 +1063,7 @@ export const HomeSection: React.FC<HomeSectionProps> = React.memo(({
             </div>
 
             {/* 3. Completed Tasks */}
-            <div className="p-4 rounded-2xl bg-[#0f172a] border border-[#d4af37]/25 flex flex-col justify-between space-y-2">
+            <div className="p-4 rounded-2xl bg-[#0f172a] border border-[#d4af37]/25 flex flex-col justify-between space-y-2.5">
               <div className="flex items-center justify-between text-xs">
                 <span className="text-[#9ca3af] font-medium flex items-center gap-1.5">
                   <Target className="w-3.5 h-3.5 text-amber-400" />
@@ -1022,13 +1072,26 @@ export const HomeSection: React.FC<HomeSectionProps> = React.memo(({
               </div>
 
               {totalTasksCount > 0 ? (
-                <div>
+                <div className="space-y-1.5">
                   <div className="font-display text-2xl font-bold text-[#fbf9f4] tabular-nums">
                     {completedTasksCount} / {totalTasksCount}
                   </div>
-                  <p className="text-[11px] text-[#9ca3af] mt-0.5">
+                  <p className="text-[11px] text-[#9ca3af]">
                     {totalTasksCount - completedTasksCount} pending in your planner
                   </p>
+                  <div className="w-full h-1.5 bg-[#131b2e] rounded-full overflow-hidden border border-[#d4af37]/20">
+                    <div
+                      className="svh-animated-progress-fill h-full bg-gradient-to-r from-[#d4af37] to-blue-400"
+                      style={{
+                        width: `${Math.min(
+                          100,
+                          Math.round(
+                            (completedTasksCount / Math.max(1, totalTasksCount)) * 100
+                          )
+                        )}%`,
+                      }}
+                    />
+                  </div>
                 </div>
               ) : (
                 <button
@@ -1041,26 +1104,38 @@ export const HomeSection: React.FC<HomeSectionProps> = React.memo(({
             </div>
 
             {/* 4. Revision Items & Streak */}
-            <div className="p-4 rounded-2xl bg-[#0f172a] border border-[#d4af37]/25 flex flex-col justify-between space-y-2">
+            <div className="p-4 rounded-2xl bg-[#0f172a] border border-[#d4af37]/25 flex flex-col justify-between space-y-2.5">
               <div className="flex items-center justify-between text-xs">
                 <span className="text-[#9ca3af] font-medium flex items-center gap-1.5">
-                  <Flame className="w-3.5 h-3.5 text-amber-400" />
+                  <Flame className="w-3.5 h-3.5 text-amber-400 svh-live-streak-flame" />
                   Revision &amp; Streak
                 </span>
-                {realStreakDays > 0 && (
-                  <span className="text-xs font-bold text-amber-300 tabular-nums">
-                    {realStreakDays}d streak
-                  </span>
-                )}
+                <span className="text-xs font-bold text-amber-300 tabular-nums">
+                  {realStreakDays > 0 ? `${realStreakDays}d streak` : '0d'}
+                </span>
               </div>
 
-              <div>
+              <div className="space-y-1.5">
                 <div className="font-display text-2xl font-bold text-[#fbf9f4] tabular-nums">
                   {userStats.completedNoteIds.length} Notes Revised
                 </div>
-                <p className="text-[11px] text-[#9ca3af] mt-0.5">
+                <p className="text-[11px] text-[#9ca3af]">
                   {userStats.bookmarkedItemIds.length} saved items in vault
                 </p>
+                <div className="w-full h-1.5 bg-[#131b2e] rounded-full overflow-hidden border border-[#d4af37]/20">
+                  <div
+                    className="svh-animated-progress-fill h-full bg-gradient-to-r from-amber-500 to-emerald-400"
+                    style={{
+                      width: `${
+                        realStreakDays === 0
+                          ? 0
+                          : realStreakDays % 5 === 0
+                          ? 100
+                          : Math.round(((realStreakDays % 5) / 5) * 100)
+                      }%`,
+                    }}
+                  />
+                </div>
               </div>
             </div>
           </div>
@@ -1091,8 +1166,9 @@ export const HomeSection: React.FC<HomeSectionProps> = React.memo(({
           </button>
         </div>
 
-        {/* Create Task Form */}
-        {isPlannerFormOpen && (
+        {/* Create Task Form (Seamless Accordion Slide-Down) */}
+        <div className={`svh-accordion-grid ${isPlannerFormOpen ? 'svh-accordion-open' : ''}`}>
+          <div className="svh-accordion-inner">
           <form
             onSubmit={handleCreatePlannerTask}
             className="p-4 rounded-2xl bg-[#090e1c] border border-[#d4af37]/35 space-y-3"
@@ -1208,7 +1284,8 @@ export const HomeSection: React.FC<HomeSectionProps> = React.memo(({
               </button>
             </div>
           </form>
-        )}
+          </div>
+        </div>
 
         {/* Real-Data-Only Smart Suggestions (Only shown if real weak-topic data exists) */}
         {realDataSuggestions.length > 0 && (
@@ -1369,7 +1446,7 @@ export const HomeSection: React.FC<HomeSectionProps> = React.memo(({
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
           <button
             onClick={() => onNavigate('books')}
-            className="p-3.5 rounded-xl bg-[#0f172a] border border-[#d4af37]/25 hover:border-[#d4af37] text-left transition-all active:scale-[0.98] group flex flex-col justify-between gap-2.5 min-h-[6rem] h-auto"
+            className="svh-3d-tilt-card p-3.5 rounded-xl bg-[#0f172a] border border-[#d4af37]/25 hover:border-[#d4af37] text-left transition-all active:scale-[0.98] group flex flex-col justify-between gap-2.5 min-h-[6rem] h-auto"
           >
             <div className="w-8 h-8 rounded-lg bg-[#19233c] border border-[#d4af37]/30 flex items-center justify-center text-[#d4af37] group-hover:scale-110 transition-transform shrink-0">
               <BookOpen className="w-4 h-4" />
@@ -1384,7 +1461,7 @@ export const HomeSection: React.FC<HomeSectionProps> = React.memo(({
 
           <button
             onClick={() => onNavigate('notes')}
-            className="p-3.5 rounded-xl bg-[#0f172a] border border-[#d4af37]/25 hover:border-[#d4af37] text-left transition-all active:scale-[0.98] group flex flex-col justify-between gap-2.5 min-h-[6rem] h-auto"
+            className="svh-3d-tilt-card p-3.5 rounded-xl bg-[#0f172a] border border-[#d4af37]/25 hover:border-[#d4af37] text-left transition-all active:scale-[0.98] group flex flex-col justify-between gap-2.5 min-h-[6rem] h-auto"
           >
             <div className="w-8 h-8 rounded-lg bg-[#19233c] border border-[#d4af37]/30 flex items-center justify-center text-[#d4af37] group-hover:scale-110 transition-transform shrink-0">
               <FileText className="w-4 h-4" />
@@ -1399,7 +1476,7 @@ export const HomeSection: React.FC<HomeSectionProps> = React.memo(({
 
           <button
             onClick={() => onNavigate('practice')}
-            className="p-3.5 rounded-xl bg-[#0f172a] border border-[#d4af37]/25 hover:border-[#d4af37] text-left transition-all active:scale-[0.98] group flex flex-col justify-between gap-2.5 min-h-[6rem] h-auto"
+            className="svh-3d-tilt-card p-3.5 rounded-xl bg-[#0f172a] border border-[#d4af37]/25 hover:border-[#d4af37] text-left transition-all active:scale-[0.98] group flex flex-col justify-between gap-2.5 min-h-[6rem] h-auto"
           >
             <div className="w-8 h-8 rounded-lg bg-[#19233c] border border-[#d4af37]/30 flex items-center justify-center text-emerald-400 group-hover:scale-110 transition-transform shrink-0">
               <CheckCircle2 className="w-4 h-4" />
@@ -1414,7 +1491,7 @@ export const HomeSection: React.FC<HomeSectionProps> = React.memo(({
 
           <button
             onClick={() => onNavigate('tracker')}
-            className="p-3.5 rounded-xl bg-[#0f172a] border border-[#d4af37]/25 hover:border-[#d4af37] text-left transition-all active:scale-[0.98] group flex flex-col justify-between gap-2.5 min-h-[6rem] h-auto"
+            className="svh-3d-tilt-card p-3.5 rounded-xl bg-[#0f172a] border border-[#d4af37]/25 hover:border-[#d4af37] text-left transition-all active:scale-[0.98] group flex flex-col justify-between gap-2.5 min-h-[6rem] h-auto"
           >
             <div className="w-8 h-8 rounded-lg bg-[#19233c] border border-[#d4af37]/30 flex items-center justify-center text-[#d4af37] group-hover:scale-110 transition-transform shrink-0">
               <BarChart3 className="w-4 h-4" />
@@ -1429,7 +1506,7 @@ export const HomeSection: React.FC<HomeSectionProps> = React.memo(({
 
           <button
             onClick={() => onNavigate('prep')}
-            className="p-3.5 rounded-xl bg-[#0f172a] border border-[#d4af37]/25 hover:border-[#d4af37] text-left transition-all active:scale-[0.98] group flex flex-col justify-between gap-2.5 min-h-[6rem] h-auto col-span-2 sm:col-span-1"
+            className="svh-3d-tilt-card p-3.5 rounded-xl bg-[#0f172a] border border-[#d4af37]/25 hover:border-[#d4af37] text-left transition-all active:scale-[0.98] group flex flex-col justify-between gap-2.5 min-h-[6rem] h-auto col-span-2 sm:col-span-1"
           >
             <div className="w-8 h-8 rounded-lg bg-[#19233c] border border-[#d4af37]/30 flex items-center justify-center text-amber-400 group-hover:scale-110 transition-transform shrink-0">
               <Award className="w-4 h-4" />
@@ -1467,7 +1544,7 @@ export const HomeSection: React.FC<HomeSectionProps> = React.memo(({
             return (
               <div
                 key={book.id}
-                className="w-[260px] sm:w-[280px] shrink-0 snap-start rounded-2xl bg-[#0f172a] border border-[#d4af37]/25 hover:border-[#d4af37]/60 p-3.5 flex flex-col justify-between transition-all group shadow-md"
+                className="svh-3d-tilt-card w-[260px] sm:w-[280px] shrink-0 snap-start rounded-2xl bg-[#0f172a] border border-[#d4af37]/25 hover:border-[#d4af37]/60 p-3.5 flex flex-col justify-between transition-all group shadow-md"
               >
                 <div>
                   <div className="relative aspect-[16/9] rounded-xl overflow-hidden mb-3 bg-[#131b2e] border border-[#d4af37]/20 flex items-center justify-center">
@@ -1705,171 +1782,14 @@ export const HomeSection: React.FC<HomeSectionProps> = React.memo(({
       </div>
 
       {/* ===================================================================== */}
-      {/* COMPACT PREMIUM VP POINTS POPUP ANCHORED ADJACENT TO VP BADGE         */}
+      {/* VIEWPORT-CENTERED VP POINTS & STREAK DETAILS MODAL                    */}
       {/* ===================================================================== */}
-      {isVpPopupOpen && (
-        <div
-          ref={vpPopupPanelRef}
-          role="dialog"
-          aria-modal="false"
-          aria-label="VP Points Details"
-          style={{
-            position: 'fixed',
-            top:
-              vpPopupCoords.placement === 'above'
-                ? undefined
-                : `${vpPopupCoords.top}px`,
-            bottom:
-              vpPopupCoords.placement === 'above'
-                ? `${Math.max(12, window.innerHeight - vpPopupCoords.top)}px`
-                : undefined,
-            left: `${vpPopupCoords.left}px`,
-            width: `${vpPopupCoords.width}px`,
-            zIndex: 70,
-          }}
-          className="svh-popup-card rounded-2xl bg-[#eef3fa] border border-[#b8c7dc] text-[#1e293b] shadow-[0_18px_48px_rgba(15,23,42,0.28)] overflow-hidden"
-        >
-          {/* Visual Anchor Pointer */}
-          <div
-            style={{ left: `${vpPopupCoords.arrowLeft}px` }}
-            className={`fixed w-3 h-3 bg-[#e2eaf5] border-[#b8c7dc] rotate-45 pointer-events-none ${
-              vpPopupCoords.placement === 'above'
-                ? '-bottom-1.5 border-b border-r'
-                : '-top-1.5 border-t border-l'
-            }`}
-          />
-
-          {/* Compact Header with X Close Button */}
-          <div className="px-4 py-3 bg-[#e2eaf5] border-b border-[#cbd5e1] flex items-center justify-between gap-2.5">
-            <div className="flex items-center gap-2 min-w-0">
-              <div className="w-8 h-8 rounded-xl bg-[#d5e2f2] border border-[#b8c7dc] flex items-center justify-center text-[#1e293b] shrink-0">
-                <Trophy className="w-4 h-4 text-[#9a6f0a]" />
-              </div>
-              <div className="min-w-0">
-                <h3 className="font-display text-xs sm:text-sm font-bold tracking-wider text-[#1e293b] uppercase truncate">
-                  VP POINTS
-                </h3>
-                <p className="text-[10px] text-[#475569] truncate">
-                  {vpBreakdown.currentTier.title}
-                </p>
-              </div>
-            </div>
-
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                setIsVpPopupOpen(false);
-              }}
-              aria-label="Close VP Points Popup"
-              className="w-7 h-7 rounded-xl bg-[#d5e2f2] hover:bg-[#c5d6ec] border border-[#b8c7dc] text-[#1e293b] flex items-center justify-center transition-colors cursor-pointer shrink-0"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
-          </div>
-
-          {/* Internal Scrollable Content */}
-          <div
-            style={{ maxHeight: `${vpPopupCoords.maxHeight}px` }}
-            className="p-3.5 space-y-3 overflow-y-auto overscroll-contain"
-          >
-            {/* Current Balance Card */}
-            <div className="p-3 rounded-xl bg-[#f7f9fc] border border-[#cbd5e1] flex items-center justify-between gap-2">
-              <div>
-                <span className="text-[10px] font-mono uppercase tracking-wider text-[#475569] block">
-                  Current Balance
-                </span>
-                <span className="font-display text-xl sm:text-2xl font-extrabold text-[#1e293b] tabular-nums">
-                  {vpBreakdown.totalVP} VP
-                </span>
-              </div>
-              <div className="text-right">
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-[#e2eaf5] border border-[#b8c7dc] text-[11px] font-semibold text-[#1e293b]">
-                  <Award className="w-3 h-3 text-[#9a6f0a]" />
-                  <span>{vpBreakdown.currentTier.title}</span>
-                </span>
-                {vpBreakdown.nextTier && (
-                  <span className="text-[10px] text-[#475569] block mt-1 font-mono">
-                    {vpBreakdown.vpNeededForNextTier} VP to {vpBreakdown.nextTier.title}
-                  </span>
-                )}
-              </div>
-            </div>
-
-            {/* How you earn VP */}
-            <div className="p-3 rounded-xl bg-[#f7f9fc] border border-[#cbd5e1] space-y-2">
-              <h4 className="text-[11px] font-bold uppercase tracking-wider text-[#1e293b]">
-                How you earn VP:
-              </h4>
-              <ul className="space-y-1.5 text-[11px] text-[#334155]">
-                <li className="flex items-center justify-between gap-2 py-1 border-b border-[#e2e8f0]">
-                  <span>• <strong>10 VP</strong> — every 5 minutes of focused study</span>
-                  <span className="font-mono font-bold text-[#1e293b] shrink-0">
-                    +{vpBreakdown.studyTimeVP} VP
-                  </span>
-                </li>
-                <li className="flex items-center justify-between gap-2 py-1 border-b border-[#e2e8f0]">
-                  <span>• <strong>2 VP</strong> — every normal question solved</span>
-                  <span className="font-mono font-bold text-[#1e293b] shrink-0">
-                    +{vpBreakdown.normalQuestionVP} VP
-                  </span>
-                </li>
-                <li className="flex items-center justify-between gap-2 py-1 border-b border-[#e2e8f0]">
-                  <span>• <strong>5 VP</strong> — every correct Test Mode question</span>
-                  <span className="font-mono font-bold text-[#1e293b] shrink-0">
-                    +{vpBreakdown.testModeQuestionVP} VP
-                  </span>
-                </li>
-                <li className="flex items-center justify-between gap-2 pt-0.5">
-                  <span>• <strong>20 VP</strong> — every 5-day study streak</span>
-                  <span className="font-mono font-bold text-[#1e293b] shrink-0">
-                    +{vpBreakdown.streakMilestoneVP} VP
-                  </span>
-                </li>
-              </ul>
-            </div>
-
-            {/* Your Real Activity */}
-            <div className="p-3 rounded-xl bg-[#f7f9fc] border border-[#cbd5e1] space-y-2">
-              <div className="flex items-center justify-between">
-                <h4 className="text-[11px] font-bold uppercase tracking-wider text-[#1e293b]">
-                  Your Activity
-                </h4>
-                <span className="text-[10px] font-mono text-[#475569]">
-                  Verified Records
-                </span>
-              </div>
-
-              {vpBreakdown.recentActivities.length === 0 ? (
-                <p className="text-xs text-[#64748b] py-1.5 text-center">
-                  No user activity yet
-                </p>
-              ) : (
-                <div className="space-y-1.5">
-                  {vpBreakdown.recentActivities.slice(0, 4).map((act) => (
-                    <div
-                      key={act.id}
-                      className="p-2 rounded-lg bg-[#eef3fa] border border-[#cbd5e1] flex items-center justify-between gap-2"
-                    >
-                      <div className="min-w-0">
-                        <p className="text-[11px] font-semibold text-[#1e293b] truncate">
-                          {act.title}
-                        </p>
-                        <p className="text-[10px] text-[#475569] truncate">
-                          {act.subtitle} · {act.timestamp}
-                        </p>
-                      </div>
-                      <span className="px-1.5 py-0.5 rounded-md bg-[#d5e2f2] border border-[#b8c7dc] font-mono text-[10px] font-bold text-[#1e293b] shrink-0">
-                        +{act.vpEarned} VP
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+      <VaultPointsPopup
+        isOpen={isVpPopupOpen}
+        onClose={handleCloseVpPopup}
+        userStats={userStats}
+        initialTab={vpPopupTab}
+      />
     </div>
   );
 });

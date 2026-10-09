@@ -619,11 +619,15 @@ export const INITIAL_USER_STATS: UserStats = {
   correctAnswers: 0,
   incorrectAnswers: 0,
   totalStudyMinutes: 0,
+  focusMinutes: 0,
+  streakDays: 0,
+  vpPoints: 0,
   vaultPoints: 0,
   questionVp: 0,
   focusMinuteVp: 0,
   focusBonusVp: 0,
   vpTransactions: [],
+  activityHistory: [],
   streak: {
     current: 0,
     lastActiveDate: ''

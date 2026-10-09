@@ -510,161 +510,163 @@ export const MCQSection: React.FC<MCQSectionProps> = React.memo(({
             </button>
           </div>
 
-          {isFilterPanelOpen && (
-            <div className="space-y-3.5">
-              {/* Row 1: Exam / Board and Class Level */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <label className="text-[11px] font-semibold text-[#d4af37] uppercase tracking-wider block">
-                    1. Target Exam / Board
-                  </label>
-                  <select
-                    value={selectedExam}
-                    onChange={(e) => {
-                      setSelectedExam(e.target.value);
-                    }}
-                    className="w-full px-3 py-2 rounded-xl bg-[#090e1c] border border-[#d4af37]/25 text-xs sm:text-sm text-[#fbf9f4] focus:outline-none focus:border-[#d4af37]"
-                  >
-                    {EXAM_HIERARCHIES.map((h) => (
-                      <option key={h.id} value={h.id}>
-                        {h.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-[11px] font-semibold text-[#d4af37] uppercase tracking-wider block">
-                    2. Class / Standard
-                  </label>
-                  <select
-                    value={selectedClass}
-                    onChange={(e) => setSelectedClass(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl bg-[#090e1c] border border-[#d4af37]/25 text-xs sm:text-sm text-[#fbf9f4] focus:outline-none focus:border-[#d4af37]"
-                  >
-                    {availableClasses.map((cls) => (
-                      <option key={cls} value={cls}>
-                        {cls}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              {/* Row 2: Subject and Chapter */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <label className="text-[11px] font-semibold text-[#d4af37] uppercase tracking-wider block">
-                    3. Subject
-                  </label>
-                  <select
-                    value={selectedSubject}
-                    onChange={(e) => setSelectedSubject(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl bg-[#090e1c] border border-[#d4af37]/25 text-xs sm:text-sm text-[#fbf9f4] focus:outline-none focus:border-[#d4af37]"
-                  >
-                    {availableSubjects.map((sub) => (
-                      <option key={sub} value={sub}>
-                        {sub}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-[11px] font-semibold text-[#d4af37] uppercase tracking-wider block">
-                    4. Chapter ({availableChapters.length} available)
-                  </label>
-                  <select
-                    value={selectedChapterId}
-                    onChange={(e) => {
-                      setSelectedChapterId(e.target.value);
-                      setSelectedTopicName('All Topics');
-                    }}
-                    className="w-full px-3 py-2 rounded-xl bg-[#090e1c] border border-[#d4af37]/25 text-xs sm:text-sm text-[#fbf9f4] focus:outline-none focus:border-[#d4af37]"
-                  >
-                    {availableChapters.map((chap) => (
-                      <option key={chap.id} value={chap.id}>
-                        {chap.number}. {chap.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              {/* Row 3: Topic in Chapter */}
-              {activeChapterObj && activeChapterObj.topics.length > 0 && (
-                <div className="space-y-1">
-                  <label className="text-[11px] font-semibold text-[#d4af37] uppercase tracking-wider block">
-                    5. Topic Focus
-                  </label>
-                  <select
-                    value={selectedTopicName}
-                    onChange={(e) => setSelectedTopicName(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl bg-[#090e1c] border border-[#d4af37]/25 text-xs sm:text-sm text-[#fbf9f4] focus:outline-none focus:border-[#d4af37]"
-                  >
-                    <option value="All Topics">All Topics in this Chapter</option>
-                    {activeChapterObj.topics.map((t) => (
-                      <option key={t.id} value={t.name}>
-                        {t.name} {t.highYield ? '⭐ (High Yield)' : ''}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
-
-              {/* Row 4: Difficulty, Question Count & Generate Button */}
-              <div className="pt-2 flex flex-wrap items-center justify-between gap-3 border-t border-[#1e293b]">
-                <div className="flex items-center gap-3">
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-xs text-[#9ca3af]">Difficulty:</span>
-                    {(['Easy', 'Moderate', 'Hard'] as const).map((diff) => (
-                      <button
-                        key={diff}
-                        onClick={() => setSelectedDifficulty(diff)}
-                        className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all border ${
-                          selectedDifficulty === diff
-                            ? 'bg-[#d4af37] text-[#080d1a] border-[#d4af37]'
-                            : 'bg-[#090e1c] text-[#cbd5e1] border-[#1e293b] hover:border-[#d4af37]/40'
-                        }`}
-                      >
-                        {diff}
-                      </button>
-                    ))}
+          <div className={`svh-accordion-grid ${isFilterPanelOpen ? 'svh-accordion-open' : ''}`}>
+            <div className="svh-accordion-inner">
+              <div className="space-y-3.5 pt-1">
+                {/* Row 1: Exam / Board and Class Level */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-semibold text-[#d4af37] uppercase tracking-wider block">
+                      1. Target Exam / Board
+                    </label>
+                    <select
+                      value={selectedExam}
+                      onChange={(e) => {
+                        setSelectedExam(e.target.value);
+                      }}
+                      className="w-full px-3 py-2 rounded-xl bg-[#090e1c] border border-[#d4af37]/25 text-xs sm:text-sm text-[#fbf9f4] focus:outline-none focus:border-[#d4af37]"
+                    >
+                      {EXAM_HIERARCHIES.map((h) => (
+                        <option key={h.id} value={h.id}>
+                          {h.name}
+                        </option>
+                      ))}
+                    </select>
                   </div>
 
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-xs text-[#9ca3af]">Count:</span>
-                    {[5, 10, 15, 20].map((num) => (
-                      <button
-                        key={num}
-                        onClick={() => setSelectedCount(num)}
-                        className={`px-2 py-1 rounded-lg text-xs font-mono font-semibold transition-all border ${
-                          selectedCount === num
-                            ? 'bg-[#d4af37] text-[#080d1a] border-[#d4af37]'
-                            : 'bg-[#090e1c] text-[#cbd5e1] border-[#1e293b] hover:border-[#d4af37]/40'
-                        }`}
-                      >
-                        {num}
-                      </button>
-                    ))}
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-semibold text-[#d4af37] uppercase tracking-wider block">
+                      2. Class / Standard
+                    </label>
+                    <select
+                      value={selectedClass}
+                      onChange={(e) => setSelectedClass(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl bg-[#090e1c] border border-[#d4af37]/25 text-xs sm:text-sm text-[#fbf9f4] focus:outline-none focus:border-[#d4af37]"
+                    >
+                      {availableClasses.map((cls) => (
+                        <option key={cls} value={cls}>
+                          {cls}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                 </div>
 
-                <button
-                  onClick={handleGenerateQuestions}
-                  disabled={isGeneratingQuiz}
-                  className="px-4 py-2 rounded-xl bg-gradient-to-r from-[#d4af37] to-[#b88c1b] text-[#080d1a] hover:brightness-110 disabled:opacity-75 font-bold text-xs sm:text-sm flex items-center gap-2 shadow-md transition-all ml-auto"
-                >
-                  {isGeneratingQuiz ? (
-                    <Loader2 className="w-4 h-4 animate-spin text-[#080d1a]" />
-                  ) : (
-                    <Sparkles className="w-4 h-4 fill-[#080d1a]" />
-                  )}
-                  <span>{isGeneratingQuiz ? 'Synthesizing Chapter Quiz...' : 'Generate Custom Chapter Quiz'}</span>
-                </button>
+                {/* Row 2: Subject and Chapter */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-semibold text-[#d4af37] uppercase tracking-wider block">
+                      3. Subject
+                    </label>
+                    <select
+                      value={selectedSubject}
+                      onChange={(e) => setSelectedSubject(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl bg-[#090e1c] border border-[#d4af37]/25 text-xs sm:text-sm text-[#fbf9f4] focus:outline-none focus:border-[#d4af37]"
+                    >
+                      {availableSubjects.map((sub) => (
+                        <option key={sub} value={sub}>
+                          {sub}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-semibold text-[#d4af37] uppercase tracking-wider block">
+                      4. Chapter ({availableChapters.length} available)
+                    </label>
+                    <select
+                      value={selectedChapterId}
+                      onChange={(e) => {
+                        setSelectedChapterId(e.target.value);
+                        setSelectedTopicName('All Topics');
+                      }}
+                      className="w-full px-3 py-2 rounded-xl bg-[#090e1c] border border-[#d4af37]/25 text-xs sm:text-sm text-[#fbf9f4] focus:outline-none focus:border-[#d4af37]"
+                    >
+                      {availableChapters.map((chap) => (
+                        <option key={chap.id} value={chap.id}>
+                          {chap.number}. {chap.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {/* Row 3: Topic in Chapter */}
+                {activeChapterObj && activeChapterObj.topics.length > 0 && (
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-semibold text-[#d4af37] uppercase tracking-wider block">
+                      5. Topic Focus
+                    </label>
+                    <select
+                      value={selectedTopicName}
+                      onChange={(e) => setSelectedTopicName(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl bg-[#090e1c] border border-[#d4af37]/25 text-xs sm:text-sm text-[#fbf9f4] focus:outline-none focus:border-[#d4af37]"
+                    >
+                      <option value="All Topics">All Topics in this Chapter</option>
+                      {activeChapterObj.topics.map((t) => (
+                        <option key={t.id} value={t.name}>
+                          {t.name} {t.highYield ? '⭐ (High Yield)' : ''}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                {/* Row 4: Difficulty, Question Count & Generate Button */}
+                <div className="pt-2 flex flex-wrap items-center justify-between gap-3 border-t border-[#1e293b]">
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs text-[#9ca3af]">Difficulty:</span>
+                      {(['Easy', 'Moderate', 'Hard'] as const).map((diff) => (
+                        <button
+                          key={diff}
+                          onClick={() => setSelectedDifficulty(diff)}
+                          className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all border ${
+                            selectedDifficulty === diff
+                              ? 'bg-[#d4af37] text-[#080d1a] border-[#d4af37]'
+                              : 'bg-[#090e1c] text-[#cbd5e1] border-[#1e293b] hover:border-[#d4af37]/40'
+                          }`}
+                        >
+                          {diff}
+                        </button>
+                      ))}
+                    </div>
+
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs text-[#9ca3af]">Count:</span>
+                      {[5, 10, 15, 20].map((num) => (
+                        <button
+                          key={num}
+                          onClick={() => setSelectedCount(num)}
+                          className={`px-2 py-1 rounded-lg text-xs font-mono font-semibold transition-all border ${
+                            selectedCount === num
+                              ? 'bg-[#d4af37] text-[#080d1a] border-[#d4af37]'
+                              : 'bg-[#090e1c] text-[#cbd5e1] border-[#1e293b] hover:border-[#d4af37]/40'
+                          }`}
+                        >
+                          {num}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={handleGenerateQuestions}
+                    disabled={isGeneratingQuiz}
+                    className="px-4 py-2 rounded-xl bg-gradient-to-r from-[#d4af37] to-[#b88c1b] text-[#080d1a] hover:brightness-110 disabled:opacity-75 font-bold text-xs sm:text-sm flex items-center gap-2 shadow-md transition-all ml-auto"
+                  >
+                    {isGeneratingQuiz ? (
+                      <Loader2 className="w-4 h-4 animate-spin text-[#080d1a]" />
+                    ) : (
+                      <Sparkles className="w-4 h-4 fill-[#080d1a]" />
+                    )}
+                    <span>{isGeneratingQuiz ? 'Synthesizing Chapter Quiz...' : 'Generate Custom Chapter Quiz'}</span>
+                  </button>
+                </div>
               </div>
             </div>
-          )}
+          </div>
         </div>
       )}
 

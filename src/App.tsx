@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { ActiveSection, Book, StudyNote, UserStats, MCQQuestion, PracticeHistoryEntry, ThemePreference } from './types';
 import { INITIAL_USER_STATS, SAMPLE_BOOKS, SAMPLE_NOTES, GOAL_SUBJECTS_MAP } from './data/sampleData';
 import { Header } from './components/Header';
@@ -23,9 +23,21 @@ import { WhatsAppChannelBanner } from './components/WhatsAppChannelBanner';
 import { PremiumFooter } from './components/PremiumFooter';
 import { MiniBubbleBackground } from './components/MiniBubbleBackground';
 import { SVHErrorBoundary } from './components/SVHErrorBoundary';
+import { useGlobalCardTiltEffect } from './components/GlassMetallicSkeleton';
+import { ConfettiCelebration, triggerConfettiCelebration } from './components/ConfettiCelebration';
+import { useGlobalHapticFeedback } from './utils/haptics';
 import { StudySession } from './types';
 import { apiFetch } from './services/nativeApiBridge';
 import { calculateUserVPBreakdown } from './utils/vpPoints';
+import { onAuthStateChanged } from 'firebase/auth';
+import { doc, onSnapshot } from 'firebase/firestore';
+import { auth, db } from './firebase';
+import {
+  upsertUserProfileInFirestore,
+  removeActiveDeviceOnLogoutInFirestore,
+  getClientDeviceId,
+  handleUserTrackingFirestoreError,
+} from './services/firebaseDb';
 
 const STORAGE_KEY = 'study_vault_hub_data_v3';
 const THEME_STORAGE_KEY = 'study_vault_theme_preference_v1';
@@ -34,6 +46,9 @@ const ANON_DEVICE_STORAGE_KEY = 'study_vault_anon_device_id_v1';
 const OWNER_TOKEN_STORAGE_KEY = 'study_vault_owner_session_token_v1';
 
 export default function App() {
+  useGlobalCardTiltEffect();
+  useGlobalHapticFeedback();
+
   const [showSplash, setShowSplash] = useState<boolean>(true);
   const [activeSection, setActiveSection] = useState<ActiveSection>('home');
   const [practiceInitialSubject, setPracticeInitialSubject] = useState<string>('All');
@@ -61,6 +76,11 @@ export default function App() {
         return {
           ...INITIAL_USER_STATS,
           ...parsed,
+          vpPoints: Math.max(0, Number(parsed.vpPoints ?? parsed.vaultPoints ?? 0)),
+          vaultPoints: Math.max(0, Number(parsed.vaultPoints ?? parsed.vpPoints ?? 0)),
+          streakDays: Math.max(0, Number(parsed.streakDays ?? parsed.streak?.current ?? 0)),
+          focusMinutes: Math.max(0, Number(parsed.focusMinutes ?? parsed.totalStudyMinutes ?? 0)),
+          activityHistory: Array.isArray(parsed.activityHistory) ? parsed.activityHistory : [],
           dailyGoals: {
             ...INITIAL_USER_STATS.dailyGoals,
             ...(parsed.dailyGoals || {})
@@ -91,6 +111,7 @@ export default function App() {
         if (diffDays > 1) {
           setUserStats((prev) => ({
             ...prev,
+            streakDays: 0,
             streak: {
               current: 0,
               lastActiveDate: prev.streak?.lastActiveDate || ''
@@ -115,20 +136,41 @@ export default function App() {
       // Sync to backend account if authenticated
       try {
         const rawId = localStorage.getItem(IDENTITY_STORAGE_KEY);
-        if (rawId) {
-          const parsedId = JSON.parse(rawId);
-          if (parsedId?.authToken && userStats.hasCompletedSetup) {
-            apiFetch('/api/auth/sync', {
-              method: 'PUT',
-              headers: {
-                'Content-Type': 'application/json',
-                Authorization: `Bearer ${parsedId.authToken}`,
-              },
-              body: JSON.stringify({ userStats }),
-            }).catch(() => {
-              // ignore transient sync error
-            });
-          }
+        const parsedId = rawId ? JSON.parse(rawId) : null;
+        const resolvedUid =
+          auth?.currentUser?.uid || userStats.userId || parsedId?.userId || '';
+        const computedVp = calculateUserVPBreakdown(userStats).totalVP;
+
+        if (resolvedUid && userStats.hasCompletedSetup) {
+          upsertUserProfileInFirestore({
+            uid: resolvedUid,
+            displayName: userStats.name || auth?.currentUser?.displayName || 'Student',
+            email:
+              auth?.currentUser?.email ||
+              (userStats.username
+                ? userStats.username.includes('@')
+                  ? userStats.username
+                  : `${userStats.username}@svh.student`
+                : `${resolvedUid}@svh.student`),
+            username: userStats.username || null,
+            role: userStats.role === 'owner' ? 'owner' : 'student',
+            vpPoints: Math.max(computedVp, Number(userStats.vpPoints) || 0),
+            deviceId: getClientDeviceId(),
+            userStats,
+          }).catch(() => {});
+        }
+
+        if (parsedId?.authToken && userStats.hasCompletedSetup) {
+          apiFetch('/api/auth/sync', {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${parsedId.authToken}`,
+            },
+            body: JSON.stringify({ userStats }),
+          }).catch(() => {
+            // ignore transient sync error
+          });
         }
       } catch {
         // ignore
@@ -136,6 +178,146 @@ export default function App() {
     }, 180);
     return () => clearTimeout(timeoutId);
   }, [userStats]);
+
+  // Listen to Firebase Auth state changes and automatically create/update users/{uid}
+  const [firebaseAuthUid, setFirebaseAuthUid] = useState<string | null>(() => {
+    return auth?.currentUser?.uid || null;
+  });
+  const [isFirebaseAuthChecked, setIsFirebaseAuthChecked] = useState<boolean>(() => {
+    return !auth || typeof onAuthStateChanged !== 'function';
+  });
+  const [isInitialStateSetupDone, setIsInitialStateSetupDone] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (!auth || typeof onAuthStateChanged !== 'function') {
+      setIsFirebaseAuthChecked(true);
+      return;
+    }
+    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+      setFirebaseAuthUid(firebaseUser ? firebaseUser.uid : null);
+      setIsFirebaseAuthChecked(true);
+      if (!firebaseUser) return;
+      const nowIso = new Date().toISOString();
+      const computedVp = calculateUserVPBreakdown(userStats).totalVP;
+      upsertUserProfileInFirestore({
+        uid: firebaseUser.uid,
+        displayName:
+          firebaseUser.displayName || userStats.name || firebaseUser.email?.split('@')[0] || 'Student',
+        email: firebaseUser.email || `${firebaseUser.uid}@svh.student`,
+        username: userStats.username || firebaseUser.email?.split('@')[0] || null,
+        role: userStats.role === 'owner' ? 'owner' : 'student',
+        createdAt: firebaseUser.metadata?.creationTime
+          ? new Date(firebaseUser.metadata.creationTime).toISOString()
+          : nowIso,
+        lastLogin: firebaseUser.metadata?.lastSignInTime
+          ? new Date(firebaseUser.metadata.lastSignInTime).toISOString()
+          : nowIso,
+        vpPoints: Math.max(computedVp, Number(userStats.vpPoints) || 0),
+        deviceId: getClientDeviceId(),
+        userStats,
+      }).catch(() => {});
+    });
+    return () => unsubscribe();
+  }, [userStats]);
+
+  // REAL-TIME PROFILE VP READ: Attach live Firestore listener (onSnapshot) to users/{auth.currentUser.uid}
+  const [liveFirestoreVpPoints, setLiveFirestoreVpPoints] = useState<number | null>(null);
+
+  const activeProfileUid = useMemo(() => {
+    if (auth?.currentUser?.uid) return auth.currentUser.uid;
+    if (firebaseAuthUid) return firebaseAuthUid;
+    if (userStats.userId) return userStats.userId;
+    try {
+      const rawId = localStorage.getItem(IDENTITY_STORAGE_KEY);
+      if (rawId) {
+        const parsed = JSON.parse(rawId);
+        if (parsed?.userId) return String(parsed.userId);
+      }
+    } catch {
+      // ignore
+    }
+    return null;
+  }, [firebaseAuthUid, userStats.userId]);
+
+  useEffect(() => {
+    const uid = auth?.currentUser?.uid || activeProfileUid;
+    if (!uid) {
+      setLiveFirestoreVpPoints(null);
+      return;
+    }
+
+    const userDocRef = doc(db, 'users', uid);
+    const unsubscribe = onSnapshot(
+      userDocRef,
+      (snapshot) => {
+        if (!snapshot.exists()) return;
+        const data = snapshot.data() || {};
+        const remoteVp = Math.max(
+          0,
+          Math.floor(Number(data.vpPoints ?? data.vaultPoints ?? data.userStats?.vpPoints ?? 0))
+        );
+        setLiveFirestoreVpPoints(remoteVp);
+
+        setUserStats((prev) => {
+          const prevVp = Math.max(0, Math.floor(Number(prev.vpPoints ?? prev.vaultPoints ?? 0)));
+          const mergedVp = Math.max(prevVp, remoteVp);
+          const remoteQuestions = Math.max(
+            Number(prev.questionsAttempted) || 0,
+            Number(data.questionsAttempted ?? data.userStats?.questionsAttempted) || 0
+          );
+          const remoteCorrect = Math.max(
+            Number(prev.correctAnswers) || 0,
+            Number(data.correctAnswers ?? data.userStats?.correctAnswers) || 0
+          );
+          const remoteMinutes = Math.max(
+            Number(prev.totalStudyMinutes) || 0,
+            Number(data.totalStudyMinutes ?? data.focusMinutes ?? data.userStats?.totalStudyMinutes ?? data.userStats?.focusMinutes) || 0
+          );
+          const remoteStreak = Math.max(
+            Number(prev.streak?.current ?? prev.streakDays) || 0,
+            Number(data.streakDays ?? data.userStats?.streak?.current ?? data.userStats?.streakDays) || 0
+          );
+
+          if (
+            prev.vpPoints === mergedVp &&
+            prev.vaultPoints === mergedVp &&
+            prev.questionsAttempted === remoteQuestions &&
+            prev.correctAnswers === remoteCorrect &&
+            prev.totalStudyMinutes === remoteMinutes &&
+            prev.focusMinutes === remoteMinutes &&
+            prev.streakDays === remoteStreak
+          ) {
+            return prev;
+          }
+
+          return {
+            ...prev,
+            vpPoints: mergedVp,
+            vaultPoints: mergedVp,
+            questionsAttempted: remoteQuestions,
+            correctAnswers: remoteCorrect,
+            totalStudyMinutes: remoteMinutes,
+            focusMinutes: remoteMinutes,
+            streakDays: remoteStreak,
+          };
+        });
+      },
+      (error) => {
+        const msg = error instanceof Error ? error.message : String(error);
+        if (msg.toLowerCase().includes('Missing or insufficient permissions'.toLowerCase())) {
+          try {
+            handleUserTrackingFirestoreError(error, 'get' as any, `users/${uid}`);
+          } catch {
+            // logged by handler
+          }
+        }
+      }
+    );
+
+    return () => {
+      unsubscribe();
+    };
+  }, [activeProfileUid]);
 
   // Global Theme Preference ('light' | 'dark' | 'system') & System Default Listener
   // New users with no saved preference always start in finalized Light Mode
@@ -293,6 +475,10 @@ export default function App() {
         }
       } catch {
         // ignore
+      } finally {
+        if (!isCancelled) {
+          setIsInitialStateSetupDone(true);
+        }
       }
     };
 
@@ -596,8 +782,45 @@ export default function App() {
   }, [activeGoal]);
 
   const vpBreakdown = useMemo(() => {
-    return calculateUserVPBreakdown(userStats);
-  }, [userStats]);
+    const effectiveStats: UserStats =
+      liveFirestoreVpPoints !== null
+        ? {
+            ...userStats,
+            vpPoints: Math.max(Number(userStats.vpPoints) || 0, liveFirestoreVpPoints),
+            vaultPoints: Math.max(Number(userStats.vaultPoints) || 0, liveFirestoreVpPoints),
+          }
+        : userStats;
+    return calculateUserVPBreakdown(effectiveStats);
+  }, [userStats, liveFirestoreVpPoints]);
+
+  // Trigger confetti celebration when user earns VP Points or completes a study task
+  const completedTasksCount = useMemo(
+    () => (userStats.tasks || []).filter((t) => t.completed).length,
+    [userStats.tasks]
+  );
+  const prevVpRef = useRef<number | null>(null);
+  const prevCompletedTasksRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (!isInitialStateSetupDone) {
+      prevVpRef.current = vpBreakdown.totalVP;
+      prevCompletedTasksRef.current = completedTasksCount;
+      return;
+    }
+
+    const prevVp = prevVpRef.current;
+    const prevTasks = prevCompletedTasksRef.current;
+    const currentVp = vpBreakdown.totalVP;
+
+    if (prevVp !== null && currentVp > prevVp) {
+      triggerConfettiCelebration({ reason: 'vp' });
+    } else if (prevTasks !== null && completedTasksCount > prevTasks) {
+      triggerConfettiCelebration({ reason: 'task' });
+    }
+
+    prevVpRef.current = currentVp;
+    prevCompletedTasksRef.current = completedTasksCount;
+  }, [vpBreakdown.totalVP, completedTasksCount, isInitialStateSetupDone]);
 
   const handleSelectActiveGoal = useCallback((goal: string) => {
     setUserStats((prev) => ({
@@ -913,16 +1136,18 @@ export default function App() {
   const handleLogoutAccount = useCallback(async () => {
     try {
       const rawId = localStorage.getItem(IDENTITY_STORAGE_KEY);
-      if (rawId) {
-        const parsed = JSON.parse(rawId);
-        if (parsed?.authToken) {
-          await apiFetch('/api/auth/logout', {
-            method: 'POST',
-            headers: {
-              Authorization: `Bearer ${parsed.authToken}`,
-            },
-          });
-        }
+      const parsed = rawId ? JSON.parse(rawId) : null;
+      const targetUid = auth?.currentUser?.uid || userStats.userId || parsed?.userId;
+      if (targetUid) {
+        await removeActiveDeviceOnLogoutInFirestore(targetUid, getClientDeviceId());
+      }
+      if (parsed?.authToken) {
+        await apiFetch('/api/auth/logout', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${parsed.authToken}`,
+          },
+        });
       }
     } catch {
       // ignore
@@ -962,10 +1187,14 @@ export default function App() {
     <div className="min-h-screen min-h-[100dvh] w-full max-w-[100vw] overflow-x-clip bg-[#060b18] text-[#f7f4ee] flex flex-col selection:bg-[#d4af37]/30 selection:text-white">
       {/* Standalone Mini Bubble Background Animation Layer */}
       <MiniBubbleBackground />
+      <ConfettiCelebration />
 
-      {/* Official Opening Splash Animation (1.8s) */}
+      {/* Official Opening Splash Animation with Background Leaf Stencil Watermark */}
       {showSplash && (
-        <SplashScreen onFinish={() => setShowSplash(false)} />
+        <SplashScreen
+          isAppReady={isFirebaseAuthChecked && isInitialStateSetupDone}
+          onFinish={() => setShowSplash(false)}
+        />
       )}
 
       {/* Onboarding & Cross-Device Account Authentication Modal */}
@@ -983,24 +1212,26 @@ export default function App() {
       )}
 
       {/* Top Bar Header with Uploaded Brand Logo */}
-      <Header
-        activeSection={activeSection}
-        onNavigate={handleNavigate}
-        onOpenSearch={handleOpenSearch}
-        streakDays={userStats.streak?.current || 0}
-        vpPoints={vpBreakdown.totalVP}
-        userStats={userStats}
-        userName={userStats.name || 'Student'}
-        userProfilePhotoUrl={userStats.profilePhotoUrl}
-        isFloatingTopDock={isMobileOrTabletPortrait}
-      />
+      <div className="svh-focus-dimmable">
+        <Header
+          activeSection={activeSection}
+          onNavigate={handleNavigate}
+          onOpenSearch={handleOpenSearch}
+          streakDays={userStats.streak?.current || 0}
+          vpPoints={vpBreakdown.totalVP}
+          userStats={userStats}
+          userName={userStats.name || 'Student'}
+          userProfilePhotoUrl={userStats.profilePhotoUrl}
+          isFloatingTopDock={isMobileOrTabletPortrait}
+        />
 
-      {/* Official WhatsApp Channel Banner Directly Below Header */}
-      <WhatsAppChannelBanner isFloatingTopDock={isMobileOrTabletPortrait} />
+        {/* Official WhatsApp Channel Banner Directly Below Header */}
+        <WhatsAppChannelBanner isFloatingTopDock={isMobileOrTabletPortrait} />
+      </div>
 
       {/* Main Container */}
       <main
-        className={`flex-1 w-full max-w-5xl mx-auto px-3.5 sm:px-6 overflow-x-hidden ${
+        className={`svh-focus-dimmable flex-1 w-full max-w-5xl mx-auto px-3.5 sm:px-6 overflow-x-hidden ${
           isMobileOrTabletPortrait ? 'pt-6' : 'pt-5'
         } ${
           isFloatingBottomNav
@@ -1029,6 +1260,8 @@ export default function App() {
               onSelectActiveGoal={handleSelectActiveGoal}
               onOpenGoalsManager={() => handleNavigate('profile')}
               onOpenFocusMode={() => setIsFocusModeOpen(true)}
+              resolvedTheme={resolvedTheme}
+              onChangeTheme={handleChangeTheme}
             />
           )}
 
@@ -1135,11 +1368,13 @@ export default function App() {
       />
 
       {/* Bottom Navigation */}
-      <BottomNav
-        activeSection={activeSection}
-        onNavigate={handleNavigate}
-        isFloatingDock={isFloatingBottomNav}
-      />
+      <div className="svh-focus-dimmable">
+        <BottomNav
+          activeSection={activeSection}
+          onNavigate={handleNavigate}
+          isFloatingDock={isFloatingBottomNav}
+        />
+      </div>
 
       {/* Premium Study Focus Mode Modal */}
       <FocusModeModal

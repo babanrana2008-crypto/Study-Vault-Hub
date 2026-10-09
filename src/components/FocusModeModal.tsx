@@ -86,6 +86,7 @@ export const FocusModeModal: React.FC<FocusModeModalProps> = ({
     if (!isOpen || typeof document === 'undefined') return;
     const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
+    document.body.classList.add('svh-focus-mode-active');
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && !isRunning) {
@@ -95,6 +96,7 @@ export const FocusModeModal: React.FC<FocusModeModalProps> = ({
     window.addEventListener('keydown', handleKeyDown);
     return () => {
       document.body.style.overflow = prevOverflow;
+      document.body.classList.remove('svh-focus-mode-active');
       window.removeEventListener('keydown', handleKeyDown);
     };
   }, [isOpen, isRunning, onClose]);
@@ -222,7 +224,7 @@ export const FocusModeModal: React.FC<FocusModeModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-2.5 sm:p-5 overflow-y-auto overscroll-contain">
-      <div className="w-full max-w-2xl max-h-[94vh] max-h-[94dvh] rounded-2xl sm:rounded-3xl bg-gradient-to-b from-[#0b1326] via-[#091020] to-[#060b18] border-2 border-[#d4af37]/45 shadow-2xl overflow-hidden my-auto flex flex-col">
+      <div className="svh-spring-modal-card w-full max-w-2xl max-h-[94vh] max-h-[94dvh] rounded-2xl sm:rounded-3xl bg-gradient-to-b from-[#0b1326] via-[#091020] to-[#060b18] border-2 border-[#d4af37]/45 shadow-2xl overflow-hidden my-auto flex flex-col">
         {/* Top Bar */}
         <div className="px-5 py-4 bg-[#0d172c] border-b border-[#d4af37]/25 flex items-center justify-between gap-3">
           <div className="flex items-center gap-2.5">
@@ -240,11 +242,13 @@ export const FocusModeModal: React.FC<FocusModeModalProps> = ({
           </div>
 
           <button
+            type="button"
             onClick={() => {
               if (isRunning) setIsRunning(false);
               onClose();
             }}
-            className="w-8 h-8 rounded-lg bg-[#131b2e] text-[#cbd5e1] hover:text-white flex items-center justify-center"
+            aria-label="Close Focus Mode"
+            className="min-h-[44px] min-w-[44px] w-11 h-11 rounded-xl bg-[#131b2e] text-[#cbd5e1] hover:text-white flex items-center justify-center shrink-0 cursor-pointer"
             title="Close Focus Mode"
           >
             <X className="w-4 h-4" />
@@ -276,7 +280,7 @@ export const FocusModeModal: React.FC<FocusModeModalProps> = ({
                         setSelectedSubject(sub);
                         setCustomSubject('');
                       }}
-                      className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
+                      className={`min-h-[44px] min-w-[44px] px-3.5 py-2 rounded-xl text-xs font-semibold border transition-all cursor-pointer flex items-center justify-center ${
                         selectedSubject === sub && !customSubject.trim()
                           ? 'bg-[#d4af37] text-[#080d1a] border-[#d4af37] shadow-sm font-bold'
                           : 'bg-[#0f172a] text-[#cbd5e1] border-[#d4af37]/25 hover:border-[#d4af37]/60'
@@ -478,7 +482,7 @@ export const FocusModeModal: React.FC<FocusModeModalProps> = ({
                 <div className="max-w-md mx-auto space-y-1 pt-2">
                   <div className="w-full h-2 bg-[#131b2e] rounded-full overflow-hidden border border-[#d4af37]/20">
                     <div
-                      className="h-full bg-gradient-to-r from-[#d4af37] to-emerald-400 transition-all duration-300"
+                      className="svh-animated-progress-fill h-full bg-gradient-to-r from-[#d4af37] to-emerald-400"
                       style={{ width: `${progressPercent}%` }}
                     />
                   </div>

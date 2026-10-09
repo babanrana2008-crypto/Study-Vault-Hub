@@ -16,6 +16,9 @@ import {
 import { APP_LOGO, PRESET_GOALS } from '../data/sampleData';
 import { UserStats } from '../types';
 import { apiFetch } from '../services/nativeApiBridge';
+import { auth } from '../firebase';
+import { upsertUserProfileInFirestore } from '../services/firebaseDb';
+import { calculateUserVPBreakdown } from '../utils/vpPoints';
 
 const IDENTITY_STORAGE_KEY = 'study_vault_community_identity_v1';
 const ANON_DEVICE_STORAGE_KEY = 'study_vault_anon_device_id_v1';
@@ -203,22 +206,51 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
         throw new Error(data.error || 'Could not create account. Please try again.');
       }
 
+      const resolvedUserStats: Partial<UserStats> = {
+        ...(data.userStats || {}),
+        userId: data.userId,
+        username: data.username || cleanUsername,
+        role: 'student',
+        name: data.displayName || trimmedName,
+        selectedGoals,
+        activeGoal: selectedGoals[0],
+        hasCompletedSetup: true,
+      };
+      const resolvedUid = auth?.currentUser?.uid || data.userId;
+      const resolvedVp =
+        Number(resolvedUserStats.vpPoints) ||
+        Number(resolvedUserStats.vaultPoints) ||
+        calculateUserVPBreakdown({ ...(currentStats || {}), ...resolvedUserStats } as UserStats)
+          .totalVP ||
+        0;
+      const nowIso = new Date().toISOString();
+      const platformStr = getDevicePlatformInfo();
+
+      // Automatically create/update profile document at users/{uid} (never storing passwords)
+      upsertUserProfileInFirestore({
+        uid: resolvedUid,
+        displayName: data.displayName || trimmedName,
+        email:
+          auth?.currentUser?.email ||
+          (cleanUsername.includes('@') ? cleanUsername : `${cleanUsername}@svh.student`),
+        username: data.username || cleanUsername,
+        role: 'student',
+        createdAt: nowIso,
+        lastLogin: nowIso,
+        vpPoints: resolvedVp,
+        deviceId: getDeviceId(),
+        deviceInfo: platformStr,
+        platformType: platformStr.toLowerCase().includes('apk') ? 'APK' : 'Web',
+        userStats: resolvedUserStats,
+      }).catch(() => {});
+
       onAuthSuccess({
         userId: data.userId,
         username: data.username || cleanUsername,
         role: 'student',
         isOwner: false,
         authToken: data.authToken,
-        userStats: {
-          ...(data.userStats || {}),
-          userId: data.userId,
-          username: data.username || cleanUsername,
-          role: 'student',
-          name: data.displayName || trimmedName,
-          selectedGoals,
-          activeGoal: selectedGoals[0],
-          hasCompletedSetup: true,
-        },
+        userStats: resolvedUserStats,
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Registration failed. Please try again.');
@@ -264,6 +296,49 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
 
       const resolvedRole: 'student' | 'owner' = data.role === 'owner' ? 'owner' : 'student';
       const resolvedIsOwner = Boolean(data.isOwner && resolvedRole === 'owner');
+      const resolvedUserStats: Partial<UserStats> = {
+        ...(data.userStats || {}),
+        userId: data.userId,
+        username: data.username || cleanUsername,
+        role: resolvedRole,
+        name: data.displayName || data.userStats?.name || 'Student',
+        profilePhotoUrl:
+          data.profilePhotoUrl !== undefined
+            ? data.profilePhotoUrl
+            : data.userStats?.profilePhotoUrl || null,
+        svhAiButtonPosition:
+          data.svhAiButtonPosition !== undefined
+            ? data.svhAiButtonPosition
+            : data.userStats?.svhAiButtonPosition || null,
+        hasCompletedSetup: true,
+      };
+      const resolvedUid = auth?.currentUser?.uid || data.userId;
+      const resolvedVp =
+        Number(resolvedUserStats.vpPoints) ||
+        Number(resolvedUserStats.vaultPoints) ||
+        calculateUserVPBreakdown({ ...(currentStats || {}), ...resolvedUserStats } as UserStats)
+          .totalVP ||
+        0;
+      const nowIso = new Date().toISOString();
+      const platformStr = getDevicePlatformInfo();
+
+      // Automatically update/create profile document at users/{uid} (never storing passwords)
+      upsertUserProfileInFirestore({
+        uid: resolvedUid,
+        displayName: data.displayName || data.userStats?.name || 'Student',
+        email:
+          auth?.currentUser?.email ||
+          (cleanUsername.includes('@') ? cleanUsername : `${cleanUsername}@svh.student`),
+        username: data.username || cleanUsername,
+        role: resolvedRole,
+        createdAt: data.createdAt || nowIso,
+        lastLogin: nowIso,
+        vpPoints: resolvedVp,
+        deviceId: getDeviceId(),
+        deviceInfo: platformStr,
+        platformType: platformStr.toLowerCase().includes('apk') ? 'APK' : 'Web',
+        userStats: resolvedUserStats,
+      }).catch(() => {});
 
       onAuthSuccess({
         userId: data.userId,
@@ -271,22 +346,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
         role: resolvedRole,
         isOwner: resolvedIsOwner,
         authToken: data.authToken,
-        userStats: {
-          ...(data.userStats || {}),
-          userId: data.userId,
-          username: data.username || cleanUsername,
-          role: resolvedRole,
-          name: data.displayName || data.userStats?.name || 'Student',
-          profilePhotoUrl:
-            data.profilePhotoUrl !== undefined
-              ? data.profilePhotoUrl
-              : data.userStats?.profilePhotoUrl || null,
-          svhAiButtonPosition:
-            data.svhAiButtonPosition !== undefined
-              ? data.svhAiButtonPosition
-              : data.userStats?.svhAiButtonPosition || null,
-          hasCompletedSetup: true,
-        },
+        userStats: resolvedUserStats,
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Sign in failed. Please try again.');
@@ -297,7 +357,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/85 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="w-full max-w-lg bg-[#0c1428] border border-[#d4af37]/40 rounded-2xl sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh] text-[#fbf9f4]">
+      <div className="svh-spring-modal-card w-full max-w-lg bg-[#0c1428] border border-[#d4af37]/40 rounded-2xl sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh] text-[#fbf9f4]">
         {/* Brand Banner */}
         <div className="p-4 sm:p-5 bg-gradient-to-b from-[#131d36] to-[#0c1428] border-b border-[#d4af37]/25 text-center space-y-2.5 shrink-0 relative">
           {onClose && (

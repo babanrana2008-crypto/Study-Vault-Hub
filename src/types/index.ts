@@ -7,6 +7,10 @@ export interface CommunityPost {
   authorAvatarUrl?: string | null;
   subject: string;
   content: string;
+  messageText?: string;
+  timestamp?: string | number;
+  replies?: CommunityReply[];
+  postType?: 'doubt' | 'chat';
   imageUrl?: string;
   createdAt: string;
   replyCount: number;
@@ -19,6 +23,8 @@ export interface CommunityReply {
   authorName: string;
   authorAvatarUrl?: string | null;
   content: string;
+  messageText?: string;
+  timestamp?: string | number;
   imageUrl?: string;
   createdAt: string;
 }
@@ -29,6 +35,8 @@ export interface CommunityChatMessage {
   authorName: string;
   authorAvatarUrl?: string | null;
   content: string;
+  messageText?: string;
+  timestamp?: string | number;
   subjectTag?: string;
   createdAt: string;
 }
@@ -302,6 +310,13 @@ export interface LoginSessionRecord {
   deviceId?: string;
 }
 
+export interface ActiveDeviceRecord {
+  deviceId: string;
+  platformType: 'Web' | 'APK';
+  deviceInfo: string;
+  lastActive: string;
+}
+
 export interface LeaderboardEntry {
   rank: number;
   userId: string;
@@ -366,6 +381,8 @@ export interface UserStats {
   correctAnswers: number;
   incorrectAnswers: number;
   totalStudyMinutes: number;
+  focusMinutes?: number;
+  streakDays?: number;
   vpPoints?: number;
   vaultPoints?: number;
   questionVp?: number;
@@ -380,6 +397,7 @@ export interface UserStats {
   aiSmartRevisionPlan?: AISmartRevisionPlan | null;
   activeStudyPlan?: AISmartRevisionPlan | null;
   vpTransactions?: VPTransaction[];
+  activityHistory?: Array<Record<string, unknown>>;
   dailyActivity?: Record<string, { questionsSolved: number; studyMinutes: number; vpEarned?: number }>;
   seenQuestionIds?: string[];
   revisionSchedule?: RevisionItem[];

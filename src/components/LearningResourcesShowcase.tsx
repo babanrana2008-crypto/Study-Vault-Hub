@@ -49,7 +49,7 @@ export const LearningResourcesShowcase: React.FC<LearningResourcesShowcaseProps>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
           {/* 1. High-Yield Notes */}
-          <div className="p-4 rounded-2xl bg-[#0f172a] border border-[#d4af37]/25 hover:border-[#d4af37]/55 flex flex-col justify-between space-y-3 transition-all">
+          <div className="svh-3d-tilt-card p-4 rounded-2xl bg-[#0f172a] border border-[#d4af37]/25 hover:border-[#d4af37]/55 flex flex-col justify-between space-y-3 transition-all">
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <div className="w-9 h-9 rounded-xl bg-[#131b2e] border border-[#d4af37]/30 flex items-center justify-center text-[#d4af37]">
@@ -77,7 +77,7 @@ export const LearningResourcesShowcase: React.FC<LearningResourcesShowcaseProps>
           </div>
 
           {/* 2. Reference Books */}
-          <div className="p-4 rounded-2xl bg-[#0f172a] border border-[#d4af37]/25 hover:border-[#d4af37]/55 flex flex-col justify-between space-y-3 transition-all">
+          <div className="svh-3d-tilt-card p-4 rounded-2xl bg-[#0f172a] border border-[#d4af37]/25 hover:border-[#d4af37]/55 flex flex-col justify-between space-y-3 transition-all">
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <div className="w-9 h-9 rounded-xl bg-[#131b2e] border border-[#d4af37]/30 flex items-center justify-center text-[#d4af37]">
@@ -105,7 +105,7 @@ export const LearningResourcesShowcase: React.FC<LearningResourcesShowcaseProps>
           </div>
 
           {/* 3. Official NCERT Library */}
-          <div className="p-4 rounded-2xl bg-[#0f172a] border border-[#d4af37]/25 hover:border-[#d4af37]/55 flex flex-col justify-between space-y-3 transition-all">
+          <div className="svh-3d-tilt-card p-4 rounded-2xl bg-[#0f172a] border border-[#d4af37]/25 hover:border-[#d4af37]/55 flex flex-col justify-between space-y-3 transition-all">
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <div className="w-9 h-9 rounded-xl bg-[#131b2e] border border-[#d4af37]/30 flex items-center justify-center text-[#d4af37]">
@@ -133,7 +133,7 @@ export const LearningResourcesShowcase: React.FC<LearningResourcesShowcaseProps>
           </div>
 
           {/* 4. AI Question Practice */}
-          <div className="p-4 rounded-2xl bg-[#0f172a] border border-[#d4af37]/25 hover:border-[#d4af37]/55 flex flex-col justify-between space-y-3 transition-all">
+          <div className="svh-3d-tilt-card p-4 rounded-2xl bg-[#0f172a] border border-[#d4af37]/25 hover:border-[#d4af37]/55 flex flex-col justify-between space-y-3 transition-all">
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <div className="w-9 h-9 rounded-xl bg-[#131b2e] border border-[#d4af37]/30 flex items-center justify-center text-emerald-400">
@@ -161,7 +161,7 @@ export const LearningResourcesShowcase: React.FC<LearningResourcesShowcaseProps>
           </div>
 
           {/* 5. Study Tracker & Focus Mode */}
-          <div className="p-4 rounded-2xl bg-[#0f172a] border border-[#d4af37]/25 hover:border-[#d4af37]/55 flex flex-col justify-between space-y-3 transition-all">
+          <div className="svh-3d-tilt-card p-4 rounded-2xl bg-[#0f172a] border border-[#d4af37]/25 hover:border-[#d4af37]/55 flex flex-col justify-between space-y-3 transition-all">
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <div className="w-9 h-9 rounded-xl bg-[#131b2e] border border-[#d4af37]/30 flex items-center justify-center text-amber-400">
@@ -198,7 +198,7 @@ export const LearningResourcesShowcase: React.FC<LearningResourcesShowcaseProps>
           </div>
 
           {/* 6. 3D Labs & Spatial Concept Exploration */}
-          <div className="p-4 rounded-2xl bg-[#0f172a] border border-[#d4af37]/25 hover:border-[#d4af37]/55 flex flex-col justify-between space-y-3 transition-all">
+          <div className="svh-3d-tilt-card p-4 rounded-2xl bg-[#0f172a] border border-[#d4af37]/25 hover:border-[#d4af37]/55 flex flex-col justify-between space-y-3 transition-all">
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <div className="w-9 h-9 rounded-xl bg-[#131b2e] border border-[#d4af37]/30 flex items-center justify-center text-[#d4af37]">

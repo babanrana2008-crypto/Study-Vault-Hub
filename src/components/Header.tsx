@@ -3,6 +3,7 @@ import { Search, Flame, User, Trophy } from 'lucide-react';
 import { ActiveSection, UserStats } from '../types';
 import { APP_LOGO, INITIAL_USER_STATS } from '../data/sampleData';
 import { VaultPointsPopup } from './VaultPointsPopup';
+import { RollingVPCounter } from './RollingVPCounter';
 
 interface HeaderProps {
   activeSection: ActiveSection;
@@ -28,17 +29,8 @@ export const Header: React.FC<HeaderProps> = React.memo(({
   isFloatingTopDock = false,
 }) => {
   const [isVpPopupOpen, setIsVpPopupOpen] = useState(false);
+  const [vpPopupTab, setVpPopupTab] = useState<'vp' | 'streak'>('vp');
   const handleCloseVpPopup = useCallback(() => setIsVpPopupOpen(false), []);
-  const sectionTitles: Record<ActiveSection, string> = {
-    home: 'Vault Home',
-    books: 'Books Library',
-    notes: 'High-Yield Notes',
-    practice: 'Question Practice',
-    tracker: 'Study Tracker',
-    community: 'Community',
-    prep: 'Exam Prep',
-    profile: 'Profile'
-  };
 
   const isNativeAndroid =
     typeof window !== 'undefined' &&
@@ -53,151 +45,167 @@ export const Header: React.FC<HeaderProps> = React.memo(({
       aria-label="Top Navigation"
       className={
         isFloatingTopDock
-          ? 'sticky top-[calc(0.5rem+env(safe-area-inset-top))] z-30 w-full max-w-full px-2.5 sm:px-4 pointer-events-none transition-all'
-          : 'sticky top-0 z-30 w-full max-w-full bg-[#060b18]/95 backdrop-blur-md border-b border-[#d4af37]/20 transition-colors'
+          ? 'sticky top-[calc(0.5rem+env(safe-area-inset-top))] z-30 w-full max-w-full px-3 sm:px-4 overflow-x-clip pointer-events-none transition-all'
+          : 'sticky top-0 z-30 w-full max-w-full px-3 sm:px-4 bg-[#060b18]/95 backdrop-blur-md border-b border-[#d4af37]/20 overflow-x-clip transition-colors'
       }
     >
-      <div
+      <nav
+        aria-label="Main Header Navigation"
         className={
           isFloatingTopDock
-            ? 'pointer-events-auto max-w-5xl mx-auto px-2.5 sm:px-5 min-h-[3.5rem] py-1.5 rounded-2xl bg-[#060b18]/95 backdrop-blur-xl border border-[#d4af37]/35 shadow-[0_10px_30px_rgba(0,0,0,0.65),0_0_20px_rgba(212,175,55,0.14)] flex items-center justify-between gap-1.5 sm:gap-3 min-w-0 overflow-visible'
-            : 'max-w-5xl mx-auto px-2.5 sm:px-6 min-h-[3.5rem] py-1.5 flex items-center justify-between gap-1.5 sm:gap-3 min-w-0 overflow-visible'
+            ? 'svh-header-navbar pointer-events-auto w-full max-w-5xl mx-auto px-3 sm:px-4 min-h-[3.5rem] py-1.5 rounded-2xl bg-[#060b18]/95 backdrop-blur-xl border border-[#d4af37]/35 shadow-[0_10px_30px_rgba(0,0,0,0.65),0_0_20px_rgba(212,175,55,0.14)] flex items-center justify-between gap-2 sm:gap-4 min-w-0 overflow-visible'
+            : 'svh-header-navbar w-full max-w-5xl mx-auto px-1 sm:px-2 min-h-[3.5rem] py-1.5 flex items-center justify-between gap-2 sm:gap-4 min-w-0 overflow-visible'
         }
       >
-        {/* Zone 1: Main App Logo & Title using the official Study Vault Hub logo */}
-        <button
-          onClick={() => onNavigate('home')}
-          className="flex items-center gap-2 sm:gap-2.5 text-left group focus:outline-none min-w-0 flex-1 shrink overflow-visible"
-        >
-          <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full overflow-hidden flex items-center justify-center shrink-0 aspect-square">
-            <img
-              src={APP_LOGO}
-              alt="Study Vault Hub"
-              className="w-full h-full rounded-full object-contain aspect-square"
-              referrerPolicy="no-referrer"
-              onError={(e) => {
-                // Fallback if image load error
-                (e.target as HTMLElement).style.display = 'none';
-              }}
-            />
-          </div>
-          <div className="flex flex-col min-w-0 justify-center">
-            <span className="font-display text-xs sm:text-base font-bold tracking-tight text-[#fbf9f4] group-hover:text-[#d4af37] transition-colors leading-tight whitespace-nowrap">
-              Study Vault Hub
-            </span>
-            <span
-              className={`text-[9px] sm:text-[10px] text-[#cbd5e1]/90 font-mono tracking-tight leading-[1.15] mt-0.5 flex flex-col ${
-                showApkDesktopNav ? 'xl:flex-row xl:items-center xl:gap-1' : 'sm:flex-row sm:items-center sm:gap-1'
-              } min-w-0`}
-            >
-              <span className="whitespace-nowrap">Developed by</span>
-              <span className="text-[#d4af37]/95 font-semibold whitespace-nowrap">Soumyadip Rana</span>
-            </span>
-          </div>
-        </button>
+        {/* 1. LEFT CONTAINER (brand-section): Logo + "Study Vault Hub" + "Developed by Soumyadip Rana" */}
+        <div className="brand-section flex flex-1 md:flex-initial items-center gap-2 min-w-0 mr-1 sm:mr-2">
+          <button
+            type="button"
+            onClick={() => onNavigate('home')}
+            className="flex flex-1 md:flex-initial items-center gap-2 sm:gap-2.5 text-left group focus:outline-none min-w-0"
+          >
+            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full overflow-hidden flex items-center justify-center shrink-0 aspect-square">
+              <img
+                src={APP_LOGO}
+                alt="Study Vault Hub"
+                className="w-full h-full rounded-full object-contain aspect-square"
+                referrerPolicy="no-referrer"
+                onError={(e) => {
+                  (e.target as HTMLElement).style.display = 'none';
+                }}
+              />
+            </div>
+            <div className="flex flex-col justify-center flex-1 min-w-0">
+              <span className="font-display text-xs sm:text-base font-bold tracking-tight text-[#fbf9f4] group-hover:text-[#d4af37] transition-colors leading-[1.2] truncate block">
+                Study Vault Hub
+              </span>
+              <span className="hidden min-[380px]:block sm:block text-[9px] sm:text-[10px] text-[#cbd5e1]/90 font-mono tracking-tight leading-[1.2] mt-0.5 truncate">
+                Developed by <span className="text-[#d4af37]/95 font-semibold">Soumyadip Rana</span>
+              </span>
+            </div>
+          </button>
+        </div>
 
-        {/* Zone 2: Navigation Links for desktop */}
+        {/* 2. CENTER CONTAINER (nav-links): "Home", "Books", "Notes", "Practice", "Tracker", "Community", "Profile" */}
         <div
-          className={`${
+          className={`nav-links ${
             showApkDesktopNav
-              ? 'flex items-center gap-1.5 sm:gap-2.5 md:gap-4 lg:gap-5 text-[11px] sm:text-xs lg:text-sm font-medium overflow-x-auto no-scrollbar min-w-0 max-w-full px-1'
-              : 'hidden md:flex items-center gap-4 lg:gap-5 text-xs lg:text-sm font-medium shrink-0'
+              ? 'hidden sm:flex flex-1 items-center justify-start lg:justify-center gap-3 sm:gap-4 lg:gap-5 text-[11px] sm:text-xs lg:text-sm font-medium overflow-x-auto no-scrollbar min-w-0 px-1 py-0.5'
+              : 'hidden md:flex flex-1 items-center justify-start lg:justify-center gap-3.5 lg:gap-5 text-xs lg:text-sm font-medium overflow-x-auto no-scrollbar min-w-0 px-1 py-0.5'
           }`}
         >
           <button
+            type="button"
             onClick={() => onNavigate('home')}
-            className={`transition-colors hover:text-[#d4af37] whitespace-nowrap shrink-0 ${activeSection === 'home' ? 'text-[#d4af37] font-semibold' : 'text-[#cbd5e1]'}`}
+            className={`min-h-[44px] px-2 flex items-center justify-center transition-colors hover:text-[#d4af37] whitespace-nowrap shrink-0 cursor-pointer ${activeSection === 'home' ? 'text-[#d4af37] font-semibold' : 'text-[#cbd5e1]'}`}
           >
             Home
           </button>
           <button
+            type="button"
             onClick={() => onNavigate('books')}
-            className={`transition-colors hover:text-[#d4af37] whitespace-nowrap shrink-0 ${activeSection === 'books' ? 'text-[#d4af37] font-semibold' : 'text-[#cbd5e1]'}`}
+            className={`min-h-[44px] px-2 flex items-center justify-center transition-colors hover:text-[#d4af37] whitespace-nowrap shrink-0 cursor-pointer ${activeSection === 'books' ? 'text-[#d4af37] font-semibold' : 'text-[#cbd5e1]'}`}
           >
             Books
           </button>
           <button
+            type="button"
             onClick={() => onNavigate('notes')}
-            className={`transition-colors hover:text-[#d4af37] whitespace-nowrap shrink-0 ${activeSection === 'notes' ? 'text-[#d4af37] font-semibold' : 'text-[#cbd5e1]'}`}
+            className={`min-h-[44px] px-2 flex items-center justify-center transition-colors hover:text-[#d4af37] whitespace-nowrap shrink-0 cursor-pointer ${activeSection === 'notes' ? 'text-[#d4af37] font-semibold' : 'text-[#cbd5e1]'}`}
           >
             Notes
           </button>
           <button
+            type="button"
             onClick={() => onNavigate('practice')}
-            className={`transition-colors hover:text-[#d4af37] whitespace-nowrap shrink-0 ${activeSection === 'practice' ? 'text-[#d4af37] font-semibold' : 'text-[#cbd5e1]'}`}
+            className={`min-h-[44px] px-2 flex items-center justify-center transition-colors hover:text-[#d4af37] whitespace-nowrap shrink-0 cursor-pointer ${activeSection === 'practice' ? 'text-[#d4af37] font-semibold' : 'text-[#cbd5e1]'}`}
           >
             Practice
           </button>
           <button
+            type="button"
             onClick={() => onNavigate('tracker')}
-            className={`transition-colors hover:text-[#d4af37] whitespace-nowrap shrink-0 ${activeSection === 'tracker' ? 'text-[#d4af37] font-semibold' : 'text-[#cbd5e1]'}`}
+            className={`min-h-[44px] px-2 flex items-center justify-center transition-colors hover:text-[#d4af37] whitespace-nowrap shrink-0 cursor-pointer ${activeSection === 'tracker' ? 'text-[#d4af37] font-semibold' : 'text-[#cbd5e1]'}`}
           >
             Tracker
           </button>
           <button
+            type="button"
             onClick={() => onNavigate('community')}
-            className={`transition-colors hover:text-[#d4af37] whitespace-nowrap shrink-0 ${activeSection === 'community' ? 'text-[#d4af37] font-semibold' : 'text-[#cbd5e1]'}`}
+            className={`min-h-[44px] px-2 flex items-center justify-center transition-colors hover:text-[#d4af37] whitespace-nowrap shrink-0 cursor-pointer ${activeSection === 'community' ? 'text-[#d4af37] font-semibold' : 'text-[#cbd5e1]'}`}
           >
             Community
           </button>
           <button
+            type="button"
             onClick={() => onNavigate('profile')}
-            className={`transition-colors hover:text-[#d4af37] whitespace-nowrap shrink-0 ${activeSection === 'profile' ? 'text-[#d4af37] font-semibold' : 'text-[#cbd5e1]'}`}
+            className={`min-h-[44px] px-2 flex items-center justify-center transition-colors hover:text-[#d4af37] whitespace-nowrap shrink-0 cursor-pointer ${activeSection === 'profile' ? 'text-[#d4af37] font-semibold' : 'text-[#cbd5e1]'}`}
           >
             Profile
           </button>
         </div>
 
-        {/* Mobile current active label */}
-        {!showApkDesktopNav && (
-          <div className="hidden sm:flex md:hidden items-center text-xs tracking-wider uppercase text-[#d4af37] font-medium truncate">
-            {sectionTitles[activeSection]}
-          </div>
-        )}
-
-        {/* Zone 3: Actions */}
-        <div className="flex items-center gap-1 sm:gap-2 shrink-0">
-          {/* Quick Search */}
+        {/* 3. RIGHT CONTAINER (user-actions): Search icon, VP Points badge, Streak badge, User Profile badge */}
+        <div className="user-actions flex items-center gap-1.5 sm:gap-2 shrink-0">
+          {/* 1. Light Pastel Yellow Box: Quick Search */}
           <button
+            type="button"
             onClick={onOpenSearch}
             aria-label="Search Vault"
-            className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg border border-[#d4af37]/25 bg-[#0f172a] text-[#fbf9f4] hover:text-[#d4af37] hover:border-[#d4af37] flex items-center justify-center transition-colors focus-visible:ring-1 focus-visible:ring-[#d4af37] shrink-0"
+            className="svh-header-box-yellow min-h-[38px] min-w-[38px] sm:min-h-[44px] sm:min-w-[44px] px-2 rounded-xl border border-[#d4af37]/25 bg-[#0f172a] text-[#fbf9f4] hover:text-[#d4af37] hover:border-[#d4af37] flex items-center justify-center transition-colors focus-visible:ring-1 focus-visible:ring-[#d4af37] shrink-0 cursor-pointer"
           >
-            <Search className="w-3.5 h-3.5" />
+            <Search className="w-4 h-4 shrink-0" />
           </button>
 
-          {/* VP Points Pill + Anchored VaultPointsPopup */}
-          <div className="relative shrink-0">
-            <button
-              onClick={() => setIsVpPopupOpen((prev) => !prev)}
-              className="inline-flex w-fit items-center gap-1 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-lg border border-[#d4af37]/35 bg-[#0f172a] hover:border-[#d4af37] text-[10px] sm:text-xs font-medium text-[#fbf9f4] shrink-0 transition-colors cursor-pointer"
-              title={`${vpPoints} Vault Points (VP) — Click to view Rank & Milestones`}
-            >
-              <Trophy className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-[#d4af37] shrink-0" />
-              <span className="tabular-nums font-bold text-[#d4af37]">{vpPoints}</span>
-              <span className="text-[9px] sm:text-[10px] font-mono text-[#cbd5e1] hidden sm:inline">VP</span>
-            </button>
-            <VaultPointsPopup
-              isOpen={isVpPopupOpen}
-              onClose={handleCloseVpPopup}
-              userStats={userStats || INITIAL_USER_STATS}
-            />
-          </div>
-
-          {/* Daily Streak */}
-          <div
-            className="inline-flex w-fit items-center gap-1 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-lg border border-[#d4af37]/25 bg-[#0f172a] text-[10px] sm:text-xs font-medium text-[#fbf9f4] shrink-0"
-            title={`${streakDays} Day Active Streak`}
-          >
-            <Flame className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-amber-400 fill-amber-400 shrink-0" />
-            <span className="tabular-nums font-semibold text-amber-300">{streakDays}d</span>
-          </div>
-
-          {/* Profile Trigger */}
+          {/* 2. Light Pastel Pink Box: VP Points Pill ("0 VP") */}
           <button
+            type="button"
+            onClick={() => {
+              setVpPopupTab('vp');
+              setIsVpPopupOpen(true);
+            }}
+            className="svh-header-box-pink svh-badge-shimmer min-h-[38px] sm:min-h-[44px] inline-flex w-fit items-center justify-center gap-1 px-2 sm:px-2.5 py-1.5 rounded-xl border border-[#d4af37]/35 bg-[#0f172a] hover:border-[#d4af37] text-[11px] sm:text-xs font-medium text-[#fbf9f4] shrink-0 whitespace-nowrap transition-colors cursor-pointer"
+            title={`${vpPoints} Vault Points (VP) — Click to view Rank & Milestones`}
+            aria-haspopup="dialog"
+            aria-expanded={isVpPopupOpen && vpPopupTab === 'vp'}
+          >
+            <Trophy className="w-3.5 h-3.5 text-[#d4af37] shrink-0" />
+            <RollingVPCounter
+              value={vpPoints}
+              suffix=" VP"
+              className="tabular-nums font-bold text-[#d4af37] whitespace-nowrap"
+            />
+          </button>
+
+          {/* 3. Light Pastel Green Box: Daily Streak ("0d") */}
+          <button
+            type="button"
+            onClick={() => {
+              setVpPopupTab('streak');
+              setIsVpPopupOpen(true);
+            }}
+            className="svh-header-box-green min-h-[38px] sm:min-h-[44px] inline-flex w-fit items-center justify-center gap-1 px-2 sm:px-2.5 py-1.5 rounded-xl border border-[#d4af37]/25 bg-[#0f172a] hover:border-[#86efac] text-[11px] sm:text-xs font-medium text-[#fbf9f4] shrink-0 whitespace-nowrap transition-colors cursor-pointer"
+            title={`${streakDays} Day Active Streak — Click to view Streak & VP details`}
+            aria-haspopup="dialog"
+            aria-expanded={isVpPopupOpen && vpPopupTab === 'streak'}
+          >
+            <Flame className="w-3.5 h-3.5 text-amber-400 fill-amber-400 shrink-0 svh-live-streak-flame" />
+            <span className="tabular-nums font-semibold text-amber-300 whitespace-nowrap">{streakDays}d</span>
+          </button>
+
+          <VaultPointsPopup
+            isOpen={isVpPopupOpen}
+            onClose={handleCloseVpPopup}
+            userStats={userStats || INITIAL_USER_STATS}
+            initialTab={vpPopupTab}
+          />
+
+          {/* 4. Light Pastel Orange Box: Profile Trigger */}
+          <button
+            type="button"
             onClick={() => onNavigate('profile')}
             aria-label="Student Profile"
-            className={`min-h-[28px] sm:min-h-[32px] py-0.5 px-1.5 sm:px-2.5 rounded-lg border flex items-center gap-1.5 transition-all text-xs shrink-0 max-w-[130px] sm:max-w-[160px] ${
+            className={`svh-header-box-orange min-h-[38px] min-w-[38px] sm:min-h-[44px] sm:min-w-[44px] py-1.5 px-2 sm:px-2.5 rounded-xl border flex items-center justify-center gap-1.5 transition-all text-xs shrink-0 whitespace-nowrap max-w-[130px] sm:max-w-[160px] cursor-pointer ${
               activeSection === 'profile'
                 ? 'border-[#d4af37] bg-[#d4af37]/20 text-[#fbf9f4] shadow-[0_0_12px_rgba(212,175,55,0.2)]'
                 : 'border-[#d4af37]/25 bg-[#0f172a] text-[#cbd5e1] hover:text-[#fbf9f4] hover:border-[#d4af37]'
@@ -209,17 +217,17 @@ export const Header: React.FC<HeaderProps> = React.memo(({
                 alt={userName || 'Student'}
                 loading="lazy"
                 decoding="async"
-                className="w-4 h-4 sm:w-5 sm:h-5 rounded-full object-cover border border-[#d4af37]/50 shrink-0 aspect-square"
+                className="w-5 h-5 rounded-full object-cover border border-[#d4af37]/50 shrink-0 aspect-square"
               />
             ) : (
-              <User className="w-3.5 h-3.5 text-[#d4af37] shrink-0" />
+              <User className="w-4 h-4 text-[#d4af37] shrink-0" />
             )}
-            <span className="hidden sm:inline max-w-[96px] md:max-w-[116px] truncate leading-tight" title={userName}>
+            <span className="hidden sm:inline max-w-[96px] md:max-w-[116px] truncate leading-tight whitespace-nowrap" title={userName}>
               {userName}
             </span>
           </button>
         </div>
-      </div>
+      </nav>
     </header>
   );
 });

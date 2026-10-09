@@ -65,54 +65,34 @@ export const VP_RANK_TIERS: VPRankTier[] = [
     nextMinVP: 100,
     badgeColor: 'bg-[#131b2e] border-[#d4af37]/35 text-[#d4af37]',
     accentText: 'text-[#d4af37]',
-    description: 'Beginning your academic journey in Study Vault Hub.',
+    description: 'Beginning your academic journey in Study Vault Hub (< 100 VP).',
   },
   {
     level: 2,
-    title: 'Bronze Aspirant',
+    title: 'NEET Contender',
     minVP: 100,
-    nextMinVP: 300,
+    nextMinVP: 500,
     badgeColor: 'bg-[#131b2e] border-amber-500/45 text-amber-300',
     accentText: 'text-amber-400',
-    description: 'Building consistent daily study and practice momentum.',
+    description: 'Building consistent daily study and practice momentum (100 - 499 VP).',
   },
   {
     level: 3,
-    title: 'Silver Strategist',
-    minVP: 300,
-    nextMinVP: 700,
-    badgeColor: 'bg-[#131b2e] border-cyan-400/45 text-cyan-200',
-    accentText: 'text-cyan-300',
-    description: 'Demonstrating disciplined problem-solving and focus.',
-  },
-  {
-    level: 4,
-    title: 'Gold Vault Master',
-    minVP: 700,
-    nextMinVP: 1500,
-    badgeColor: 'bg-[#d4af37]/20 border-[#d4af37]/60 text-[#d4af37]',
-    accentText: 'text-[#d4af37]',
-    description: 'High-yield concept mastery and strong accuracy record.',
-  },
-  {
-    level: 5,
-    title: 'Diamond Topper',
-    minVP: 1500,
-    nextMinVP: 3000,
-    badgeColor: 'bg-[#131b2e] border-indigo-400/50 text-indigo-200',
-    accentText: 'text-indigo-300',
-    description: 'Elite exam readiness across chapters, tests, and revision.',
-  },
-  {
-    level: 6,
-    title: 'Grandmaster Legend',
-    minVP: 3000,
+    title: 'Master Educator',
+    minVP: 500,
     nextMinVP: null,
     badgeColor: 'bg-[#131b2e] border-emerald-400/60 text-emerald-300',
     accentText: 'text-emerald-400',
-    description: 'Pinnacle of Study Vault Hub academic excellence.',
+    description: 'Elite mastery across chapters, tests, revision, and peer mentorship (500+ VP).',
   },
 ];
+
+export function getAcademicStanding(vpPoints: number): 'Novice Scholar' | 'NEET Contender' | 'Master Educator' {
+  const safeVP = Math.max(0, Math.floor(Number(vpPoints) || 0));
+  if (safeVP >= 500) return 'Master Educator';
+  if (safeVP >= 100) return 'NEET Contender';
+  return 'Novice Scholar';
+}
 
 export function getVPRankTier(vpPoints: number): {
   currentTier: VPRankTier;
@@ -362,7 +342,13 @@ export function calculateUserVPBreakdown(
   const milestones = computeUserVPMilestones(stats, communityCounts);
   const unlockedMilestones = milestones.filter((m) => m.unlocked);
 
-  const totalVP = studyTimeVP + normalQuestionVP + testModeQuestionVP + streakMilestoneVP;
+  const computedStudyVP = studyTimeVP + normalQuestionVP + testModeQuestionVP + streakMilestoneVP;
+  const persistedVP = Math.max(
+    0,
+    Math.floor(Number(stats.vpPoints) || 0),
+    Math.floor(Number(stats.vaultPoints) || 0)
+  );
+  const totalVP = Math.max(computedStudyVP, persistedVP);
   const tierInfo = getVPRankTier(totalVP);
 
   // Build real recent VP activity log from real sessions, tests, and solved questions (never fake)

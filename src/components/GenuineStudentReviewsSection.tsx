@@ -18,7 +18,7 @@ export const GenuineStudentReviewsSection: React.FC<GenuineStudentReviewsSection
     return (
       <section
         aria-label="Student Reviews"
-        className="p-5 sm:p-6 rounded-2xl sm:rounded-3xl bg-gradient-to-br from-[#0c1428] via-[#091020] to-[#060b18] border border-[#d4af37]/35 shadow-xl space-y-4"
+        className="stenciled-card card-corner-stencil p-5 sm:p-6 rounded-2xl sm:rounded-3xl bg-gradient-to-br from-[#0c1428] via-[#091020] to-[#060b18] border border-[#d4af37]/35 shadow-xl space-y-4"
       >
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <div className="space-y-0.5">
