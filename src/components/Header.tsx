@@ -60,14 +60,14 @@ export const Header: React.FC<HeaderProps> = React.memo(({
       <div
         className={
           isFloatingTopDock
-            ? 'pointer-events-auto max-w-5xl mx-auto px-3 sm:px-5 h-14 rounded-2xl bg-[#060b18]/95 backdrop-blur-xl border border-[#d4af37]/35 shadow-[0_10px_30px_rgba(0,0,0,0.65),0_0_20px_rgba(212,175,55,0.14)] flex items-center justify-between gap-2 sm:gap-3 min-w-0 overflow-visible'
-            : 'max-w-5xl mx-auto px-3 sm:px-6 h-14 flex items-center justify-between gap-2 sm:gap-3 min-w-0 overflow-visible'
+            ? 'pointer-events-auto max-w-5xl mx-auto px-2.5 sm:px-5 min-h-[3.5rem] py-1.5 rounded-2xl bg-[#060b18]/95 backdrop-blur-xl border border-[#d4af37]/35 shadow-[0_10px_30px_rgba(0,0,0,0.65),0_0_20px_rgba(212,175,55,0.14)] flex items-center justify-between gap-1.5 sm:gap-3 min-w-0 overflow-visible'
+            : 'max-w-5xl mx-auto px-2.5 sm:px-6 min-h-[3.5rem] py-1.5 flex items-center justify-between gap-1.5 sm:gap-3 min-w-0 overflow-visible'
         }
       >
         {/* Zone 1: Main App Logo & Title using the official Study Vault Hub logo */}
         <button
           onClick={() => onNavigate('home')}
-          className="flex items-center gap-2 sm:gap-2.5 text-left group focus:outline-none min-w-0 shrink overflow-hidden"
+          className="flex items-center gap-2 sm:gap-2.5 text-left group focus:outline-none min-w-0 flex-1 shrink overflow-visible"
         >
           <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full overflow-hidden flex items-center justify-center shrink-0 aspect-square">
             <img
@@ -81,17 +81,17 @@ export const Header: React.FC<HeaderProps> = React.memo(({
               }}
             />
           </div>
-          <div className="flex flex-col min-w-0 overflow-hidden">
-            <span className="font-display text-xs sm:text-base font-bold tracking-tight text-[#fbf9f4] group-hover:text-[#d4af37] transition-colors leading-tight truncate">
+          <div className="flex flex-col min-w-0 justify-center">
+            <span className="font-display text-xs sm:text-base font-bold tracking-tight text-[#fbf9f4] group-hover:text-[#d4af37] transition-colors leading-tight whitespace-nowrap">
               Study Vault Hub
             </span>
             <span
-              className={`text-[8px] sm:text-[10px] text-[#cbd5e1]/80 font-mono tracking-tight leading-tight mt-0.5 flex flex-col ${
-                showApkDesktopNav ? 'lg:flex-row lg:items-center lg:gap-1' : 'sm:flex-row sm:items-center sm:gap-1'
+              className={`text-[9px] sm:text-[10px] text-[#cbd5e1]/90 font-mono tracking-tight leading-[1.15] mt-0.5 flex flex-col ${
+                showApkDesktopNav ? 'xl:flex-row xl:items-center xl:gap-1' : 'sm:flex-row sm:items-center sm:gap-1'
               } min-w-0`}
             >
-              <span className="truncate">Developed by</span>
-              <span className="text-[#d4af37]/95 font-semibold truncate">Soumyadip Rana</span>
+              <span className="whitespace-nowrap">Developed by</span>
+              <span className="text-[#d4af37]/95 font-semibold whitespace-nowrap">Soumyadip Rana</span>
             </span>
           </div>
         </button>
@@ -156,12 +156,12 @@ export const Header: React.FC<HeaderProps> = React.memo(({
         )}
 
         {/* Zone 3: Actions */}
-        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+        <div className="flex items-center gap-1 sm:gap-2 shrink-0">
           {/* Quick Search */}
           <button
             onClick={onOpenSearch}
             aria-label="Search Vault"
-            className="w-8 h-8 rounded-lg border border-[#d4af37]/25 bg-[#0f172a] text-[#fbf9f4] hover:text-[#d4af37] hover:border-[#d4af37] flex items-center justify-center transition-colors focus-visible:ring-1 focus-visible:ring-[#d4af37] shrink-0"
+            className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg border border-[#d4af37]/25 bg-[#0f172a] text-[#fbf9f4] hover:text-[#d4af37] hover:border-[#d4af37] flex items-center justify-center transition-colors focus-visible:ring-1 focus-visible:ring-[#d4af37] shrink-0"
           >
             <Search className="w-3.5 h-3.5" />
           </button>
@@ -170,12 +170,12 @@ export const Header: React.FC<HeaderProps> = React.memo(({
           <div className="relative shrink-0">
             <button
               onClick={() => setIsVpPopupOpen((prev) => !prev)}
-              className="flex items-center gap-1 px-1.5 sm:px-2.5 py-0.5 sm:py-1 rounded-lg border border-[#d4af37]/35 bg-[#0f172a] hover:border-[#d4af37] text-[10px] sm:text-xs font-medium text-[#fbf9f4] shrink-0 transition-colors cursor-pointer"
+              className="inline-flex w-fit items-center gap-1 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-lg border border-[#d4af37]/35 bg-[#0f172a] hover:border-[#d4af37] text-[10px] sm:text-xs font-medium text-[#fbf9f4] shrink-0 transition-colors cursor-pointer"
               title={`${vpPoints} Vault Points (VP) — Click to view Rank & Milestones`}
             >
               <Trophy className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-[#d4af37] shrink-0" />
               <span className="tabular-nums font-bold text-[#d4af37]">{vpPoints}</span>
-              <span className="text-[9px] sm:text-[10px] font-mono text-[#cbd5e1] hidden xs:inline">VP</span>
+              <span className="text-[9px] sm:text-[10px] font-mono text-[#cbd5e1] hidden sm:inline">VP</span>
             </button>
             <VaultPointsPopup
               isOpen={isVpPopupOpen}
@@ -186,7 +186,7 @@ export const Header: React.FC<HeaderProps> = React.memo(({
 
           {/* Daily Streak */}
           <div
-            className="flex items-center gap-1 ml-0.5 sm:ml-0 px-1.5 sm:px-2.5 py-0.5 sm:py-1 rounded-lg border border-[#d4af37]/25 bg-[#0f172a] text-[10px] sm:text-xs font-medium text-[#fbf9f4] shrink-0"
+            className="inline-flex w-fit items-center gap-1 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-lg border border-[#d4af37]/25 bg-[#0f172a] text-[10px] sm:text-xs font-medium text-[#fbf9f4] shrink-0"
             title={`${streakDays} Day Active Streak`}
           >
             <Flame className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-amber-400 fill-amber-400 shrink-0" />
@@ -197,7 +197,7 @@ export const Header: React.FC<HeaderProps> = React.memo(({
           <button
             onClick={() => onNavigate('profile')}
             aria-label="Student Profile"
-            className={`h-8 px-2 rounded-lg border flex items-center gap-1.5 transition-all text-xs shrink-0 ${
+            className={`h-7 sm:h-8 px-1.5 sm:px-2 rounded-lg border flex items-center gap-1.5 transition-all text-xs shrink-0 ${
               activeSection === 'profile'
                 ? 'border-[#d4af37] bg-[#d4af37]/20 text-[#fbf9f4]'
                 : 'border-[#d4af37]/25 bg-[#0f172a] text-[#cbd5e1] hover:text-[#fbf9f4] hover:border-[#d4af37]'
@@ -207,7 +207,7 @@ export const Header: React.FC<HeaderProps> = React.memo(({
               <img
                 src={userProfilePhotoUrl}
                 alt={userName || 'Student'}
-                className="w-5 h-5 rounded-full object-cover border border-[#d4af37]/50 shrink-0 aspect-square"
+                className="w-4 h-4 sm:w-5 sm:h-5 rounded-full object-cover border border-[#d4af37]/50 shrink-0 aspect-square"
               />
             ) : (
               <User className="w-3.5 h-3.5 text-[#d4af37] shrink-0" />

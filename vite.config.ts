@@ -13,6 +13,17 @@ export default defineConfig(() => {
         '@': rootDir,
       },
     },
+    optimizeDeps: {
+      include: [
+        'react',
+        'react-dom/client',
+        'lucide-react',
+        '@capacitor/core',
+        'firebase/app',
+        'firebase/firestore',
+        'firebase/auth',
+      ],
+    },
     server: {
       // HMR is disabled in AI Studio via DISABLE_HMR env var.
       // Do not modify—file watching is disabled to prevent flickering during agent edits.

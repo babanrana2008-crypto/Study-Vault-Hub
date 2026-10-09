@@ -465,8 +465,8 @@ export const HomeSection: React.FC<HomeSectionProps> = React.memo(({
 
         <div className="relative z-10 p-4 sm:p-7 space-y-5">
           {/* Top Brand & Real Streak */}
-          <div className="flex flex-wrap items-center justify-between gap-2.5 min-w-0">
-            <div className="flex items-center gap-2.5 sm:gap-4 min-w-0 flex-1">
+          <div className="flex items-start sm:items-center justify-between gap-2 sm:gap-3 min-w-0">
+            <div className="flex items-center gap-2.5 sm:gap-3.5 min-w-0 flex-1">
               <div className="w-11 h-11 sm:w-14 sm:h-14 rounded-full overflow-hidden shrink-0 aspect-square flex items-center justify-center">
                 <img
                   src={APP_LOGO}
@@ -475,29 +475,22 @@ export const HomeSection: React.FC<HomeSectionProps> = React.memo(({
                   referrerPolicy="no-referrer"
                 />
               </div>
-              <div className="flex flex-col items-start text-left min-w-0">
-                <h1 className="font-display text-base sm:text-xl font-bold tracking-tight text-[#fbf9f4] leading-tight truncate max-w-full">
+              <div className="flex flex-col items-start text-left min-w-0 flex-1">
+                <h1 className="font-display text-[15px] sm:text-xl font-bold tracking-tight text-[#fbf9f4] leading-tight whitespace-normal break-words max-w-full">
                   Study Vault Hub
                 </h1>
                 <div className="flex flex-col items-start justify-center text-left mt-0.5 leading-snug min-w-0 max-w-full">
-                  <span className="text-[10px] sm:text-xs text-[#cbd5e1] font-mono tracking-wide truncate max-w-full">
+                  <span className="text-[10px] sm:text-xs text-[#cbd5e1] font-mono tracking-wide whitespace-normal break-words max-w-full">
                     Developed by
                   </span>
-                  <span className="text-xs sm:text-base font-display font-bold text-[#d4af37] tracking-wide truncate max-w-full">
+                  <span className="text-xs sm:text-base font-display font-bold text-[#d4af37] tracking-wide whitespace-normal break-words max-w-full">
                     Soumyadip Rana
                   </span>
                 </div>
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2 shrink-0">
-              <div className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full bg-[#131b2e] border border-[#d4af37]/30 text-[11px] sm:text-xs font-semibold text-[#fbf9f4] shrink-0">
-                <Flame className="w-3.5 h-3.5 text-amber-400 fill-amber-400 shrink-0" />
-                <span className="text-amber-300 tabular-nums whitespace-nowrap">
-                  {realStreakDays > 0 ? `${realStreakDays}d Streak` : 'No streak yet'}
-                </span>
-              </div>
-
+            <div className="flex flex-col items-end gap-1.5 shrink-0">
               <button
                 ref={vpBadgeButtonRef}
                 type="button"
@@ -514,16 +507,23 @@ export const HomeSection: React.FC<HomeSectionProps> = React.memo(({
                 aria-haspopup="dialog"
                 aria-label="Open VP Points Details"
                 title="Tap to view your real VP Points balance and how you earn VP"
-                className={`flex items-center gap-1.5 px-2.5 sm:px-3.5 py-1.5 rounded-full bg-[#131b2e] hover:bg-[#19243d] border ${
+                className={`inline-flex w-fit items-center gap-1 px-2 sm:px-2.5 py-1 rounded-full bg-[#131b2e] hover:bg-[#19243d] border ${
                   isVpPopupOpen ? 'border-[#d4af37] ring-2 ring-[#d4af37]/30' : 'border-[#d4af37]/40 hover:border-[#d4af37]'
-                } text-[11px] sm:text-xs font-semibold text-[#fbf9f4] shrink-0 transition-all cursor-pointer shadow-sm`}
+                } text-[10px] sm:text-xs font-semibold text-[#fbf9f4] shrink-0 transition-all cursor-pointer shadow-sm`}
               >
-                <Trophy className="w-3.5 h-3.5 text-[#d4af37] shrink-0" />
+                <Trophy className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-[#d4af37] shrink-0" />
                 <span className="text-[#cbd5e1] font-medium whitespace-nowrap">VP Points</span>
                 <span className="text-[#d4af37] font-mono font-bold tabular-nums whitespace-nowrap">
                   {vpBreakdown.totalVP} VP
                 </span>
               </button>
+
+              <div className="inline-flex w-fit items-center gap-1 px-2 sm:px-2.5 py-1 rounded-full bg-[#131b2e] border border-[#d4af37]/30 text-[10px] sm:text-xs font-semibold text-[#fbf9f4] shrink-0">
+                <Flame className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-amber-400 fill-amber-400 shrink-0" />
+                <span className="text-amber-300 tabular-nums whitespace-nowrap">
+                  {realStreakDays > 0 ? `${realStreakDays}d Streak` : 'No streak yet'}
+                </span>
+              </div>
             </div>
           </div>
 
