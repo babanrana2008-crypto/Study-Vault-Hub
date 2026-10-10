@@ -22,7 +22,7 @@ interface NCERTBookModalProps {
   onPracticeChapter?: (subject: string, chapterTitle: string, classLevel: string) => void;
 }
 
-export const NCERTBookModal: React.FC<NCERTBookModalProps> = ({
+export const NCERTBookModal: React.FC<NCERTBookModalProps> = React.memo(({
   book,
   onClose,
   isBookmarked,
@@ -282,4 +282,5 @@ export const NCERTBookModal: React.FC<NCERTBookModalProps> = ({
       </div>
     </div>
   );
-};
+});
+

@@ -199,7 +199,9 @@ export const PWAInstallButton: React.FC = React.memo(() => {
   return (
     <div className="pt-2 pb-1 flex flex-col items-start">
       <a
-        href="https://github.com/babanrana2008-crypto/Study-Vault-Hub/releases/download/v3.0.0/SVH.apk"
+        href="https://github.com/babanrana2008-crypto/Study-Vault-Hub/releases/download/v4.0.0/Latest.SVH.apk"
+        target="_blank"
+        rel="noopener noreferrer"
         download
         aria-label={buttonLabel}
         className="install-btn inline-flex items-center justify-center gap-2.5 px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#d4af37] to-[#aa7c11] text-[#080d1a] font-bold text-xs sm:text-sm tracking-wide shadow-md hover:brightness-105 active:scale-[0.98] transition-all cursor-pointer border border-[#d4af37]/40 no-underline"
@@ -291,12 +293,12 @@ export const PWAInstallButton: React.FC = React.memo(() => {
                 </button>
 
                 {isAndroidDevice ? (
-                  /* ANDROID: Direct external <a> download of SVH.apk */
+                  /* ANDROID: Direct external <a> download of Latest.SVH.apk */
                   <a
-                    href="https://github.com/babanrana2008-crypto/Study-Vault-Hub/releases/download/v3.0.0/SVH.apk"
+                    href="https://github.com/babanrana2008-crypto/Study-Vault-Hub/releases/download/v4.0.0/Latest.SVH.apk"
                     target="_blank"
-                    rel="noopener noreferrer external"
-                    download="SVH.apk"
+                    rel="noopener noreferrer"
+                    download="Latest.SVH.apk"
                     onClick={(e) =>
                       handleDirectDownloadClick(e, 'Study Vault Hub APK download started.')
                     }

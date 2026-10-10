@@ -155,27 +155,34 @@ export const HomeSection: React.FC<HomeSectionProps> = React.memo(({
   );
   const activeGoal =
     userStats.activeGoal || userStats.selectedGoals[0] || 'General Study';
-  const subjectsForActiveGoal = GOAL_SUBJECTS_MAP[activeGoal] || [
-    'Core Sciences',
-    'Mathematics',
-    'General Studies',
-  ];
-
-  // Filter materials matching active goal
-  const goalFilteredBooks = SAMPLE_BOOKS.filter(
-    (b) =>
-      b.targetStreams.includes(activeGoal) ||
-      subjectsForActiveGoal.includes(b.subject)
+  const subjectsForActiveGoal = useMemo(
+    () =>
+      GOAL_SUBJECTS_MAP[activeGoal] || [
+        'Core Sciences',
+        'Mathematics',
+        'General Studies',
+      ],
+    [activeGoal]
   );
-  const displayBooks =
-    goalFilteredBooks.length > 0 ? goalFilteredBooks : SAMPLE_BOOKS;
 
-  const goalFilteredMCQs = SAMPLE_MCQS.filter(
-    (q) =>
-      q.targetStreams.includes(activeGoal) ||
-      subjectsForActiveGoal.includes(q.subject)
-  );
-  const dailyQuestion: MCQQuestion = goalFilteredMCQs[0] || SAMPLE_MCQS[0];
+  // Filter materials matching active goal (memoized to avoid re-filtering on unrelated state changes)
+  const displayBooks = useMemo(() => {
+    const filtered = SAMPLE_BOOKS.filter(
+      (b) =>
+        b.targetStreams.includes(activeGoal) ||
+        subjectsForActiveGoal.includes(b.subject)
+    );
+    return filtered.length > 0 ? filtered : SAMPLE_BOOKS;
+  }, [activeGoal, subjectsForActiveGoal]);
+
+  const dailyQuestion: MCQQuestion = useMemo(() => {
+    const filtered = SAMPLE_MCQS.filter(
+      (q) =>
+        q.targetStreams.includes(activeGoal) ||
+        subjectsForActiveGoal.includes(q.subject)
+    );
+    return filtered[0] || SAMPLE_MCQS[0];
+  }, [activeGoal, subjectsForActiveGoal]);
 
   // Daily question widget state
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
@@ -843,7 +850,7 @@ export const HomeSection: React.FC<HomeSectionProps> = React.memo(({
         </section>
 
         {/* PREMIUM STUDY FOCUS MODE LAUNCHER (5 cols) */}
-        <section className="svh-3d-tilt-card lg:col-span-5 p-5 sm:p-6 rounded-2xl sm:rounded-3xl bg-gradient-to-br from-[#0c1428] via-[#0a1122] to-[#060b18] border border-[#d4af37]/35 shadow-lg flex flex-col justify-between space-y-4">
+        <section className="svh-shimmer-border-card svh-3d-tilt-card lg:col-span-5 p-5 sm:p-6 rounded-2xl sm:rounded-3xl bg-gradient-to-br from-[#0c1428] via-[#0a1122] to-[#060b18] border border-[#d4af37]/35 shadow-lg flex flex-col justify-between space-y-4">
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2 text-xs font-semibold text-[#d4af37] uppercase tracking-wider">
               <Clock className="w-4 h-4" />
@@ -851,7 +858,7 @@ export const HomeSection: React.FC<HomeSectionProps> = React.memo(({
             </div>
             {userStats.studySessions.length > 0 && (
               <span className="text-[11px] font-mono text-emerald-400">
-                {userStats.studySessions.length}{' '}
+                <RollingVPCounter value={userStats.studySessions.length} />{' '}
                 {userStats.studySessions.length === 1 ? 'session' : 'sessions'} logged
               </span>
             )}
@@ -859,9 +866,17 @@ export const HomeSection: React.FC<HomeSectionProps> = React.memo(({
 
           <div className="space-y-1">
             <h3 className="font-display text-base sm:text-lg font-bold text-[#fbf9f4]">
-              {userStats.totalStudyMinutes > 0
-                ? `${userStats.totalStudyMinutes} min of verified focus time`
-                : 'Ready for deep, distraction-free study'}
+              {userStats.totalStudyMinutes > 0 ? (
+                <>
+                  <RollingVPCounter
+                    value={userStats.totalStudyMinutes}
+                    suffix=" min"
+                  />{' '}
+                  of verified focus time
+                </>
+              ) : (
+                'Ready for deep, distraction-free study'
+              )}
             </h3>
             <p className="text-xs text-[#9ca3af] leading-relaxed">
               Choose your subject, chapter, duration, and study goal. Only real elapsed study time is recorded.
@@ -887,7 +902,7 @@ export const HomeSection: React.FC<HomeSectionProps> = React.memo(({
       {/* ===================================================================== */}
       {/* 3. STUDENT COMMAND CENTER (100% REAL USER DATA ONLY)                  */}
       {/* ===================================================================== */}
-      <section className="p-5 sm:p-6 rounded-2xl sm:rounded-3xl bg-gradient-to-br from-[#0c1428] via-[#091020] to-[#060b18] border border-[#d4af37]/35 shadow-xl space-y-5">
+      <section className="svh-shimmer-border-card p-5 sm:p-6 rounded-2xl sm:rounded-3xl bg-gradient-to-br from-[#0c1428] via-[#091020] to-[#060b18] border border-[#d4af37]/35 shadow-xl space-y-5">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <div className="space-y-0.5">
             <div className="flex items-center gap-2 text-xs font-semibold text-[#d4af37] uppercase tracking-wider">
@@ -976,7 +991,7 @@ export const HomeSection: React.FC<HomeSectionProps> = React.memo(({
           /* Real User Telemetry Cards (Only shown once genuine activity exists) */
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             {/* 1. Actual Study Time */}
-            <div className="p-4 rounded-2xl bg-[#0f172a] border border-[#d4af37]/25 flex flex-col justify-between space-y-2.5">
+            <div className="svh-shimmer-border-card p-4 rounded-2xl bg-[#0f172a] border border-[#d4af37]/25 flex flex-col justify-between space-y-2.5">
               <div className="flex items-center justify-between text-xs">
                 <span className="text-[#9ca3af] font-medium flex items-center gap-1.5">
                   <Clock className="w-3.5 h-3.5 text-[#d4af37]" />
@@ -984,7 +999,7 @@ export const HomeSection: React.FC<HomeSectionProps> = React.memo(({
                 </span>
                 {userStats.studySessions.length > 0 && (
                   <span className="text-[10px] font-mono text-[#d4af37]">
-                    {userStats.studySessions.length} sessions
+                    <RollingVPCounter value={userStats.studySessions.length} suffix=" sessions" />
                   </span>
                 )}
               </div>
@@ -992,7 +1007,7 @@ export const HomeSection: React.FC<HomeSectionProps> = React.memo(({
               {userStats.totalStudyMinutes > 0 ? (
                 <div className="space-y-1.5">
                   <div className="font-display text-2xl font-bold text-[#fbf9f4] tabular-nums">
-                    {userStats.totalStudyMinutes} min
+                    <RollingVPCounter value={userStats.totalStudyMinutes} suffix=" min" />
                   </div>
                   <p className="text-[11px] text-[#9ca3af]">
                     Daily target: {userStats.dailyGoals.studyMinutes} min
@@ -1024,23 +1039,25 @@ export const HomeSection: React.FC<HomeSectionProps> = React.memo(({
             </div>
 
             {/* 2. Practice & Verified Accuracy */}
-            <div className="p-4 rounded-2xl bg-[#0f172a] border border-[#d4af37]/25 flex flex-col justify-between space-y-2.5">
+            <div className="svh-shimmer-border-card p-4 rounded-2xl bg-[#0f172a] border border-[#d4af37]/25 flex flex-col justify-between space-y-2.5">
               <div className="flex items-center justify-between text-xs">
                 <span className="text-[#9ca3af] font-medium flex items-center gap-1.5">
                   <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
                   Practice &amp; Accuracy
                 </span>
                 {verifiedAccuracy !== null && (
-                  <span className="text-xs font-bold text-emerald-400 tabular-nums">
-                    {verifiedAccuracy}%
-                  </span>
+                  <RollingVPCounter
+                    value={verifiedAccuracy}
+                    suffix="%"
+                    className="text-xs font-bold text-emerald-400 tabular-nums"
+                  />
                 )}
               </div>
 
               {userStats.questionsAttempted > 0 ? (
                 <div className="space-y-1.5">
                   <div className="font-display text-2xl font-bold text-[#fbf9f4] tabular-nums">
-                    {userStats.questionsAttempted} Solved
+                    <RollingVPCounter value={userStats.questionsAttempted} suffix=" Solved" />
                   </div>
                   <p className="text-[11px] text-[#9ca3af]">
                     {userStats.correctAnswers} correct · {userStats.incorrectAnswers} incorrect
@@ -1072,7 +1089,7 @@ export const HomeSection: React.FC<HomeSectionProps> = React.memo(({
             </div>
 
             {/* 3. Completed Tasks */}
-            <div className="p-4 rounded-2xl bg-[#0f172a] border border-[#d4af37]/25 flex flex-col justify-between space-y-2.5">
+            <div className="svh-shimmer-border-card p-4 rounded-2xl bg-[#0f172a] border border-[#d4af37]/25 flex flex-col justify-between space-y-2.5">
               <div className="flex items-center justify-between text-xs">
                 <span className="text-[#9ca3af] font-medium flex items-center gap-1.5">
                   <Target className="w-3.5 h-3.5 text-amber-400" />
@@ -1083,7 +1100,7 @@ export const HomeSection: React.FC<HomeSectionProps> = React.memo(({
               {totalTasksCount > 0 ? (
                 <div className="space-y-1.5">
                   <div className="font-display text-2xl font-bold text-[#fbf9f4] tabular-nums">
-                    {completedTasksCount} / {totalTasksCount}
+                    <RollingVPCounter value={completedTasksCount} /> / {totalTasksCount}
                   </div>
                   <p className="text-[11px] text-[#9ca3af]">
                     {totalTasksCount - completedTasksCount} pending in your planner
@@ -1113,7 +1130,7 @@ export const HomeSection: React.FC<HomeSectionProps> = React.memo(({
             </div>
 
             {/* 4. Revision Items & Streak */}
-            <div className="p-4 rounded-2xl bg-[#0f172a] border border-[#d4af37]/25 flex flex-col justify-between space-y-2.5">
+            <div className="svh-shimmer-border-card p-4 rounded-2xl bg-[#0f172a] border border-[#d4af37]/25 flex flex-col justify-between space-y-2.5">
               <div className="flex items-center justify-between text-xs">
                 <span className="text-[#9ca3af] font-medium flex items-center gap-1.5">
                   <Flame className="w-3.5 h-3.5 text-amber-400 svh-live-streak-flame" />
@@ -1126,7 +1143,10 @@ export const HomeSection: React.FC<HomeSectionProps> = React.memo(({
 
               <div className="space-y-1.5">
                 <div className="font-display text-2xl font-bold text-[#fbf9f4] tabular-nums">
-                  {userStats.completedNoteIds.length} Notes Revised
+                  <RollingVPCounter
+                    value={userStats.completedNoteIds.length}
+                    suffix=" Notes Revised"
+                  />
                 </div>
                 <p className="text-[11px] text-[#9ca3af]">
                   {userStats.bookmarkedItemIds.length} saved items in vault
@@ -1154,7 +1174,7 @@ export const HomeSection: React.FC<HomeSectionProps> = React.memo(({
       {/* ===================================================================== */}
       {/* 4. SMART DAILY PLANNER (USER-CONTROLLED TASKS, SUBJECTS, DEADLINES)   */}
       {/* ===================================================================== */}
-      <section className="p-5 sm:p-6 rounded-2xl sm:rounded-3xl bg-gradient-to-br from-[#0c1428] via-[#091020] to-[#060b18] border border-[#d4af37]/35 shadow-xl space-y-4">
+      <section className="svh-shimmer-border-card p-5 sm:p-6 rounded-2xl sm:rounded-3xl bg-gradient-to-br from-[#0c1428] via-[#091020] to-[#060b18] border border-[#d4af37]/35 shadow-xl space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="space-y-0.5">
             <div className="flex items-center gap-2 text-xs font-semibold text-[#d4af37] uppercase tracking-wider">

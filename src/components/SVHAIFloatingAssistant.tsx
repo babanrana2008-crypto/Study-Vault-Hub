@@ -1434,8 +1434,16 @@ export const SVHAIFloatingAssistant: React.FC<SVHAIFloatingAssistantProps> = Rea
         let streamingAssistantId = `msg_ai_${Date.now()}`;
         let accumulatedAnswer = '';
         let receivedDone = false;
+        let streamFlushRafId: number | null = null;
+        let pendingConvId = targetConvId;
+        let pendingMsgId = streamingAssistantId;
+        let pendingFullText = '';
 
-        const updateStreamingMessage = (convId: string, msgId: string, fullText: string) => {
+        const flushStreamingMessageNow = (convId: string, msgId: string, fullText: string) => {
+          if (streamFlushRafId !== null) {
+            cancelAnimationFrame(streamFlushRafId);
+            streamFlushRafId = null;
+          }
           if (activeRequestCounterRef.current !== requestId) return;
           const nowStr = new Date().toISOString();
           setConversations((prev) =>
@@ -1463,6 +1471,18 @@ export const SVHAIFloatingAssistant: React.FC<SVHAIFloatingAssistantProps> = Rea
             })
           );
           scrollChatToBottom(true);
+        };
+
+        const updateStreamingMessage = (convId: string, msgId: string, fullText: string) => {
+          if (activeRequestCounterRef.current !== requestId) return;
+          pendingConvId = convId;
+          pendingMsgId = msgId;
+          pendingFullText = fullText;
+          if (streamFlushRafId !== null) return;
+          streamFlushRafId = requestAnimationFrame(() => {
+            streamFlushRafId = null;
+            flushStreamingMessageNow(pendingConvId, pendingMsgId, pendingFullText);
+          });
         };
 
         while (true) {
@@ -1504,6 +1524,10 @@ export const SVHAIFloatingAssistant: React.FC<SVHAIFloatingAssistantProps> = Rea
                 }
               } else if (eventData.type === 'done') {
                 receivedDone = true;
+                if (streamFlushRafId !== null) {
+                  cancelAnimationFrame(streamFlushRafId);
+                  streamFlushRafId = null;
+                }
                 if (eventData.conversation && activeRequestCounterRef.current === requestId) {
                   const finalConv = eventData.conversation;
                   setConversations((prev) => [
@@ -1513,6 +1537,10 @@ export const SVHAIFloatingAssistant: React.FC<SVHAIFloatingAssistantProps> = Rea
                   setActiveConversationId(finalConv.id);
                 }
               } else if (eventData.type === 'error') {
+                if (streamFlushRafId !== null) {
+                  cancelAnimationFrame(streamFlushRafId);
+                  streamFlushRafId = null;
+                }
                 throw new Error(
                   eventData.error ||
                     'SVH AI encountered an error while generating your answer. Please tap Retry.'
@@ -1520,6 +1548,10 @@ export const SVHAIFloatingAssistant: React.FC<SVHAIFloatingAssistantProps> = Rea
               }
             }
           }
+        }
+
+        if (streamFlushRafId !== null) {
+          flushStreamingMessageNow(pendingConvId, pendingMsgId, pendingFullText);
         }
 
         if (!receivedDone && accumulatedAnswer.trim().length === 0) {

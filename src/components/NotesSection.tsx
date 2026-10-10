@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { Search, Bookmark, CheckCircle2, Sparkles, ArrowRight, Zap, BookOpen } from 'lucide-react';
 import { StudyNote } from '../types';
 import { GlassMetallicSkeleton, useBriefShimmerTransition } from './GlassMetallicSkeleton';
+import { useInertialFluidPill, scheduleRafAction } from './InteractiveFluidRippleLayer';
 
 interface NotesSectionProps {
   activeGoal: string;
@@ -58,6 +59,11 @@ export const NotesSection: React.FC<NotesSectionProps> = React.memo(({
     220
   );
 
+  const { containerRef: subjectTabsRef, pillMetrics } = useInertialFluidPill<HTMLDivElement>([
+    selectedSubject,
+    subjectTabs.length,
+  ]);
+
   return (
     <div className="space-y-6 pb-12 max-w-full overflow-x-hidden">
       {/* Title & Introduction */}
@@ -92,19 +98,34 @@ export const NotesSection: React.FC<NotesSectionProps> = React.memo(({
 
         {/* Filter bar */}
         <div className="flex flex-wrap items-center justify-between gap-2">
-          {/* Dynamic subjects tabs */}
-          <div className="flex items-center gap-1.5 p-1 bg-[#090e1c] rounded-xl border border-[#d4af37]/20 overflow-x-auto no-scrollbar">
+          {/* Dynamic subjects tabs with Inertial Smooth Fluid Pill */}
+          <div
+            ref={subjectTabsRef}
+            className="relative flex items-center gap-1.5 p-1 bg-[#090e1c] rounded-xl border border-[#d4af37]/20 overflow-x-auto no-scrollbar"
+          >
+            {pillMetrics.visible && (
+              <span
+                aria-hidden="true"
+                style={{
+                  width: `${pillMetrics.width}px`,
+                  height: `${pillMetrics.height}px`,
+                  transform: `translate3d(${pillMetrics.x}px, ${pillMetrics.y}px, 0)`,
+                }}
+                className="svh-inertial-fluid-pill svh-inertial-fluid-pill-solid rounded-lg bg-[#d4af37] shadow-sm"
+              />
+            )}
             {subjectTabs.map((sub) => {
               const isActive = selectedSubject === sub;
               return (
                 <button
                   key={sub}
                   type="button"
-                  onClick={() => setSelectedSubject(sub)}
-                  className={`min-h-[44px] min-w-[44px] px-3.5 py-2 rounded-lg text-xs font-medium whitespace-nowrap transition-all flex items-center justify-center cursor-pointer ${
+                  data-svh-fluid-active={isActive ? 'true' : 'false'}
+                  onClick={() => scheduleRafAction(() => setSelectedSubject(sub))}
+                  className={`relative z-10 min-h-[44px] min-w-[44px] px-3.5 py-2 rounded-lg text-xs font-medium whitespace-nowrap transition-colors flex items-center justify-center cursor-pointer ${
                     isActive
-                      ? 'bg-[#d4af37] text-[#080d1a] font-bold shadow-sm'
-                      : 'text-[#cbd5e1] hover:text-[#fbf9f4] hover:bg-[#131b2e]'
+                      ? 'text-[#080d1a] font-bold'
+                      : 'text-[#cbd5e1] hover:text-[#fbf9f4]'
                   }`}
                 >
                   {sub}
@@ -116,7 +137,7 @@ export const NotesSection: React.FC<NotesSectionProps> = React.memo(({
           {/* High-yield toggle */}
           <button
             type="button"
-            onClick={() => setOnlyHighWeightage(!onlyHighWeightage)}
+            onClick={() => scheduleRafAction(() => setOnlyHighWeightage((prev) => !prev))}
             className={`min-h-[44px] min-w-[44px] px-3.5 py-2 rounded-xl border text-xs font-medium flex items-center justify-center gap-1.5 transition-colors cursor-pointer ${
               onlyHighWeightage
                 ? 'bg-[#d4af37]/20 border-[#d4af37] text-[#d4af37]'

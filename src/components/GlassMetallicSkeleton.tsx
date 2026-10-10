@@ -183,25 +183,11 @@ export function useGlobalCardTiltEffect() {
 }
 
 /**
- * Hook that triggers a brief, smooth glass-metallic skeleton shimmer wave
- * on initial mount or when dependencies (like subject/goal filter) change.
+ * Instant Page & Section Transition Hook:
+ * Returns false immediately so tab/filter/section switches execute instantaneously
+ * without artificial skeleton delay while preserving hook call sites.
  */
-export function useBriefShimmerTransition(deps: React.DependencyList, durationMs = 240): boolean {
-  const [isShimmering, setIsShimmering] = useState<boolean>(false);
-  const isFirstRender = React.useRef(true);
-
-  useEffect(() => {
-    if (isFirstRender.current) {
-      isFirstRender.current = false;
-      return;
-    }
-    setIsShimmering(true);
-    const timer = window.setTimeout(() => {
-      setIsShimmering(false);
-    }, durationMs);
-    return () => window.clearTimeout(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, deps);
-
-  return isShimmering;
+export function useBriefShimmerTransition(_deps: React.DependencyList, _durationMs = 0): boolean {
+  return false;
 }
+

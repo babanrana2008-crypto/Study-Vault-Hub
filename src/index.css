@@ -46,7 +46,9 @@
     width: 100%;
     max-width: 100vw;
     overflow-x: clip;
+    touch-action: pan-y;
     -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: auto;
     -webkit-text-size-adjust: 100%;
     text-size-adjust: 100%;
   }
@@ -54,14 +56,18 @@
   nav[aria-label="Bottom Navigation"] > div.rounded-2xl,
   header[aria-label="Top Navigation"] > div.rounded-2xl,
   header[aria-label="Top Navigation"] > nav.rounded-2xl {
-    transform: translateZ(0);
+    transform: translate3d(0, 0, 0);
+    will-change: transform, opacity;
     backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
   }
 
   body {
     font-family: var(--font-body);
     background-color: var(--svh-bg-page);
     color: var(--svh-text-primary);
+    touch-action: pan-y;
+    -webkit-overflow-scrolling: touch;
     -webkit-tap-highlight-color: transparent;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
@@ -156,23 +162,56 @@ html[data-theme="light"] .gold-glow {
 }
 
 @keyframes svhSectionEnter {
-  from {
-    opacity: 0;
+  0% {
+    opacity: 0.92;
+    transform: translate3d(0, 2px, 0);
   }
-  to {
+  100% {
     opacity: 1;
+    transform: translate3d(0, 0, 0);
   }
 }
 
 .svh-section-transition {
-  animation: svhSectionEnter 200ms cubic-bezier(0.4, 0, 0.2, 1);
+  min-height: 60vh;
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
+  transform: translate3d(0, 0, 0);
+  will-change: transform, opacity;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  animation: svhSectionEnter 110ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .svh-bottom-nav-slider {
-  transition: transform 250ms cubic-bezier(0.4, 0, 0.2, 1);
-  will-change: transform;
+  transition: transform 420ms cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: transform, opacity;
+  transform: translate3d(0, 0, 0);
   backface-visibility: hidden;
   -webkit-backface-visibility: hidden;
+}
+
+.svh-bottom-nav-fluid-pill {
+  background: linear-gradient(
+    135deg,
+    rgba(244, 114, 182, 0.16) 0%,
+    rgba(212, 175, 55, 0.22) 100%
+  );
+  border: 1px solid rgba(212, 175, 55, 0.32);
+  box-shadow:
+    0 2px 10px -2px rgba(244, 114, 182, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.14);
+  will-change: transform, opacity;
+  transform: translate3d(0, 0, 0);
+}
+
+html[data-theme="light"] .svh-bottom-nav-fluid-pill {
+  background: linear-gradient(
+    135deg,
+    rgba(244, 114, 182, 0.18) 0%,
+    rgba(138, 174, 209, 0.28) 100%
+  ) !important;
+  border-color: rgba(138, 174, 209, 0.55) !important;
 }
 
 html[data-theme="light"] .svh-bottom-nav-slider-bar {
@@ -925,49 +964,229 @@ html[data-theme="light"] .svh-ambient-orb-3 {
   overflow: hidden;
   user-select: none;
   contain: strict;
-  will-change: transform;
+  will-change: transform, opacity;
   transform: translate3d(0, 0, 0);
   backface-visibility: hidden;
   -webkit-backface-visibility: hidden;
   --svh-bubble-border-w: 1px;
   --svh-bubble-mid-y: -52vh;
-  --svh-bubble-travel-y: -116vh;
+  --svh-bubble-travel-y: -112vh;
 }
 
+.svh-mini-bubble-layer[data-paused="true"] .svh-app-aurora-base,
+.svh-mini-bubble-layer[data-paused="true"] .svh-ambient-mesh-blob,
+.svh-mini-bubble-layer[data-paused="true"] .svh-app-glow-orb,
+.svh-mini-bubble-layer[data-paused="true"] .svh-app-lower-wave,
 .svh-mini-bubble-layer[data-paused="true"] .svh-mini-bubble-particle {
   animation-play-state: paused !important;
 }
 
+/* 1. BASE LAYER: 30-second slow-morphing Aurora gradient (sweet rose, pearl white & subtle teal) */
+@keyframes svhAppAuroraMorph30s {
+  0% {
+    transform: translate3d(-3%, -2%, 0) scale3d(1, 1, 1);
+    opacity: 0.13;
+  }
+  33% {
+    transform: translate3d(3%, 2%, 0) scale3d(1.04, 1.02, 1);
+    opacity: 0.15;
+  }
+  66% {
+    transform: translate3d(-2%, 3%, 0) scale3d(1.02, 1.05, 1);
+    opacity: 0.11;
+  }
+  100% {
+    transform: translate3d(-3%, -2%, 0) scale3d(1, 1, 1);
+    opacity: 0.13;
+  }
+}
+
+.svh-app-aurora-base {
+  position: absolute;
+  inset: -12%;
+  pointer-events: none;
+  opacity: 0.13;
+  will-change: transform, opacity;
+  transform: translate3d(0, 0, 0);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  background:
+    radial-gradient(circle at 22% 28%, rgba(249, 168, 212, 0.72) 0%, transparent 55%),
+    radial-gradient(circle at 52% 48%, rgba(255, 251, 247, 0.85) 0%, transparent 58%),
+    radial-gradient(circle at 78% 72%, rgba(94, 234, 212, 0.65) 0%, transparent 56%),
+    linear-gradient(135deg, rgba(253, 232, 240, 0.75) 0%, rgba(255, 253, 250, 0.82) 50%, rgba(204, 251, 241, 0.72) 100%);
+  animation: svhAppAuroraMorph30s 30s ease-in-out infinite;
+}
+
+html[data-theme="dark"] .svh-app-aurora-base {
+  opacity: 0.11;
+  background:
+    radial-gradient(circle at 22% 28%, rgba(244, 114, 182, 0.52) 0%, transparent 55%),
+    radial-gradient(circle at 52% 48%, rgba(248, 250, 252, 0.28) 0%, transparent 58%),
+    radial-gradient(circle at 78% 72%, rgba(45, 212, 191, 0.48) 0%, transparent 56%),
+    linear-gradient(135deg, rgba(244, 114, 182, 0.32) 0%, rgba(241, 245, 249, 0.18) 50%, rgba(20, 184, 166, 0.30) 100%);
+}
+
+/* 2. GLOW LAYER: Gentle breathing ambient glowing orbs at top-right and bottom-left edges */
+@keyframes svhAppOrbBreatheTopRight {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale3d(0.95, 0.95, 1);
+    opacity: 0.10;
+  }
+  50% {
+    transform: translate3d(-18px, 14px, 0) scale3d(1.06, 1.06, 1);
+    opacity: 0.15;
+  }
+}
+
+@keyframes svhAppOrbBreatheBottomLeft {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale3d(0.96, 0.96, 1);
+    opacity: 0.10;
+  }
+  50% {
+    transform: translate3d(18px, -14px, 0) scale3d(1.07, 1.07, 1);
+    opacity: 0.14;
+  }
+}
+
+.svh-app-glow-orb {
+  position: absolute;
+  border-radius: 9999px;
+  pointer-events: none;
+  will-change: transform, opacity;
+  transform: translate3d(0, 0, 0);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+.svh-app-glow-orb-top-right {
+  top: -8%;
+  right: -8%;
+  width: 28rem;
+  height: 28rem;
+  background: radial-gradient(
+    circle,
+    rgba(244, 114, 182, 0.85) 0%,
+    rgba(251, 207, 232, 0.48) 45%,
+    transparent 74%
+  );
+  animation: svhAppOrbBreatheTopRight 18s ease-in-out infinite;
+}
+
+.svh-app-glow-orb-bottom-left {
+  bottom: -10%;
+  left: -8%;
+  width: 30rem;
+  height: 30rem;
+  background: radial-gradient(
+    circle,
+    rgba(45, 212, 191, 0.80) 0%,
+    rgba(249, 168, 212, 0.42) 48%,
+    transparent 74%
+  );
+  animation: svhAppOrbBreatheBottomLeft 22s ease-in-out infinite;
+}
+
+/* 3A. WAVE OVERLAY: Smooth CSS-based ambient wave effect at the lower section (10% - 14% opacity) */
+@keyframes svhAppLowerWaveGlide {
+  0%,
+  100% {
+    transform: translate3d(0%, 0, 0) scaleY(1);
+  }
+  50% {
+    transform: translate3d(-3.5%, 4px, 0) scaleY(1.03);
+  }
+}
+
+@keyframes svhAppLowerWaveGlideReverse {
+  0%,
+  100% {
+    transform: translate3d(-3%, 0, 0) scaleY(1);
+  }
+  50% {
+    transform: translate3d(3%, -4px, 0) scaleY(0.97);
+  }
+}
+
+.svh-app-lower-wave-wrap {
+  position: absolute;
+  left: -5%;
+  right: -5%;
+  bottom: 0;
+  height: 26vh;
+  min-height: 120px;
+  max-height: 220px;
+  pointer-events: none;
+  overflow: hidden;
+  contain: layout style paint;
+}
+
+.svh-app-lower-wave {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 110%;
+  height: 100%;
+  will-change: transform, opacity;
+  transform: translate3d(0, 0, 0);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+.svh-app-lower-wave-back {
+  opacity: 0.12;
+  fill: #f472b6;
+  animation: svhAppLowerWaveGlide 20s ease-in-out infinite;
+}
+
+.svh-app-lower-wave-front {
+  opacity: 0.11;
+  fill: #2dd4bf;
+  animation: svhAppLowerWaveGlideReverse 24s ease-in-out infinite;
+}
+
+html[data-theme="dark"] .svh-app-lower-wave-back {
+  opacity: 0.08;
+}
+
+html[data-theme="dark"] .svh-app-lower-wave-front {
+  opacity: 0.07;
+}
+
+/* 3B. PARTICLE OVERLAY: Minimal floating soft micro-particles/dots rising slowly (10% - 15% opacity) */
 @keyframes svhMiniBubbleFloatUp {
   0% {
     transform: translate3d(0, 0, 0) scale3d(0.92, 0.92, 1);
     opacity: 0;
   }
-  12% {
-    opacity: var(--svh-bubble-opacity, 0.28);
+  15% {
+    opacity: 0.11;
   }
   50% {
-    transform: translate3d(var(--svh-bubble-drift, 16px), var(--svh-bubble-mid-y, -52vh), 0) scale3d(1.04, 1.04, 1);
-    opacity: var(--svh-bubble-opacity-peak, 0.34);
+    transform: translate3d(var(--svh-bubble-drift, 14px), var(--svh-bubble-mid-y, -52vh), 0) scale3d(1.03, 1.03, 1);
+    opacity: 0.14;
   }
-  88% {
-    opacity: var(--svh-bubble-opacity, 0.27);
+  85% {
+    opacity: 0.11;
   }
   100% {
-    transform: translate3d(calc(var(--svh-bubble-drift, 16px) * -0.6), var(--svh-bubble-travel-y, -116vh), 0) scale3d(0.95, 0.95, 1);
+    transform: translate3d(calc(var(--svh-bubble-drift, 14px) * -0.5), var(--svh-bubble-travel-y, -112vh), 0) scale3d(0.94, 0.94, 1);
     opacity: 0;
   }
 }
 
 .svh-mini-bubble-particle {
   position: absolute;
-  bottom: -68px;
+  bottom: -48px;
   border-radius: 9999px;
   pointer-events: none;
-  opacity: var(--svh-bubble-opacity, 0.28);
+  opacity: 0.12;
   filter: none;
   -webkit-filter: none;
-  will-change: transform;
+  will-change: transform, opacity;
   transform: translate3d(0, 0, 0);
   backface-visibility: hidden;
   -webkit-backface-visibility: hidden;
@@ -1513,15 +1732,18 @@ h1, h2, h3, h4 {
   word-break: break-word;
 }
 
-/* 2. High-Refresh-Rate (90Hz / 120Hz / 144Hz) Unified Easing & Tactile Feedback */
+/* 2. High-Refresh-Rate (90Hz / 120Hz / 144Hz) Unified Easing & Tactile Feedback
+   Restricts transitions strictly to non-layout properties so `transition-all` never triggers expensive geometry/layout recalculations */
+.transition-all,
 button,
 a,
 input,
 select,
 textarea,
 [role="button"] {
+  transition-property: color, background-color, border-color, text-decoration-color, fill, stroke, opacity, box-shadow, transform, filter;
   transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
-  transition-duration: 160ms;
+  transition-duration: 150ms;
 }
 
 button:not(:disabled):hover,
@@ -1816,30 +2038,20 @@ html[data-theme="dark"] .svh-telegram-seagreen-icon svg {
 }
 
 /* ============================================================================
-   6. SPLASH SCREEN ANIMATION & LEAF STENCIL WATERMARK (WEB & ANDROID APK)
-   - High-refresh-rate (90Hz / 120Hz / 144Hz) GPU-composited transforms & opacity
-   - 12%–18% opacity soft desaturated blue/grey botanical leaf stencil watermark
-   - Pulsing radial aura, 600ms scale-90 -> scale-100 logo entry, metallic shimmer
-   - Staggered fade-in for "Study Vault Hub" and "Developed by Soumyadip Rana"
-   - Smooth curtain fade-out / upward slide exit transition
+   6. WORLD-CLASS 4-SECOND LIGHT SWEET-ROSE SPLASH SCREEN ANIMATION (WEB & APK)
+   - Total Duration: 4.0s with ultra-smooth 800ms sticky exit fade starting at 3.2s
+   - Clean, bright white / soft warm cream canvas with gentle sweet rose wavy animations
+   - Frosted material glassmorphic SVH logo card with polished beveled edges, deep reflections,
+     and a vibrant rose-to-emerald-green gradient pop ring
+   - Phase 1 (Wavy Background) -> Phase 2 (Logo Bloom) -> Phase 3 (Staggered Dark Rose-to-Gold
+     Serif Title, Tagline & Preserved Credit) -> Phase 4 (Pulsing Logo Activity Glow)
+   - 90Hz-144Hz GPU hardware layers (will-change: transform, opacity)
    ============================================================================ */
 
-@keyframes svhSplashAuraPulse {
-  0%,
-  100% {
-    transform: translate3d(0, 0, 0) scale(0.94);
-    opacity: 0.55;
-  }
-  50% {
-    transform: translate3d(0, 0, 0) scale(1.1);
-    opacity: 0.92;
-  }
-}
-
-@keyframes svhSplashLogoEntry {
+@keyframes svhSplashWavesMaterialize {
   0% {
     opacity: 0;
-    transform: translate3d(0, 10px, 0) scale(0.9);
+    transform: translate3d(0, 6px, 0) scale(1.015);
   }
   100% {
     opacity: 1;
@@ -1847,24 +2059,141 @@ html[data-theme="dark"] .svh-telegram-seagreen-icon svg {
   }
 }
 
-@keyframes svhSplashMetallicShimmer {
+@keyframes svhSplashSweetRoseRippleSlow {
   0% {
-    background-position: 200% center;
+    transform: translate3d(0%, 0, 0) scaleY(1);
+  }
+  50% {
+    transform: translate3d(-4.5%, -6px, 0) scaleY(1.05);
   }
   100% {
-    background-position: -200% center;
+    transform: translate3d(0%, 0, 0) scaleY(1);
   }
 }
 
-@keyframes svhSplashSubtextFadeUp {
+@keyframes svhSplashSweetRoseRippleReverse {
+  0% {
+    transform: translate3d(-3.5%, 0, 0) scaleY(1);
+  }
+  50% {
+    transform: translate3d(3.5%, 5px, 0) scaleY(0.95);
+  }
+  100% {
+    transform: translate3d(-3.5%, 0, 0) scaleY(1);
+  }
+}
+
+@keyframes svhSplashTopRibbonFloat {
+  0%,
+  100% {
+    transform: translate3d(0%, 0, 0) scaleY(1);
+  }
+  50% {
+    transform: translate3d(-3%, 6px, 0) scaleY(1.04);
+  }
+}
+
+@keyframes svhSplashAmbientShift1 {
+  0% {
+    transform: translate3d(-3%, -2%, 0) scale(0.96);
+    opacity: 0.65;
+  }
+  50% {
+    transform: translate3d(3%, 3%, 0) scale(1.06);
+    opacity: 0.92;
+  }
+  100% {
+    transform: translate3d(-3%, -2%, 0) scale(0.96);
+    opacity: 0.65;
+  }
+}
+
+@keyframes svhSplashAmbientShift2 {
+  0% {
+    transform: translate3d(4%, 3%, 0) scale(1.03);
+    opacity: 0.58;
+  }
+  50% {
+    transform: translate3d(-4%, -2%, 0) scale(0.96);
+    opacity: 0.88;
+  }
+  100% {
+    transform: translate3d(4%, 3%, 0) scale(1.03);
+    opacity: 0.58;
+  }
+}
+
+@keyframes svhSplashLogoBloomEntry {
   0% {
     opacity: 0;
-    transform: translate3d(0, 12px, 0);
+    transform: translate3d(0, 14px, 0) scale(0.92);
+  }
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+@keyframes svhSplashGlassSweep {
+  0% {
+    transform: translate3d(-120%, -120%, 0) rotate(25deg);
+    opacity: 0;
+  }
+  25% {
+    opacity: 0.78;
+  }
+  65%,
+  100% {
+    transform: translate3d(120%, 120%, 0) rotate(25deg);
+    opacity: 0;
+  }
+}
+
+@keyframes svhSplashAuraPulse {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(0.94);
+    opacity: 0.48;
+  }
+  50% {
+    transform: translate3d(0, 0, 0) scale(1.09);
+    opacity: 0.92;
+  }
+}
+
+@keyframes svhSplashLogoInnerPulse {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(0.96);
+    opacity: 0.45;
+  }
+  50% {
+    transform: translate3d(0, 0, 0) scale(1.06);
+    opacity: 0.92;
+  }
+}
+
+@keyframes svhSplashTextFadeUp {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 14px, 0);
   }
   100% {
     opacity: 1;
     transform: translate3d(0, 0, 0);
   }
+}
+
+/* Clean Bright White to Soft Warm Cream Canvas (#fffdfa -> #fdf8f5 -> #fef6f8) */
+.svh-splash-multicomp-bg,
+html[data-theme="light"] .svh-splash-multicomp-bg,
+html[data-theme="dark"] .svh-splash-multicomp-bg {
+  background:
+    radial-gradient(circle at 20% 22%, rgba(249, 168, 212, 0.22) 0%, transparent 52%),
+    radial-gradient(circle at 80% 26%, rgba(251, 207, 232, 0.28) 0%, transparent 54%),
+    radial-gradient(circle at 50% 78%, rgba(167, 243, 208, 0.18) 0%, transparent 56%),
+    linear-gradient(155deg, #ffffff 0%, #fffaf7 48%, #fdf2f6 100%) !important;
+  background-color: #fffdfa !important;
 }
 
 .svh-splash-overlay {
@@ -1873,129 +2202,321 @@ html[data-theme="dark"] .svh-telegram-seagreen-icon svg {
   backface-visibility: hidden;
   -webkit-backface-visibility: hidden;
   transition:
-    opacity 420ms cubic-bezier(0.22, 1, 0.36, 1),
-    transform 420ms cubic-bezier(0.22, 1, 0.36, 1);
+    opacity 800ms cubic-bezier(0.22, 1, 0.36, 1),
+    transform 800ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .svh-splash-overlay-exit {
   opacity: 0;
-  transform: translate3d(0, -4.5%, 0) scale(1.015);
+  transform: translate3d(0, -2.5%, 0) scale(1.012);
   pointer-events: none;
 }
 
-.svh-splash-leaf-watermark {
+/* Phase 1: Immediate Gentle Sweet Rose Wavy Background Stage */
+.svh-splash-wavy-stage {
   position: absolute;
   inset: 0;
   pointer-events: none;
-  user-select: none;
   overflow: hidden;
   z-index: 1;
+  contain: layout style paint;
   will-change: transform, opacity;
   transform: translate3d(0, 0, 0);
+  animation: svhSplashWavesMaterialize 380ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
-/* Soft desaturated blue/grey botanical stencil tint at 12%–18% opacity */
-.svh-splash-leaf-stencil {
-  color: #94a9c4;
-  opacity: 0.15;
+.svh-splash-rose-ribbon-top {
+  position: absolute;
+  top: 0;
+  left: -5%;
+  width: 110%;
+  height: 34vh;
+  min-height: 160px;
+  max-height: 290px;
+  pointer-events: none;
   will-change: transform, opacity;
   transform: translate3d(0, 0, 0);
+  backface-visibility: hidden;
+  animation: svhSplashTopRibbonFloat 6.5s cubic-bezier(0.4, 0, 0.2, 1) infinite;
 }
 
-html[data-theme="light"] .svh-splash-leaf-stencil {
-  color: #647d9c !important;
-  opacity: 0.16 !important;
+.svh-splash-rose-waves-container {
+  position: absolute;
+  left: -6%;
+  right: -6%;
+  bottom: 0;
+  height: 42vh;
+  min-height: 190px;
+  max-height: 340px;
+  pointer-events: none;
+  overflow: hidden;
+  contain: layout style paint;
 }
 
-.svh-splash-radial-aura {
+.svh-splash-rose-wave-svg {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 112%;
+  height: 100%;
+  will-change: transform, opacity;
+  transform: translate3d(0, 0, 0);
+  backface-visibility: hidden;
+}
+
+.svh-splash-rose-wave-back {
+  animation: svhSplashSweetRoseRippleSlow 7.5s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+.svh-splash-rose-wave-mid {
+  animation: svhSplashSweetRoseRippleReverse 6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+.svh-splash-rose-wave-front {
+  animation: svhSplashSweetRoseRippleSlow 4.8s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+.svh-splash-ambient-glow {
+  position: absolute;
+  border-radius: 9999px;
+  pointer-events: none;
+  will-change: transform, opacity;
+  transform: translate3d(0, 0, 0);
+  backface-visibility: hidden;
+}
+
+.svh-splash-ambient-glow-1 {
+  width: 28rem;
+  height: 28rem;
+  top: 6%;
+  left: 8%;
   background: radial-gradient(
     circle,
-    rgba(212, 175, 55, 0.34) 0%,
-    rgba(148, 169, 196, 0.22) 42%,
-    rgba(56, 189, 248, 0.08) 68%,
-    transparent 82%
+    rgba(244, 114, 182, 0.16) 0%,
+    rgba(251, 207, 232, 0.10) 48%,
+    transparent 74%
+  );
+  animation: svhSplashAmbientShift1 4.6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+.svh-splash-ambient-glow-2 {
+  width: 30rem;
+  height: 30rem;
+  bottom: 8%;
+  right: 8%;
+  background: radial-gradient(
+    circle,
+    rgba(251, 113, 133, 0.15) 0%,
+    rgba(110, 231, 183, 0.12) 48%,
+    transparent 74%
+  );
+  animation: svhSplashAmbientShift2 5.2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+.svh-splash-ambient-glow-3 {
+  width: 24rem;
+  height: 24rem;
+  top: 34%;
+  left: 36%;
+  background: radial-gradient(
+    circle,
+    rgba(249, 168, 212, 0.15) 0%,
+    rgba(167, 243, 208, 0.10) 48%,
+    transparent 72%
+  );
+  animation: svhSplashAmbientShift1 5.8s cubic-bezier(0.4, 0, 0.2, 1) infinite reverse;
+}
+
+/* Phase 2 & 4: Frosted Beveled Glassmorphic Card & Rose-Green Gradient Pop */
+.svh-splash-glass-card,
+html[data-theme="light"] .svh-splash-glass-card,
+html[data-theme="dark"] .svh-splash-glass-card {
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.86) 0%,
+    rgba(255, 245, 248, 0.72) 50%,
+    rgba(240, 253, 247, 0.78) 100%
+  ) !important;
+  backdrop-filter: blur(22px) saturate(160%) !important;
+  -webkit-backdrop-filter: blur(22px) saturate(160%) !important;
+  border: 1.5px solid rgba(255, 255, 255, 0.95) !important;
+  box-shadow:
+    0 22px 48px -12px rgba(190, 24, 93, 0.16),
+    0 12px 28px -8px rgba(16, 185, 129, 0.14),
+    inset 0 2px 3px rgba(255, 255, 255, 0.98),
+    inset 0 -2px 4px rgba(244, 114, 182, 0.22),
+    inset 1.5px 0 2px rgba(110, 231, 183, 0.25) !important;
+  overflow: hidden;
+  will-change: transform, opacity;
+  transform: translate3d(0, 0, 0);
+  backface-visibility: hidden;
+}
+
+.svh-splash-logo-rose-green-ring,
+html[data-theme="light"] .svh-splash-logo-rose-green-ring,
+html[data-theme="dark"] .svh-splash-logo-rose-green-ring {
+  background: linear-gradient(
+    135deg,
+    #f43f5e 0%,
+    #ec4899 35%,
+    #f9a8d4 52%,
+    #34d399 78%,
+    #10b981 100%
+  ) !important;
+  box-shadow:
+    0 8px 24px -4px rgba(236, 72, 153, 0.32),
+    0 4px 16px -2px rgba(16, 185, 129, 0.28),
+    inset 0 1px 2px rgba(255, 255, 255, 0.85) !important;
+  will-change: transform, opacity;
+  transform: translate3d(0, 0, 0);
+}
+
+.svh-splash-glass-reflection {
+  position: absolute;
+  inset: -40%;
+  background: linear-gradient(
+    115deg,
+    transparent 32%,
+    rgba(255, 255, 255, 0.65) 45%,
+    rgba(253, 242, 248, 0.92) 50%,
+    rgba(209, 250, 229, 0.65) 55%,
+    transparent 68%
   );
   will-change: transform, opacity;
-  animation: svhSplashAuraPulse 2.4s ease-in-out infinite;
+  transform: translate3d(-120%, -120%, 0) rotate(25deg);
+  animation: svhSplashGlassSweep 2.7s cubic-bezier(0.22, 1, 0.36, 1) 240ms infinite;
 }
 
-html[data-theme="light"] .svh-splash-radial-aura {
-  background: radial-gradient(
-    circle,
-    rgba(122, 158, 196, 0.42) 0%,
-    rgba(148, 169, 196, 0.26) 45%,
-    rgba(180, 204, 230, 0.12) 70%,
-    transparent 85%
-  ) !important;
+.svh-splash-radial-aura,
+.svh-splash-logo-activity-pulse {
+  display: none !important;
+  animation: none !important;
 }
 
 .svh-splash-logo-entry {
+  opacity: 0;
   will-change: transform, opacity;
-  animation: svhSplashLogoEntry 600ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  transform: translate3d(0, 0, 0);
+  animation: svhSplashLogoBloomEntry 660ms cubic-bezier(0.22, 1, 0.36, 1) 120ms forwards;
 }
 
-.svh-splash-shimmer-text {
+/* Phase 3: Crisp High-Contrast Dark Rose-to-Gold Serif Title, Tagline & Preserved Credit */
+.svh-splash-title-gradient,
+html[data-theme="light"] .svh-splash-title-gradient,
+html[data-theme="dark"] .svh-splash-title-gradient {
   background: linear-gradient(
-    110deg,
-    #fce09b 0%,
-    #d4af37 28%,
-    #ffffff 48%,
-    #fff6d6 52%,
-    #d4af37 72%,
-    #fce09b 100%
-  );
-  background-size: 220% auto;
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
-  will-change: transform, opacity;
-  animation:
-    svhSplashLogoEntry 600ms cubic-bezier(0.22, 1, 0.36, 1) forwards,
-    svhSplashMetallicShimmer 1.6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
-}
-
-html[data-theme="light"] .svh-splash-shimmer-text {
-  background: linear-gradient(
-    110deg,
-    #0f172a 0%,
-    #1e3a5f 30%,
-    #5b82b0 48%,
-    #8ab0d8 52%,
-    #1e3a5f 72%,
-    #0f172a 100%
+    135deg,
+    #1f2937 0%,
+    #881337 38%,
+    #9d174d 68%,
+    #b45309 100%
   ) !important;
-  background-size: 220% auto !important;
   -webkit-background-clip: text !important;
   background-clip: text !important;
   -webkit-text-fill-color: transparent !important;
+  color: #1f2937 !important;
+  will-change: transform, opacity;
+  transform: translate3d(0, 0, 0);
+}
+
+.svh-splash-tagline,
+html[data-theme="light"] .svh-splash-tagline,
+html[data-theme="dark"] .svh-splash-tagline {
+  color: #475569 !important;
+  will-change: transform, opacity;
+  transform: translate3d(0, 0, 0);
+}
+
+.svh-splash-credit-badge,
+html[data-theme="light"] .svh-splash-credit-badge,
+html[data-theme="dark"] .svh-splash-credit-badge {
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.92) 0%,
+    rgba(255, 241, 245, 0.88) 52%,
+    rgba(236, 253, 245, 0.90) 100%
+  ) !important;
+  backdrop-filter: blur(14px) saturate(150%) !important;
+  -webkit-backdrop-filter: blur(14px) saturate(150%) !important;
+  border: 1.5px solid rgba(244, 114, 182, 0.34) !important;
+  box-shadow:
+    0 12px 28px -8px rgba(190, 24, 93, 0.16),
+    0 6px 16px -4px rgba(16, 185, 129, 0.12),
+    inset 0 1.5px 2px rgba(255, 255, 255, 0.98) !important;
+  will-change: transform, opacity;
+  transform: translate3d(0, 0, 0);
+}
+
+.svh-splash-credit-text,
+html[data-theme="light"] .svh-splash-credit-text,
+html[data-theme="dark"] .svh-splash-credit-text {
+  color: #1e293b !important;
+  will-change: transform, opacity;
+  transform: translate3d(0, 0, 0);
+}
+
+.svh-splash-credit-name,
+html[data-theme="light"] .svh-splash-credit-name,
+html[data-theme="dark"] .svh-splash-credit-name {
+  background: linear-gradient(
+    135deg,
+    #be123c 0%,
+    #9d174d 48%,
+    #047857 100%
+  ) !important;
+  -webkit-background-clip: text !important;
+  background-clip: text !important;
+  -webkit-text-fill-color: transparent !important;
+  color: #be123c !important;
+}
+
+.svh-splash-credit-underline,
+html[data-theme="light"] .svh-splash-credit-underline,
+html[data-theme="dark"] .svh-splash-credit-underline {
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    #f43f5e 22%,
+    #db2777 50%,
+    #10b981 78%,
+    transparent 100%
+  ) !important;
 }
 
 .svh-splash-fade-stagger-1 {
   opacity: 0;
   will-change: transform, opacity;
-  animation: svhSplashSubtextFadeUp 520ms cubic-bezier(0.22, 1, 0.36, 1) 180ms forwards;
-}
-
-.svh-splash-shimmer-text.svh-splash-fade-stagger-1 {
-  opacity: 0;
-  will-change: transform, opacity;
-  animation:
-    svhSplashSubtextFadeUp 520ms cubic-bezier(0.22, 1, 0.36, 1) 140ms forwards,
-    svhSplashMetallicShimmer 1.6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  animation: svhSplashTextFadeUp 620ms cubic-bezier(0.16, 1, 0.3, 1) 360ms forwards;
 }
 
 .svh-splash-fade-stagger-2 {
   opacity: 0;
   will-change: transform, opacity;
-  animation: svhSplashSubtextFadeUp 540ms cubic-bezier(0.22, 1, 0.36, 1) 360ms forwards;
+  animation: svhSplashTextFadeUp 620ms cubic-bezier(0.16, 1, 0.3, 1) 540ms forwards;
+}
+
+.svh-splash-fade-stagger-3 {
+  opacity: 0;
+  will-change: transform, opacity;
+  animation: svhSplashTextFadeUp 660ms cubic-bezier(0.16, 1, 0.3, 1) 720ms forwards;
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .svh-splash-wavy-stage,
+  .svh-splash-rose-ribbon-top,
+  .svh-splash-rose-wave-back,
+  .svh-splash-rose-wave-mid,
+  .svh-splash-rose-wave-front,
+  .svh-splash-ambient-glow-1,
+  .svh-splash-ambient-glow-2,
+  .svh-splash-ambient-glow-3,
+  .svh-splash-glass-reflection,
   .svh-splash-radial-aura,
+  .svh-splash-logo-activity-pulse,
   .svh-splash-logo-entry,
-  .svh-splash-shimmer-text,
   .svh-splash-fade-stagger-1,
-  .svh-splash-fade-stagger-2 {
+  .svh-splash-fade-stagger-2,
+  .svh-splash-fade-stagger-3 {
     animation: none !important;
     opacity: 1 !important;
     transform: none !important;
@@ -2089,11 +2610,11 @@ html[data-theme="light"] .svh-splash-shimmer-text {
   0%,
   100% {
     transform: translate3d(0, -1px, 0) scale(1.02);
-    box-shadow: 0 0 10px rgba(251, 146, 60, 0.18);
+    opacity: 0.94;
   }
   50% {
     transform: translate3d(0, 1.5px, 0) scale(0.96);
-    box-shadow: 0 0 16px rgba(251, 146, 60, 0.32);
+    opacity: 1;
   }
 }
 
@@ -2101,11 +2622,11 @@ html[data-theme="light"] .svh-splash-shimmer-text {
   0%,
   100% {
     transform: translate3d(0, 0, 0) rotate(-6deg) scale(0.97);
-    box-shadow: 0 0 10px rgba(129, 140, 248, 0.2);
+    opacity: 0.92;
   }
   50% {
     transform: translate3d(0, -1.5px, 0) rotate(6deg) scale(1.04);
-    box-shadow: 0 0 18px rgba(129, 140, 248, 0.38);
+    opacity: 1;
   }
 }
 
@@ -2120,12 +2641,14 @@ html[data-theme="light"] .svh-splash-shimmer-text {
 }
 
 .svh-greeting-icon-evening {
-  will-change: transform, box-shadow;
+  will-change: transform, opacity;
+  box-shadow: 0 0 12px rgba(251, 146, 60, 0.24);
   animation: svhEveningSoftSunset 3.6s ease-in-out infinite;
 }
 
 .svh-greeting-icon-night {
-  will-change: transform, box-shadow;
+  will-change: transform, opacity;
+  box-shadow: 0 0 12px rgba(129, 140, 248, 0.26);
   animation: svhNightSoftMoon 3.6s ease-in-out infinite;
 }
 
@@ -2351,9 +2874,8 @@ html[data-theme="light"] .svh-skeleton-card::before {
 
 .svh-animated-progress-fill {
   transform-origin: left center;
-  will-change: width, transform;
-  transition: width 800ms ease-out !important;
-  animation: svhProgressMountFill 800ms ease-out forwards;
+  will-change: transform;
+  animation: svhProgressMountFill 600ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
 
 /* Animated Live Streak Flame: Subtle 2s breathing pulse (scale(1) -> scale(1.08)) */
@@ -2396,7 +2918,7 @@ html[data-theme="light"] .svh-skeleton-card::before {
 
 .svh-rolling-vp-counter {
   font-variant-numeric: tabular-nums;
-  will-change: contents, transform;
+  will-change: transform;
 }
 
 .svh-rolling-vp-digits {
@@ -2471,18 +2993,12 @@ html[data-theme="light"] .svh-badge-shimmer::after {
 @keyframes svhAIAvatarBreathingGlow {
   0%,
   100% {
-    box-shadow:
-      0 0 0 2px rgba(34, 211, 238, 0.45),
-      0 0 16px 3px rgba(6, 182, 212, 0.48),
-      0 0 28px 6px rgba(217, 70, 239, 0.34);
-    transform: scale(1);
+    transform: translate3d(0, 0, 0) scale(1);
+    opacity: 0.92;
   }
   50% {
-    box-shadow:
-      0 0 0 3px rgba(217, 70, 239, 0.58),
-      0 0 22px 6px rgba(217, 70, 239, 0.52),
-      0 0 36px 10px rgba(34, 211, 238, 0.46);
-    transform: scale(1.05);
+    transform: translate3d(0, 0, 0) scale(1.05);
+    opacity: 1;
   }
 }
 
@@ -2504,7 +3020,11 @@ html[data-theme="light"] .svh-badge-shimmer::after {
 .svh-ai-avatar-breathing {
   position: relative;
   z-index: 1;
-  will-change: transform, box-shadow;
+  will-change: transform, opacity;
+  box-shadow:
+    0 0 0 2px rgba(34, 211, 238, 0.5),
+    0 0 18px 4px rgba(6, 182, 212, 0.45),
+    0 0 28px 6px rgba(217, 70, 239, 0.36);
   animation: svhAIAvatarBreathingGlow 2.2s ease-in-out infinite !important;
   border-color: rgba(34, 211, 238, 0.78) !important;
 }
@@ -2690,6 +3210,8 @@ body.svh-inline-timer-active .svh-tracker-sibling-dimmable {
   isolation: isolate;
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
+  will-change: transform, opacity;
+  transform: translate3d(0, 0, 0);
   transition:
     transform 150ms cubic-bezier(0.22, 1, 0.36, 1),
     box-shadow 180ms cubic-bezier(0.22, 1, 0.36, 1),
@@ -2697,30 +3219,11 @@ body.svh-inline-timer-active .svh-tracker-sibling-dimmable {
 }
 
 .svh-join-channel-btn::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  margin: auto;
-  width: 100%;
-  height: 100%;
-  border-radius: inherit;
-  background: radial-gradient(circle, rgba(255, 255, 255, 0.48) 0%, rgba(255, 255, 255, 0) 70%);
-  transform: scale(0);
-  opacity: 0;
-  pointer-events: none;
-  transition:
-    transform 320ms cubic-bezier(0.22, 1, 0.36, 1),
-    opacity 320ms ease;
+  display: none !important;
 }
 
 .svh-join-channel-btn:active {
-  transform: scale(0.97);
-}
-
-.svh-join-channel-btn:active::after {
-  transform: scale(2.2);
-  opacity: 1;
-  transition: 0s;
+  transform: translate3d(0, 0, 0) scale(0.985);
 }
 
 /* ============================================================================
@@ -2769,4 +3272,507 @@ html[data-theme="dark"] .svh-anniversary-banner .svh-anniversary-illustration-bo
   background-color: #102040 !important;
   border-color: rgba(212, 175, 55, 0.48) !important;
 }
+
+/* ============================================================================
+   15. SWEET ROSE TO SOFT GOLD SHIMMERING GRADIENT BORDERS & FOCUS BREATHING RING
+   - Applies a subtle Sweet Rose (#f472b6 / #fb7185) to Soft Gold (#d4af37 / #fde08d)
+     gradient border around dashboard sections, study tracker cards, and routine blocks
+   - Lightweight CSS shimmer sweep across card border edges without triggering re-renders
+   - Rhythmic Focus Breathing Ring Timer for deep study sessions
+   - Strictly GPU-accelerated (transform: translate3d(0,0,0); will-change: transform, opacity;)
+   ============================================================================ */
+
+@keyframes svhBorderShimmerSweep {
+  0% {
+    transform: translate3d(-145%, -145%, 0) rotate(24deg);
+    opacity: 0;
+  }
+  18% {
+    opacity: 0.72;
+  }
+  42% {
+    transform: translate3d(145%, 145%, 0) rotate(24deg);
+    opacity: 0;
+  }
+  100% {
+    transform: translate3d(145%, 145%, 0) rotate(24deg);
+    opacity: 0;
+  }
+}
+
+/* Dashboard sections, study tracker cards & routine blocks receive the Sweet Rose to Soft Gold border */
+main section[class*="rounded-2xl"],
+main section[class*="rounded-3xl"],
+.svh-shimmer-border-card,
+.svh-3d-tilt-card {
+  position: relative;
+  overflow: hidden;
+  border-color: rgba(244, 114, 182, 0.34) !important;
+  box-shadow:
+    0 10px 28px -8px rgba(15, 23, 42, 0.28),
+    inset 0 0 0 1px rgba(212, 175, 55, 0.28),
+    inset 0 1px 0 0 rgba(249, 168, 212, 0.36);
+}
+
+html[data-theme="light"] main section[class*="rounded-2xl"],
+html[data-theme="light"] main section[class*="rounded-3xl"],
+html[data-theme="light"] .svh-shimmer-border-card,
+html[data-theme="light"] .svh-3d-tilt-card {
+  border-color: rgba(244, 114, 182, 0.42) !important;
+  box-shadow:
+    0 10px 26px -8px rgba(190, 24, 93, 0.10),
+    inset 0 0 0 1px rgba(212, 175, 55, 0.32),
+    inset 0 1px 0 0 rgba(244, 114, 182, 0.38);
+}
+
+/* Lightweight periodic CSS shimmer sweep across the border edge (GPU-composited) */
+main section[class*="rounded-2xl"]::after,
+main section[class*="rounded-3xl"]::after,
+.svh-shimmer-border-card::after {
+  content: "";
+  position: absolute;
+  inset: -45%;
+  pointer-events: none;
+  z-index: 1;
+  background: linear-gradient(
+    115deg,
+    transparent 42%,
+    rgba(244, 114, 182, 0.16) 48%,
+    rgba(253, 224, 141, 0.24) 50%,
+    rgba(212, 175, 55, 0.16) 52%,
+    transparent 58%
+  );
+  will-change: transform, opacity;
+  transform: translate3d(-145%, -145%, 0) rotate(24deg);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  animation: svhBorderShimmerSweep 9.5s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+}
+
+/* Keep Anniversary Banner & WhatsApp Sweet-Rose Banner distinct */
+.svh-anniversary-banner::after,
+.svh-whatsapp-sweet-rose-banner::after {
+  display: none !important;
+}
+
+/* Focus Breathing Ring Timer (Calm 4.8s rhythmic cycle) */
+@keyframes svhFocusBreathingHalo {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale3d(0.95, 0.95, 1);
+    opacity: 0.32;
+  }
+  50% {
+    transform: translate3d(0, 0, 0) scale3d(1.09, 1.09, 1);
+    opacity: 0.86;
+  }
+}
+
+@keyframes svhFocusBreathingRing {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale3d(0.98, 0.98, 1);
+    opacity: 0.55;
+  }
+  50% {
+    transform: translate3d(0, 0, 0) scale3d(1.045, 1.045, 1);
+    opacity: 1;
+  }
+}
+
+.svh-focus-breathing-ring-stage {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  isolation: isolate;
+  will-change: transform, opacity;
+  transform: translate3d(0, 0, 0);
+}
+
+.svh-focus-breathing-ring-halo {
+  position: absolute;
+  inset: -14px;
+  border-radius: 9999px;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.28;
+  background: radial-gradient(
+    circle,
+    rgba(244, 114, 182, 0.28) 0%,
+    rgba(212, 175, 55, 0.26) 45%,
+    rgba(52, 211, 153, 0.18) 70%,
+    transparent 85%
+  );
+  will-change: transform, opacity;
+  transform: translate3d(0, 0, 0);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  animation: svhFocusBreathingHalo 6s ease-in-out infinite;
+}
+
+.svh-focus-breathing-ring-border {
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  pointer-events: none;
+  z-index: 1;
+  border: 1.5px solid rgba(212, 175, 55, 0.42);
+  box-shadow:
+    0 0 22px -2px rgba(244, 114, 182, 0.24),
+    inset 0 0 16px -2px rgba(212, 175, 55, 0.22);
+  will-change: transform, opacity;
+  transform: translate3d(0, 0, 0);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  animation: svhFocusBreathingRing 6s ease-in-out infinite;
+}
+
+.svh-focus-breathing-active .svh-focus-breathing-ring-halo {
+  opacity: 0.85;
+  background: radial-gradient(
+    circle,
+    rgba(244, 114, 182, 0.42) 0%,
+    rgba(212, 175, 55, 0.38) 45%,
+    rgba(52, 211, 153, 0.28) 72%,
+    transparent 88%
+  );
+  animation: svhFocusBreathingHalo 4.6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+.svh-focus-breathing-active .svh-focus-breathing-ring-border {
+  border-color: rgba(244, 114, 182, 0.72);
+  box-shadow:
+    0 0 28px 2px rgba(244, 114, 182, 0.35),
+    0 0 18px 1px rgba(212, 175, 55, 0.38),
+    inset 0 0 18px 0 rgba(52, 211, 153, 0.26);
+  animation: svhFocusBreathingRing 4.6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+.svh-confetti-canvas {
+  will-change: transform, opacity;
+  transform: translate3d(0, 0, 0);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  main section[class*="rounded-2xl"]::after,
+  main section[class*="rounded-3xl"]::after,
+  .svh-shimmer-border-card::after,
+  .svh-focus-breathing-ring-halo,
+  .svh-focus-breathing-ring-border {
+    animation: none !important;
+  }
+}
+
+/* ============================================================================
+   16. INERTIAL SMOOTH FLUID PILL TABS & SUBTLE AMBIENT MESH GRADIENT BLOB MOTION
+       (WEB & ANDROID APK — ZERO TAP RIPPLE / BUBBLE RINGS)
+   - Feature 1: Inertial Smooth Fluid Pill Tab using spring physics
+     `cubic-bezier(0.16, 1, 0.3, 1)` for elastic gliding across tabs & filters.
+   - Feature 2: Subtle Ambient Mesh Gradient Blob Motion in header & background
+     layers at low opacity (10% - 15%) for zero eye strain and 90Hz-144Hz lock.
+   - Feature 3 (Crucial Exclusion): Zero circular expander, bubble, or tap ripple
+     rings upon tap, click, or logo load.
+   ============================================================================ */
+
+/* 16A. Inertial Smooth Fluid Pill Tab (Spring Physics: cubic-bezier(0.16, 1, 0.3, 1)) */
+.svh-inertial-fluid-pill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 0;
+  pointer-events: none;
+  will-change: transform, width, height, opacity;
+  transform: translate3d(0, 0, 0);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  transition:
+    transform 440ms cubic-bezier(0.16, 1, 0.3, 1),
+    width 440ms cubic-bezier(0.16, 1, 0.3, 1),
+    height 440ms cubic-bezier(0.16, 1, 0.3, 1),
+    opacity 260ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.svh-inertial-fluid-slider {
+  will-change: transform, opacity;
+  transform: translate3d(0, 0, 0);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  transition: transform 440ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.svh-header-nav-fluid-pill {
+  border-radius: 0.75rem;
+  background: linear-gradient(
+    135deg,
+    rgba(244, 114, 182, 0.16) 0%,
+    rgba(212, 175, 55, 0.22) 100%
+  );
+  border: 1px solid rgba(212, 175, 55, 0.38);
+  box-shadow:
+    0 4px 14px -3px rgba(244, 114, 182, 0.20),
+    0 2px 8px -2px rgba(212, 175, 55, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.16);
+}
+
+html[data-theme="light"] .svh-header-nav-fluid-pill {
+  background: linear-gradient(
+    135deg,
+    rgba(244, 114, 182, 0.20) 0%,
+    rgba(138, 174, 209, 0.34) 100%
+  ) !important;
+  border-color: rgba(125, 162, 199, 0.65) !important;
+  box-shadow:
+    0 4px 12px -2px rgba(190, 24, 93, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.75) !important;
+}
+
+.svh-inertial-fluid-pill-solid {
+  background: linear-gradient(135deg, #fde08d 0%, #d4af37 55%, #c59b27 100%);
+  box-shadow:
+    0 4px 14px -2px rgba(212, 175, 55, 0.32),
+    inset 0 1px 0 rgba(255, 255, 255, 0.45);
+  will-change: transform, opacity;
+  transform: translate3d(0, 0, 0);
+}
+
+html[data-theme="light"] .svh-inertial-fluid-pill-solid {
+  background: linear-gradient(135deg, #b8d0e8 0%, #9ab8d7 100%) !important;
+  box-shadow:
+    0 4px 12px -2px rgba(125, 162, 199, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.65) !important;
+}
+
+/* 16B. Subtle Ambient Mesh Gradient Blob Motion (10% - 15% Opacity in Header & Background) */
+@keyframes svhAmbientMeshBlobDrift1 {
+  0%,
+  100% {
+    transform: translate3d(-4%, -3%, 0) scale3d(1, 1, 1);
+    opacity: 0.12;
+  }
+  33% {
+    transform: translate3d(6%, 4%, 0) scale3d(1.08, 0.96, 1);
+    opacity: 0.15;
+  }
+  66% {
+    transform: translate3d(-2%, 6%, 0) scale3d(0.95, 1.06, 1);
+    opacity: 0.11;
+  }
+}
+
+@keyframes svhAmbientMeshBlobDrift2 {
+  0%,
+  100% {
+    transform: translate3d(4%, 2%, 0) scale3d(1, 1, 1);
+    opacity: 0.11;
+  }
+  50% {
+    transform: translate3d(-6%, -5%, 0) scale3d(1.07, 1.04, 1);
+    opacity: 0.14;
+  }
+}
+
+@keyframes svhHeaderMeshBlobGlide {
+  0%,
+  100% {
+    transform: translate3d(-8%, 0, 0) scale3d(1, 1, 1);
+    opacity: 0.12;
+  }
+  50% {
+    transform: translate3d(12%, 0, 0) scale3d(1.08, 1.04, 1);
+    opacity: 0.15;
+  }
+}
+
+.svh-ambient-mesh-blob {
+  position: absolute;
+  border-radius: 9999px;
+  pointer-events: none;
+  will-change: transform, opacity;
+  transform: translate3d(0, 0, 0);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+.svh-ambient-mesh-blob-1 {
+  top: 12%;
+  left: 16%;
+  width: 26rem;
+  height: 22rem;
+  opacity: 0.12;
+  background: radial-gradient(
+    ellipse at center,
+    rgba(244, 114, 182, 0.78) 0%,
+    rgba(251, 207, 232, 0.42) 48%,
+    transparent 74%
+  );
+  animation: svhAmbientMeshBlobDrift1 14s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+.svh-ambient-mesh-blob-2 {
+  top: 42%;
+  right: 14%;
+  width: 28rem;
+  height: 24rem;
+  opacity: 0.11;
+  background: radial-gradient(
+    ellipse at center,
+    rgba(212, 175, 55, 0.68) 0%,
+    rgba(244, 114, 182, 0.36) 50%,
+    transparent 74%
+  );
+  animation: svhAmbientMeshBlobDrift2 18s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+.svh-ambient-mesh-blob-3 {
+  bottom: 18%;
+  left: 34%;
+  width: 25rem;
+  height: 22rem;
+  opacity: 0.12;
+  background: radial-gradient(
+    ellipse at center,
+    rgba(45, 212, 191, 0.68) 0%,
+    rgba(249, 168, 212, 0.38) 50%,
+    transparent 74%
+  );
+  animation: svhAmbientMeshBlobDrift1 16s cubic-bezier(0.4, 0, 0.2, 1) infinite reverse;
+}
+
+.svh-header-mesh-stage {
+  border-radius: inherit;
+}
+
+.svh-header-mesh-blob {
+  position: absolute;
+  top: -40%;
+  width: 14rem;
+  height: 6rem;
+  border-radius: 9999px;
+  pointer-events: none;
+  opacity: 0.13;
+  will-change: transform, opacity;
+  transform: translate3d(0, 0, 0);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+.svh-header-mesh-blob-rose {
+  left: 14%;
+  background: radial-gradient(
+    ellipse at center,
+    rgba(244, 114, 182, 0.85) 0%,
+    rgba(251, 207, 232, 0.35) 55%,
+    transparent 78%
+  );
+  animation: svhHeaderMeshBlobGlide 9s ease-in-out infinite;
+}
+
+.svh-header-mesh-blob-gold {
+  right: 18%;
+  background: radial-gradient(
+    ellipse at center,
+    rgba(212, 175, 55, 0.82) 0%,
+    rgba(45, 212, 191, 0.35) 55%,
+    transparent 78%
+  );
+  animation: svhHeaderMeshBlobGlide 11s ease-in-out infinite reverse;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .svh-inertial-fluid-pill,
+  .svh-inertial-fluid-slider {
+    transition: none !important;
+  }
+  .svh-ambient-mesh-blob,
+  .svh-header-mesh-blob {
+    animation: none !important;
+  }
+}
+
+/* ============================================================================
+   17. FULL-CODEBASE SCROLL PERFORMANCE, JANK ELIMINATION & GPU OVERHAUL
+       (WEB & ANDROID APK — 90Hz / 120Hz / 144Hz NATIVE SMOOTH SCROLLING)
+   - Enforces `touch-action: pan-y` and `-webkit-overflow-scrolling: touch`
+     across root body, dashboard wrappers, and all scrollable containers.
+   - Enforces strict GPU hardware acceleration (`transform: translate3d(0,0,0);`
+     and `will-change: transform, opacity;`) on transitioning views, sliding
+     panels, modals, and cards.
+   - Eliminates continuous border-sweep repaint thrashing on every card during
+     vertical scroll flicks while preserving the crisp Sweet Rose to Soft Gold
+     gradient border.
+   ============================================================================ */
+
+html,
+body,
+#root,
+.svh-app-root-scroll,
+.svh-dashboard-scroll-wrapper,
+.svh-scroll-container,
+main,
+[class*="overflow-y-auto"],
+[class*="overflow-auto"],
+.custom-scrollbar {
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Horizontal filter/tab strip containers support both horizontal swipe & vertical page scroll */
+[class*="overflow-x-auto"] {
+  touch-action: pan-x pan-y;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* GPU Hardware Acceleration on all transitioning views, sliding panels, modals, and cards */
+.svh-section-transition,
+.svh-spring-modal-card,
+.svh-popup-card,
+.svh-vp-streak-modal-card,
+.svh-shimmer-border-card,
+.svh-3d-tilt-card,
+main section[class*="rounded-2xl"],
+main section[class*="rounded-3xl"] {
+  transform: translate3d(0, 0, 0);
+  will-change: transform, opacity;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+/* Prevent continuous offscreen pseudo-element repaint thrashing on every card while scrolling */
+main section[class*="rounded-2xl"]::after,
+main section[class*="rounded-3xl"]::after {
+  animation: none !important;
+  opacity: 0 !important;
+}
+
+/* Keep the subtle shimmer sweep only on explicitly opted-in hero/stopwatch cards */
+.svh-shimmer-border-card::after {
+  animation: svhBorderShimmerSweep 11s cubic-bezier(0.22, 1, 0.36, 1) infinite !important;
+}
+
+/* Strict paint & layout isolation for fixed ambient background layers so they never trigger main-thread repaints during scroll */
+.svh-mini-bubble-layer,
+.svh-ambient-layer {
+  contain: layout style paint;
+  transform: translate3d(0, 0, 0);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+/* Pause background animations cleanly when app tab/webview is backgrounded */
+.svh-mini-bubble-layer[data-paused="true"] *,
+.svh-mini-bubble-layer[data-paused="true"] .svh-ambient-mesh-blob,
+.svh-mini-bubble-layer[data-paused="true"] .svh-app-aurora-base,
+.svh-mini-bubble-layer[data-paused="true"] .svh-app-glow-orb,
+.svh-mini-bubble-layer[data-paused="true"] .svh-app-lower-wave,
+.svh-mini-bubble-layer[data-paused="true"] .svh-mini-bubble-particle {
+  animation-play-state: paused !important;
+}
+
+
+
+
 

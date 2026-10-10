@@ -15,6 +15,7 @@ import {
 import { StudySession, StudyTask } from '../types';
 import { SAMPLE_BOOKS } from '../data/sampleData';
 import { NCERT_BOOKS_COLLECTION } from '../data/ncertBooksData';
+import { triggerConfettiCelebration } from './ConfettiCelebration';
 
 interface FocusModeModalProps {
   isOpen: boolean;
@@ -30,7 +31,7 @@ interface FocusModeModalProps {
 
 const PRESET_DURATIONS = [25, 45, 60, 90];
 
-export const FocusModeModal: React.FC<FocusModeModalProps> = ({
+export const FocusModeModal: React.FC<FocusModeModalProps> = React.memo(({
   isOpen,
   onClose,
   activeGoal,
@@ -81,6 +82,24 @@ export const FocusModeModal: React.FC<FocusModeModalProps> = ({
     }, 1000);
     return () => clearInterval(interval);
   }, [isRunning]);
+
+  // Trigger Confetti & Golden Stars celebration when target countdown timer completes
+  useEffect(() => {
+    const targetMins =
+      customMinutesInput.trim() && Number(customMinutesInput) > 0
+        ? Math.min(360, Math.max(1, Math.round(Number(customMinutesInput))))
+        : targetMinutes;
+    const targetSecs = targetMins * 60;
+    if (
+      hasStarted &&
+      isRunning &&
+      mode === 'countdown' &&
+      targetSecs > 0 &&
+      elapsedSeconds === targetSecs
+    ) {
+      triggerConfettiCelebration({ reason: 'timer' });
+    }
+  }, [hasStarted, isRunning, mode, elapsedSeconds, targetMinutes, customMinutesInput]);
 
   useEffect(() => {
     if (!isOpen || typeof document === 'undefined') return;
@@ -213,6 +232,7 @@ export const FocusModeModal: React.FC<FocusModeModalProps> = ({
       newSession,
       markLinkedTaskDone && linkedTaskId ? linkedTaskId : undefined
     );
+    triggerConfettiCelebration({ reason: 'timer' });
 
     // Reset state & close
     setHasStarted(false);
@@ -463,23 +483,39 @@ export const FocusModeModal: React.FC<FocusModeModalProps> = ({
             </div>
           )}
 
-          {/* Central Timer Display */}
-          <div className="p-6 sm:p-8 rounded-2xl bg-[#080e1d] border border-[#d4af37]/30 text-center space-y-4">
-            <div className="space-y-1">
+          {/* Central Timer Display Wrapped in Focus Breathing Glow Ring */}
+          <div className="svh-shimmer-border-card p-6 sm:p-8 rounded-2xl bg-[#080e1d] border border-[#d4af37]/30 text-center space-y-4">
+            <div className="space-y-2 flex flex-col items-center">
               <span className="text-[11px] font-mono uppercase tracking-widest text-[#d4af37]">
                 {!hasStarted
                   ? mode === 'countdown'
                     ? `Target Session: ${effectiveTargetMinutes} Minutes`
                     : 'Open Stopwatch Mode'
                   : isRunning
-                  ? 'Focus Session in Progress — Recording Real Time'
+                  ? 'Focus Session in Progress — Deep Focus Breathing Ring Active'
                   : 'Focus Session Paused'}
               </span>
-              <div className="font-mono text-5xl sm:text-6xl font-extrabold text-[#fbf9f4] tracking-tight tabular-nums py-1">
-                {formatTime(remainingSeconds)}
+              <div
+                className={`svh-focus-breathing-ring-stage my-2 ${
+                  isRunning ? 'svh-focus-breathing-active' : ''
+                }`}
+              >
+                <div
+                  aria-hidden="true"
+                  className="svh-focus-breathing-ring-halo"
+                />
+                <div
+                  aria-hidden="true"
+                  className="svh-focus-breathing-ring-border"
+                />
+                <div className="relative z-10 px-8 py-4 sm:px-10 sm:py-5 rounded-full">
+                  <div className="font-mono text-5xl sm:text-6xl font-extrabold text-[#fbf9f4] tracking-tight tabular-nums">
+                    {formatTime(remainingSeconds)}
+                  </div>
+                </div>
               </div>
               {hasStarted && mode === 'countdown' && (
-                <div className="max-w-md mx-auto space-y-1 pt-2">
+                <div className="w-full max-w-md mx-auto space-y-1 pt-2">
                   <div className="w-full h-2 bg-[#131b2e] rounded-full overflow-hidden border border-[#d4af37]/20">
                     <div
                       className="svh-animated-progress-fill h-full bg-gradient-to-r from-[#d4af37] to-emerald-400"
@@ -564,4 +600,5 @@ export const FocusModeModal: React.FC<FocusModeModalProps> = ({
       </div>
     </div>
   );
-};
+});
+

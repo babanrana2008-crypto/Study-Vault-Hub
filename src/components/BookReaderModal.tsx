@@ -9,7 +9,7 @@ interface BookReaderModalProps {
   onToggleBookmark: (bookId: string) => void;
 }
 
-export const BookReaderModal: React.FC<BookReaderModalProps> = ({
+export const BookReaderModal: React.FC<BookReaderModalProps> = React.memo(({
   book,
   onClose,
   isBookmarked,
@@ -149,7 +149,7 @@ export const BookReaderModal: React.FC<BookReaderModalProps> = ({
         </div>
 
         {/* Content body */}
-        <div className="flex-1 overflow-y-auto px-4 sm:px-8 py-6 space-y-6">
+        <div className="svh-scroll-container flex-1 overflow-y-auto px-4 sm:px-8 py-6 space-y-6">
           {/* Chapter header */}
           <div className="border-b border-[#d4af37]/20 pb-4">
             <div className="flex items-center gap-2 text-xs text-[#d4af37] font-medium uppercase tracking-wider mb-1">
@@ -225,4 +225,5 @@ export const BookReaderModal: React.FC<BookReaderModalProps> = ({
       </div>
     </div>
   );
-};
+});
+

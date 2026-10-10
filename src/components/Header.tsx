@@ -4,6 +4,7 @@ import { ActiveSection, UserStats } from '../types';
 import { APP_LOGO, INITIAL_USER_STATS } from '../data/sampleData';
 import { VaultPointsPopup } from './VaultPointsPopup';
 import { RollingVPCounter } from './RollingVPCounter';
+import { useInertialFluidPill, scheduleRafAction } from './InteractiveFluidRippleLayer';
 
 interface HeaderProps {
   activeSection: ActiveSection;
@@ -40,7 +41,7 @@ export const Header: React.FC<HeaderProps> = React.memo(({
     );
   const showApkDesktopNav = isNativeAndroid && !isFloatingTopDock;
 
-  const navLinksRef = React.useRef<HTMLDivElement | null>(null);
+  const { containerRef: navLinksRef, pillMetrics } = useInertialFluidPill<HTMLDivElement>(activeSection);
 
   React.useEffect(() => {
     const el = navLinksRef.current;
@@ -57,7 +58,17 @@ export const Header: React.FC<HeaderProps> = React.memo(({
       window.removeEventListener('resize', ensureStartVisible);
       window.removeEventListener('orientationchange', ensureStartVisible);
     };
-  }, [activeSection]);
+  }, [activeSection, navLinksRef]);
+
+  const navItems: { id: ActiveSection; label: string }[] = [
+    { id: 'home', label: 'Home' },
+    { id: 'books', label: 'Books' },
+    { id: 'notes', label: 'Notes' },
+    { id: 'practice', label: 'Practice' },
+    { id: 'tracker', label: 'Tracker' },
+    { id: 'community', label: 'Community' },
+    { id: 'profile', label: 'Profile' },
+  ];
 
   return (
     <header
@@ -72,19 +83,28 @@ export const Header: React.FC<HeaderProps> = React.memo(({
         aria-label="Main Header Navigation"
         className={
           isFloatingTopDock
-            ? 'svh-header-navbar pointer-events-auto w-full max-w-5xl mx-auto px-3 sm:px-4 min-h-[3.5rem] py-1.5 rounded-2xl bg-[#060b18]/95 backdrop-blur-xl border border-[#d4af37]/35 shadow-[0_10px_30px_rgba(0,0,0,0.65),0_0_20px_rgba(212,175,55,0.14)] flex items-center justify-between gap-2 sm:gap-3 lg:gap-4 min-w-0 overflow-visible'
-            : 'svh-header-navbar w-full max-w-5xl mx-auto px-1 sm:px-2 min-h-[3.5rem] py-1.5 flex items-center justify-between gap-2 sm:gap-3 lg:gap-4 min-w-0 overflow-visible'
+            ? 'svh-header-navbar svh-header-ambient-mesh pointer-events-auto w-full max-w-5xl mx-auto px-3 sm:px-4 min-h-[3.5rem] py-1.5 rounded-2xl bg-[#060b18]/95 backdrop-blur-xl border border-[#d4af37]/35 shadow-[0_10px_30px_rgba(0,0,0,0.65),0_0_20px_rgba(212,175,55,0.14)] flex items-center justify-between gap-2 sm:gap-3 lg:gap-4 min-w-0 overflow-visible relative'
+            : 'svh-header-navbar svh-header-ambient-mesh w-full max-w-5xl mx-auto px-1 sm:px-2 min-h-[3.5rem] py-1.5 flex items-center justify-between gap-2 sm:gap-3 lg:gap-4 min-w-0 overflow-visible relative'
         }
       >
+        {/* Subtle Ambient Mesh Gradient Blob Motion in Header (10%-15% opacity, pointer-events-none) */}
+        <div
+          aria-hidden="true"
+          className="svh-header-mesh-stage pointer-events-none absolute inset-0 overflow-hidden rounded-inherit z-0"
+        >
+          <span className="svh-header-mesh-blob svh-header-mesh-blob-rose" />
+          <span className="svh-header-mesh-blob svh-header-mesh-blob-gold" />
+        </div>
+
         {/* 1. LEFT CONTAINER (brand-section): Logo + "Study Vault Hub" + "Developed by Soumyadip Rana" */}
         <div
-          className={`brand-section flex items-center gap-2 min-w-0 mr-1 sm:mr-1.5 ${
+          className={`brand-section relative z-10 flex items-center gap-2 min-w-0 mr-1 sm:mr-1.5 ${
             showApkDesktopNav ? 'flex-1 sm:flex-initial sm:shrink-0' : 'flex-1 md:flex-initial md:shrink-0'
           }`}
         >
           <button
             type="button"
-            onClick={() => onNavigate('home')}
+            onClick={() => scheduleRafAction(() => onNavigate('home'))}
             className={`flex items-center gap-2 sm:gap-2.5 text-left group focus:outline-none min-w-0 ${
               showApkDesktopNav ? 'flex-1 sm:flex-initial' : 'flex-1 md:flex-initial'
             }`}
@@ -114,72 +134,54 @@ export const Header: React.FC<HeaderProps> = React.memo(({
           </button>
         </div>
 
-        {/* 2. CENTER CONTAINER (nav-links): "Home", "Books", "Notes", "Practice", "Tracker", "Community", "Profile" */}
+        {/* 2. CENTER CONTAINER (nav-links): Inertial Smooth Fluid Pill Tab */}
         <div
           ref={navLinksRef}
-          className={`nav-links ${
+          className={`nav-links relative z-10 ${
             showApkDesktopNav
-              ? 'hidden sm:flex flex-1 items-center justify-start gap-1.5 md:gap-2.5 lg:gap-4 text-[11px] sm:text-xs lg:text-sm font-semibold overflow-x-auto no-scrollbar min-w-0 px-1.5 py-0.5'
-              : 'hidden md:flex flex-1 items-center justify-start gap-2 md:gap-2.5 lg:gap-4 text-xs lg:text-sm font-semibold overflow-x-auto no-scrollbar min-w-0 px-1.5 py-0.5'
+              ? 'hidden sm:flex flex-1 items-center justify-start gap-1 md:gap-1.5 lg:gap-2.5 text-[11px] sm:text-xs lg:text-sm font-semibold overflow-x-auto no-scrollbar min-w-0 px-1.5 py-0.5'
+              : 'hidden md:flex flex-1 items-center justify-start gap-1.5 md:gap-2 lg:gap-3 text-xs lg:text-sm font-semibold overflow-x-auto no-scrollbar min-w-0 px-1.5 py-0.5'
           }`}
         >
-          <button
-            type="button"
-            onClick={() => onNavigate('home')}
-            className={`min-h-[44px] px-2 lg:px-2.5 flex items-center justify-center transition-colors hover:text-[#d4af37] whitespace-nowrap shrink-0 cursor-pointer first:ml-auto ${activeSection === 'home' ? 'text-[#d4af37]' : 'text-[#cbd5e1]'}`}
-          >
-            Home
-          </button>
-          <button
-            type="button"
-            onClick={() => onNavigate('books')}
-            className={`min-h-[44px] px-2 lg:px-2.5 flex items-center justify-center transition-colors hover:text-[#d4af37] whitespace-nowrap shrink-0 cursor-pointer ${activeSection === 'books' ? 'text-[#d4af37]' : 'text-[#cbd5e1]'}`}
-          >
-            Books
-          </button>
-          <button
-            type="button"
-            onClick={() => onNavigate('notes')}
-            className={`min-h-[44px] px-2 lg:px-2.5 flex items-center justify-center transition-colors hover:text-[#d4af37] whitespace-nowrap shrink-0 cursor-pointer ${activeSection === 'notes' ? 'text-[#d4af37]' : 'text-[#cbd5e1]'}`}
-          >
-            Notes
-          </button>
-          <button
-            type="button"
-            onClick={() => onNavigate('practice')}
-            className={`min-h-[44px] px-2 lg:px-2.5 flex items-center justify-center transition-colors hover:text-[#d4af37] whitespace-nowrap shrink-0 cursor-pointer ${activeSection === 'practice' ? 'text-[#d4af37]' : 'text-[#cbd5e1]'}`}
-          >
-            Practice
-          </button>
-          <button
-            type="button"
-            onClick={() => onNavigate('tracker')}
-            className={`min-h-[44px] px-2 lg:px-2.5 flex items-center justify-center transition-colors hover:text-[#d4af37] whitespace-nowrap shrink-0 cursor-pointer ${activeSection === 'tracker' ? 'text-[#d4af37]' : 'text-[#cbd5e1]'}`}
-          >
-            Tracker
-          </button>
-          <button
-            type="button"
-            onClick={() => onNavigate('community')}
-            className={`min-h-[44px] px-2 lg:px-2.5 flex items-center justify-center transition-colors hover:text-[#d4af37] whitespace-nowrap shrink-0 cursor-pointer ${activeSection === 'community' ? 'text-[#d4af37]' : 'text-[#cbd5e1]'}`}
-          >
-            Community
-          </button>
-          <button
-            type="button"
-            onClick={() => onNavigate('profile')}
-            className={`min-h-[44px] px-2 lg:px-2.5 flex items-center justify-center transition-colors hover:text-[#d4af37] whitespace-nowrap shrink-0 cursor-pointer last:mr-auto ${activeSection === 'profile' ? 'text-[#d4af37]' : 'text-[#cbd5e1]'}`}
-          >
-            Profile
-          </button>
+          {/* Inertial Smooth Fluid Pill Indicator (cubic-bezier(0.16, 1, 0.3, 1)) */}
+          {pillMetrics.visible && (
+            <span
+              aria-hidden="true"
+              style={{
+                width: `${pillMetrics.width}px`,
+                height: `${Math.max(34, pillMetrics.height - 8)}px`,
+                transform: `translate3d(${pillMetrics.x}px, ${pillMetrics.y + 4}px, 0)`,
+              }}
+              className="svh-inertial-fluid-pill svh-header-nav-fluid-pill"
+            />
+          )}
+
+          {navItems.map((item, idx) => {
+            const isActive = activeSection === item.id;
+            return (
+              <button
+                key={item.id}
+                type="button"
+                data-svh-fluid-active={isActive ? 'true' : 'false'}
+                onClick={() => scheduleRafAction(() => onNavigate(item.id))}
+                className={`relative z-10 min-h-[44px] px-2.5 lg:px-3 rounded-xl flex items-center justify-center transition-colors hover:text-[#d4af37] whitespace-nowrap shrink-0 cursor-pointer ${
+                  idx === 0 ? 'first:ml-auto' : ''
+                } ${idx === navItems.length - 1 ? 'last:mr-auto' : ''} ${
+                  isActive ? 'text-[#d4af37] font-bold' : 'text-[#cbd5e1]'
+                }`}
+              >
+                {item.label}
+              </button>
+            );
+          })}
         </div>
 
         {/* 3. RIGHT CONTAINER (user-actions): Search icon, VP Points badge, Streak badge, User Profile badge */}
-        <div className="user-actions flex items-center gap-1.5 sm:gap-2 shrink-0">
+        <div className="user-actions relative z-10 flex items-center gap-1.5 sm:gap-2 shrink-0">
           {/* 1. Light Pastel Yellow Box: Quick Search */}
           <button
             type="button"
-            onClick={onOpenSearch}
+            onClick={() => scheduleRafAction(onOpenSearch)}
             aria-label="Search Vault"
             className="svh-header-box-yellow min-h-[38px] min-w-[38px] sm:min-h-[44px] sm:min-w-[44px] px-2 rounded-xl border border-[#d4af37]/25 bg-[#0f172a] text-[#fbf9f4] hover:text-[#d4af37] hover:border-[#d4af37] flex items-center justify-center transition-colors focus-visible:ring-1 focus-visible:ring-[#d4af37] shrink-0 cursor-pointer"
           >
@@ -189,10 +191,12 @@ export const Header: React.FC<HeaderProps> = React.memo(({
           {/* 2. Light Pastel Pink Box: VP Points Pill ("0 VP") */}
           <button
             type="button"
-            onClick={() => {
-              setVpPopupTab('vp');
-              setIsVpPopupOpen(true);
-            }}
+            onClick={() =>
+              scheduleRafAction(() => {
+                setVpPopupTab('vp');
+                setIsVpPopupOpen(true);
+              })
+            }
             className="svh-header-box-pink svh-badge-shimmer min-h-[38px] sm:min-h-[44px] inline-flex w-fit items-center justify-center gap-1 px-2 sm:px-2.5 py-1.5 rounded-xl border border-[#d4af37]/35 bg-[#0f172a] hover:border-[#d4af37] text-[11px] sm:text-xs font-medium text-[#fbf9f4] shrink-0 whitespace-nowrap transition-colors cursor-pointer"
             title={`${vpPoints} Vault Points (VP) — Click to view Rank & Milestones`}
             aria-haspopup="dialog"
@@ -209,10 +213,12 @@ export const Header: React.FC<HeaderProps> = React.memo(({
           {/* 3. Light Pastel Green Box: Daily Streak ("0d") */}
           <button
             type="button"
-            onClick={() => {
-              setVpPopupTab('streak');
-              setIsVpPopupOpen(true);
-            }}
+            onClick={() =>
+              scheduleRafAction(() => {
+                setVpPopupTab('streak');
+                setIsVpPopupOpen(true);
+              })
+            }
             className="svh-header-box-green min-h-[38px] sm:min-h-[44px] inline-flex w-fit items-center justify-center gap-1 px-2 sm:px-2.5 py-1.5 rounded-xl border border-[#d4af37]/25 bg-[#0f172a] hover:border-[#86efac] text-[11px] sm:text-xs font-medium text-[#fbf9f4] shrink-0 whitespace-nowrap transition-colors cursor-pointer"
             title={`${streakDays} Day Active Streak — Click to view Streak & VP details`}
             aria-haspopup="dialog"
@@ -232,7 +238,7 @@ export const Header: React.FC<HeaderProps> = React.memo(({
           {/* 4. Light Pastel Orange Box: Profile Trigger */}
           <button
             type="button"
-            onClick={() => onNavigate('profile')}
+            onClick={() => scheduleRafAction(() => onNavigate('profile'))}
             aria-label="Student Profile"
             className={`svh-header-box-orange min-h-[38px] min-w-[38px] sm:min-h-[44px] sm:min-w-[44px] py-1.5 px-2 sm:px-2.5 rounded-xl border flex items-center justify-center gap-1.5 transition-all text-xs shrink-0 whitespace-nowrap max-w-[130px] sm:max-w-[160px] cursor-pointer ${
               activeSection === 'profile'
@@ -260,4 +266,3 @@ export const Header: React.FC<HeaderProps> = React.memo(({
     </header>
   );
 });
-

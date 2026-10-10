@@ -17,6 +17,8 @@ import {
 import { UserStats, StudyTask, StudySession, AISmartRevisionPlan, AISmartStudyBlock } from '../types';
 import { apiFetch } from '../services/nativeApiBridge';
 import { GlassMetallicSkeleton } from './GlassMetallicSkeleton';
+import { RollingVPCounter } from './RollingVPCounter';
+import { triggerConfettiCelebration } from './ConfettiCelebration';
 
 interface TrackerSectionProps {
   activeGoal: string;
@@ -125,7 +127,7 @@ const ActiveStopwatchCard: React.FC<ActiveStopwatchCardProps> = React.memo(
 
     return (
       <section
-        className={`svh-focus-sharp-block ${
+        className={`svh-shimmer-border-card svh-focus-sharp-block ${
           timerRunning ? 'svh-focus-timer-running' : ''
         } p-5 sm:p-6 rounded-2xl sm:rounded-3xl bg-gradient-to-br from-[#0c1428] via-[#090f20] to-[#070b16] border border-[#d4af37]/35 shadow-xl space-y-5 overflow-hidden`}
       >
@@ -136,20 +138,38 @@ const ActiveStopwatchCard: React.FC<ActiveStopwatchCardProps> = React.memo(
           </div>
           <div className="text-xs text-[#9ca3af]">
             Total Verified Study Time:{' '}
-            <span className="font-bold text-[#fbf9f4] tabular-nums">
-              {totalStudyMinutes} min
-            </span>
+            <RollingVPCounter
+              value={totalStudyMinutes}
+              suffix=" min"
+              className="font-bold text-[#fbf9f4] tabular-nums"
+            />
           </div>
         </div>
 
-        {/* Digital Display */}
-        <div className="text-center py-2">
-          <div className="font-mono text-4xl sm:text-5xl lg:text-6xl font-extrabold text-[#fbf9f4] tracking-tight tabular-nums">
-            {formatTimerDigits(timerSeconds)}
+        {/* Digital Display Wrapped in Focus Breathing Glow Ring */}
+        <div className="text-center py-3 flex flex-col items-center justify-center">
+          <div
+            className={`svh-focus-breathing-ring-stage ${
+              timerRunning ? 'svh-focus-breathing-active' : ''
+            }`}
+          >
+            <div
+              aria-hidden="true"
+              className="svh-focus-breathing-ring-halo"
+            />
+            <div
+              aria-hidden="true"
+              className="svh-focus-breathing-ring-border"
+            />
+            <div className="relative z-10 px-7 py-4 sm:px-9 sm:py-5 rounded-full">
+              <div className="font-mono text-4xl sm:text-5xl lg:text-6xl font-extrabold text-[#fbf9f4] tracking-tight tabular-nums">
+                {formatTimerDigits(timerSeconds)}
+              </div>
+            </div>
           </div>
-          <span className="text-[11px] text-[#9ca3af] uppercase tracking-widest mt-1 block">
+          <span className="text-[11px] text-[#9ca3af] uppercase tracking-widest mt-2.5 block">
             {timerRunning
-              ? `Studying ${timerSubject}...`
+              ? `Studying ${timerSubject} — Deep Focus Breathing Active`
               : timerSeconds > 0
               ? 'Session paused'
               : 'Ready to begin study'}
@@ -370,9 +390,17 @@ export const TrackerSection: React.FC<TrackerSectionProps> = React.memo(({
   const handleToggleAIPlanBlock = (blockId: string) => {
     const currentPlan = userStats.aiSmartRevisionPlan;
     if (!currentPlan) return;
-    const updatedBlocks = currentPlan.blocks.map((b) =>
-      b.id === blockId ? { ...b, completed: !b.completed } : b
-    );
+    let markedDone = false;
+    const updatedBlocks = currentPlan.blocks.map((b) => {
+      if (b.id === blockId) {
+        markedDone = !b.completed;
+        return { ...b, completed: !b.completed };
+      }
+      return b;
+    });
+    if (markedDone) {
+      triggerConfettiCelebration({ reason: 'milestone' });
+    }
     onUpdateStats({
       aiSmartRevisionPlan: {
         ...currentPlan,
@@ -488,6 +516,7 @@ export const TrackerSection: React.FC<TrackerSectionProps> = React.memo(({
         },
       });
 
+      triggerConfettiCelebration({ reason: 'timer' });
       showToastMessage(
         `Logged ${durationMinutes} min of real study for ${subject} (${topic})!`
       );
@@ -715,17 +744,20 @@ export const TrackerSection: React.FC<TrackerSectionProps> = React.memo(({
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           {/* Study Goal */}
-          <div className="p-4 rounded-2xl bg-[#0f172a] border border-[#d4af37]/25 space-y-2">
+          <div className="svh-shimmer-border-card p-4 rounded-2xl bg-[#0f172a] border border-[#d4af37]/25 space-y-2">
             <div className="flex items-center justify-between text-xs">
               <span className="text-[#9ca3af]">Study Time Target</span>
-              <span className="text-[#d4af37] font-semibold tabular-nums">
-                {studyMinutesProgress}%
-              </span>
+              <RollingVPCounter
+                value={studyMinutesProgress}
+                suffix="%"
+                className="text-[#d4af37] font-semibold tabular-nums"
+              />
             </div>
             <div className="flex items-baseline gap-1.5">
-              <span className="font-display text-2xl font-bold text-[#fbf9f4] tabular-nums">
-                {userStats.totalStudyMinutes}
-              </span>
+              <RollingVPCounter
+                value={userStats.totalStudyMinutes}
+                className="font-display text-2xl font-bold text-[#fbf9f4] tabular-nums"
+              />
               <span className="text-xs text-[#9ca3af]">
                 / {userStats.dailyGoals.studyMinutes} min
               </span>
@@ -739,17 +771,20 @@ export const TrackerSection: React.FC<TrackerSectionProps> = React.memo(({
           </div>
 
           {/* Question Goal */}
-          <div className="p-4 rounded-2xl bg-[#0f172a] border border-[#d4af37]/25 space-y-2">
+          <div className="svh-shimmer-border-card p-4 rounded-2xl bg-[#0f172a] border border-[#d4af37]/25 space-y-2">
             <div className="flex items-center justify-between text-xs">
               <span className="text-[#9ca3af]">Question Target</span>
-              <span className="text-emerald-400 font-semibold tabular-nums">
-                {questionProgress}%
-              </span>
+              <RollingVPCounter
+                value={questionProgress}
+                suffix="%"
+                className="text-emerald-400 font-semibold tabular-nums"
+              />
             </div>
             <div className="flex items-baseline gap-1.5">
-              <span className="font-display text-2xl font-bold text-[#fbf9f4] tabular-nums">
-                {userStats.questionsAttempted}
-              </span>
+              <RollingVPCounter
+                value={userStats.questionsAttempted}
+                className="font-display text-2xl font-bold text-[#fbf9f4] tabular-nums"
+              />
               <span className="text-xs text-[#9ca3af]">
                 / {userStats.dailyGoals.questionCount} solved
               </span>
@@ -763,17 +798,20 @@ export const TrackerSection: React.FC<TrackerSectionProps> = React.memo(({
           </div>
 
           {/* Task Goal */}
-          <div className="p-4 rounded-2xl bg-[#0f172a] border border-[#d4af37]/25 space-y-2">
+          <div className="svh-shimmer-border-card p-4 rounded-2xl bg-[#0f172a] border border-[#d4af37]/25 space-y-2">
             <div className="flex items-center justify-between text-xs">
               <span className="text-[#9ca3af]">Planner Task Target</span>
-              <span className="text-blue-400 font-semibold tabular-nums">
-                {taskProgress}%
-              </span>
+              <RollingVPCounter
+                value={taskProgress}
+                suffix="%"
+                className="text-blue-400 font-semibold tabular-nums"
+              />
             </div>
             <div className="flex items-baseline gap-1.5">
-              <span className="font-display text-2xl font-bold text-[#fbf9f4] tabular-nums">
-                {completedTasksCount}
-              </span>
+              <RollingVPCounter
+                value={completedTasksCount}
+                className="font-display text-2xl font-bold text-[#fbf9f4] tabular-nums"
+              />
               <span className="text-xs text-[#9ca3af]">
                 / {userStats.dailyGoals.taskCount} tasks
               </span>
@@ -789,7 +827,7 @@ export const TrackerSection: React.FC<TrackerSectionProps> = React.memo(({
       </section>
 
       {/* 2.5 AI Smart Revision Plan & AI Study Planner */}
-      <section className="svh-tracker-sibling-dimmable p-5 sm:p-6 rounded-2xl sm:rounded-3xl bg-gradient-to-br from-[#0d162c] via-[#091122] to-[#060b16] border border-[#d4af37]/35 shadow-xl space-y-4">
+      <section className="svh-shimmer-border-card svh-tracker-sibling-dimmable p-5 sm:p-6 rounded-2xl sm:rounded-3xl bg-gradient-to-br from-[#0d162c] via-[#091122] to-[#060b16] border border-[#d4af37]/35 shadow-xl space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="space-y-1">
             <div className="flex items-center gap-2 text-xs font-semibold text-[#d4af37] uppercase tracking-wider">
@@ -916,7 +954,7 @@ export const TrackerSection: React.FC<TrackerSectionProps> = React.memo(({
                 {userStats.aiSmartRevisionPlan.blocks.map((block) => (
                   <div
                     key={block.id}
-                    className={`p-3.5 rounded-2xl border transition-all flex flex-col justify-between gap-3 ${
+                    className={`svh-shimmer-border-card p-3.5 rounded-2xl border transition-all flex flex-col justify-between gap-3 ${
                       block.completed
                         ? 'bg-[#091120]/60 border-emerald-500/35 text-[#9ca3af]'
                         : 'bg-[#0a1326] border-[#d4af37]/25 hover:border-[#d4af37]/50 text-[#fbf9f4]'
@@ -1204,7 +1242,7 @@ export const TrackerSection: React.FC<TrackerSectionProps> = React.memo(({
       </section>
 
       {/* 4. Verified Focus Sessions & Subject Allocation */}
-      <section className="svh-tracker-sibling-dimmable p-4 sm:p-5 rounded-2xl bg-[#0f172a] border border-[#d4af37]/25 space-y-4">
+      <section className="svh-shimmer-border-card svh-tracker-sibling-dimmable p-4 sm:p-5 rounded-2xl bg-[#0f172a] border border-[#d4af37]/25 space-y-4">
         <div className="flex items-center justify-between">
           <h3 className="font-display text-sm sm:text-base font-bold text-[#fbf9f4]">
             Logged Focus Time &amp; Subject Allocation
@@ -1244,14 +1282,16 @@ export const TrackerSection: React.FC<TrackerSectionProps> = React.memo(({
                 {studiedSubjectsEntries.map(([sub, minutes]) => (
                   <div
                     key={sub}
-                    className="p-3 rounded-xl bg-[#131b2e] border border-[#d4af37]/20"
+                    className="svh-shimmer-border-card p-3 rounded-xl bg-[#131b2e] border border-[#d4af37]/20"
                   >
                     <span className="text-[#d4af37] font-semibold block truncate">
                       {sub}
                     </span>
-                    <span className="font-display text-lg font-bold text-[#fbf9f4] block mt-0.5">
-                      {minutes} min
-                    </span>
+                    <RollingVPCounter
+                      value={minutes}
+                      suffix=" min"
+                      className="font-display text-lg font-bold text-[#fbf9f4] justify-center mt-0.5"
+                    />
                   </div>
                 ))}
               </div>
@@ -1333,7 +1373,7 @@ export const TrackerSection: React.FC<TrackerSectionProps> = React.memo(({
             {userStats.practiceHistory.slice(0, 5).map((entry) => (
               <div
                 key={entry.id}
-                className="svh-3d-tilt-card p-3 rounded-xl bg-[#0f172a] border border-[#d4af37]/20 flex items-center justify-between gap-3 text-xs"
+                className="svh-shimmer-border-card svh-3d-tilt-card p-3 rounded-xl bg-[#0f172a] border border-[#d4af37]/20 flex items-center justify-between gap-3 text-xs"
               >
                 <div>
                   <div className="flex items-center gap-1.5 text-[#9ca3af]">
@@ -1346,14 +1386,19 @@ export const TrackerSection: React.FC<TrackerSectionProps> = React.memo(({
                     <span>{entry.date}</span>
                   </div>
                   <div className="text-[#cbd5e1] font-medium mt-0.5">
-                    {entry.totalQuestions} Questions Attempted
+                    <RollingVPCounter
+                      value={entry.totalQuestions}
+                      suffix=" Questions Attempted"
+                    />
                   </div>
                 </div>
 
                 <div className="text-right">
-                  <span className="font-bold text-emerald-400 block tabular-nums">
-                    {entry.accuracy}% Accuracy
-                  </span>
+                  <RollingVPCounter
+                    value={entry.accuracy}
+                    suffix="% Accuracy"
+                    className="font-bold text-emerald-400 block tabular-nums"
+                  />
                   <span className="text-[11px] text-[#9ca3af]">
                     +{entry.correctCount} / -{entry.wrongCount}
                   </span>

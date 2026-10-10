@@ -359,27 +359,36 @@ export const CommunitySection: React.FC<CommunitySectionProps> = React.memo(({
   });
 
   useEffect(() => {
-    try {
-      localStorage.setItem(COMMUNITY_POSTS_CACHE_KEY, JSON.stringify(posts));
-    } catch {
-      // ignore storage quota errors
-    }
+    const t = window.setTimeout(() => {
+      try {
+        localStorage.setItem(COMMUNITY_POSTS_CACHE_KEY, JSON.stringify(posts));
+      } catch {
+        // ignore storage quota errors
+      }
+    }, 250);
+    return () => window.clearTimeout(t);
   }, [posts]);
 
   useEffect(() => {
-    try {
-      localStorage.setItem(COMMUNITY_REPLIES_CACHE_KEY, JSON.stringify(replies));
-    } catch {
-      // ignore storage quota errors
-    }
+    const t = window.setTimeout(() => {
+      try {
+        localStorage.setItem(COMMUNITY_REPLIES_CACHE_KEY, JSON.stringify(replies));
+      } catch {
+        // ignore storage quota errors
+      }
+    }, 250);
+    return () => window.clearTimeout(t);
   }, [replies]);
 
   useEffect(() => {
-    try {
-      localStorage.setItem(COMMUNITY_CHAT_CACHE_KEY, JSON.stringify(chatMessages));
-    } catch {
-      // ignore storage quota errors
-    }
+    const t = window.setTimeout(() => {
+      try {
+        localStorage.setItem(COMMUNITY_CHAT_CACHE_KEY, JSON.stringify(chatMessages));
+      } catch {
+        // ignore storage quota errors
+      }
+    }, 250);
+    return () => window.clearTimeout(t);
   }, [chatMessages]);
 
   useEffect(() => {
@@ -686,7 +695,8 @@ export const CommunitySection: React.FC<CommunitySectionProps> = React.memo(({
   useEffect(() => {
     const communityPostsQuery = query(
       collection(db, 'community_posts'),
-      orderBy('timestamp', 'desc')
+      orderBy('timestamp', 'desc'),
+      limit(120)
     );
 
     const unsubscribe = onSnapshot(
@@ -842,22 +852,26 @@ export const CommunitySection: React.FC<CommunitySectionProps> = React.memo(({
     return ['All', ...subjectOptions];
   }, [subjectOptions]);
 
+  const hiddenIdsSet = useMemo(() => new Set(hiddenIds), [hiddenIds]);
+
   // Filtered visible posts (visible to ALL online users with zero userId restrictions)
   const visiblePosts = useMemo(() => {
+    const qLower = searchQuery.trim().toLowerCase();
+    const subLower = selectedSubjectFilter.toLowerCase();
     return posts.filter((post) => {
-      if (hiddenIds.includes(post.id)) return false;
+      if (hiddenIdsSet.has(post.id)) return false;
       const postText = post.messageText || post.content || '';
       const matchesSubject =
         selectedSubjectFilter === 'All' ||
-        (post.subject || 'General').toLowerCase() === selectedSubjectFilter.toLowerCase();
+        (post.subject || 'General').toLowerCase() === subLower;
       const matchesSearch =
-        !searchQuery.trim() ||
-        postText.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (post.authorName || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (post.subject || '').toLowerCase().includes(searchQuery.toLowerCase());
+        !qLower ||
+        postText.toLowerCase().includes(qLower) ||
+        (post.authorName || '').toLowerCase().includes(qLower) ||
+        (post.subject || '').toLowerCase().includes(qLower);
       return matchesSubject && matchesSearch;
     });
-  }, [posts, hiddenIds, selectedSubjectFilter, searchQuery]);
+  }, [posts, hiddenIdsSet, selectedSubjectFilter, searchQuery]);
 
   const selectedPost = useMemo(() => {
     if (!selectedPostId) return null;
@@ -871,12 +885,12 @@ export const CommunitySection: React.FC<CommunitySectionProps> = React.memo(({
       postObj && Array.isArray(postObj.replies) && postObj.replies.length > 0
         ? postObj.replies
         : replies.filter((r) => r.postId === selectedPostId);
-    return sourceReplies.filter((r) => !hiddenIds.includes(r.id));
-  }, [posts, replies, selectedPostId, hiddenIds]);
+    return sourceReplies.filter((r) => !hiddenIdsSet.has(r.id));
+  }, [posts, replies, selectedPostId, hiddenIdsSet]);
 
   const visibleChatMessages = useMemo(() => {
-    return chatMessages.filter((m) => !hiddenIds.includes(m.id));
-  }, [chatMessages, hiddenIds]);
+    return chatMessages.filter((m) => !hiddenIdsSet.has(m.id));
+  }, [chatMessages, hiddenIdsSet]);
 
   // Real Global Leaderboard & Milestones Computation (powered by live Firestore `users` query ordered by vpPoints desc, limit 50)
   const { leaderboardEntries, myRankEntry, myMilestones, myVPBreakdown } = useMemo(() => {
@@ -912,16 +926,38 @@ export const CommunitySection: React.FC<CommunitySectionProps> = React.memo(({
       identity?.userId ||
       baseStats.userId ||
       'local-current-student';
-    const myPostsCount = posts.filter((p) => p.authorId === myUserId).length;
-    const myRepliesCount = replies.filter((r) => r.authorId === myUserId).length;
-    const myChatCount = chatMessages.filter((m) => m.authorId === myUserId).length;
+
+    const postsByAuthor = new Map<string, number>();
+    for (const p of posts) {
+      if (p.authorId) {
+        postsByAuthor.set(p.authorId, (postsByAuthor.get(p.authorId) || 0) + 1);
+      }
+    }
+
+    const repliesByAuthor = new Map<string, number>();
+    for (const r of replies) {
+      if (r.authorId) {
+        repliesByAuthor.set(r.authorId, (repliesByAuthor.get(r.authorId) || 0) + 1);
+      }
+    }
+
+    const chatsByAuthor = new Map<string, number>();
+    for (const m of chatMessages) {
+      if (m.authorId) {
+        chatsByAuthor.set(m.authorId, (chatsByAuthor.get(m.authorId) || 0) + 1);
+      }
+    }
+
+    const myPostsCount = postsByAuthor.get(myUserId) || 0;
+    const myRepliesCount = repliesByAuthor.get(myUserId) || 0;
+    const myChatCount = chatsByAuthor.get(myUserId) || 0;
 
     // Enrich global Firestore leaderboard entries with live community counts from `community_posts`
     const enrichedGlobalEntries: CommunityLeaderboardEntry[] = globalFirestoreLeaderboard.map(
       (entry) => {
-        const uPostsCount = posts.filter((p) => p.authorId === entry.userId).length;
-        const uRepliesCount = replies.filter((r) => r.authorId === entry.userId).length;
-        const uChatCount = chatMessages.filter((m) => m.authorId === entry.userId).length;
+        const uPostsCount = postsByAuthor.get(entry.userId) || 0;
+        const uRepliesCount = repliesByAuthor.get(entry.userId) || 0;
+        const uChatCount = chatsByAuthor.get(entry.userId) || 0;
         const tierInfo = getVPRankInfo(entry.vpPoints);
 
         return {
@@ -1443,16 +1479,33 @@ export const CommunitySection: React.FC<CommunitySectionProps> = React.memo(({
         </div>
       )}
 
-      {/* Main Mode Switcher: Doubts & Discussions vs Community Chat vs Community Leaderboard */}
-      <div className="p-1.5 bg-[#090e1c] rounded-2xl border border-[#d4af37]/25 grid grid-cols-3 gap-1.5 sm:gap-2">
+      {/* Main Mode Switcher: Doubts & Discussions vs Community Chat vs Community Leaderboard (Inertial Smooth Fluid Pill) */}
+      <div className="relative p-1.5 bg-[#090e1c] rounded-2xl border border-[#d4af37]/25 grid grid-cols-3 gap-1.5 sm:gap-2 overflow-hidden">
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-y-1.5 left-1.5 right-1.5 z-0"
+        >
+          <div
+            style={{
+              width: '33.3333%',
+              transform: `translate3d(${
+                activeTab === 'feed' ? 0 : activeTab === 'chat' ? 100 : 200
+              }%, 0, 0)`,
+            }}
+            className="svh-inertial-fluid-slider h-full px-0.5"
+          >
+            <span className="svh-inertial-fluid-pill-solid block w-full h-full rounded-xl bg-[#d4af37] shadow-sm" />
+          </div>
+        </div>
+
         <button
           onClick={() => {
             setActiveTab('feed');
           }}
-          className={`py-2.5 px-2.5 sm:px-4 rounded-xl text-[11px] sm:text-sm font-semibold transition-all flex items-center justify-center gap-1.5 sm:gap-2 cursor-pointer ${
+          className={`relative z-10 py-2.5 px-2.5 sm:px-4 rounded-xl text-[11px] sm:text-sm font-semibold transition-colors flex items-center justify-center gap-1.5 sm:gap-2 cursor-pointer ${
             activeTab === 'feed'
-              ? 'bg-[#d4af37] text-[#080d1a] shadow-sm font-bold'
-              : 'text-[#cbd5e1] hover:text-[#fbf9f4] hover:bg-[#131b2e]'
+              ? 'text-[#080d1a] font-bold'
+              : 'text-[#cbd5e1] hover:text-[#fbf9f4]'
           }`}
         >
           <HelpCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
@@ -1467,10 +1520,10 @@ export const CommunitySection: React.FC<CommunitySectionProps> = React.memo(({
             setActiveTab('chat');
             setSelectedPostId(null);
           }}
-          className={`py-2.5 px-2.5 sm:px-4 rounded-xl text-[11px] sm:text-sm font-semibold transition-all flex items-center justify-center gap-1.5 sm:gap-2 cursor-pointer ${
+          className={`relative z-10 py-2.5 px-2.5 sm:px-4 rounded-xl text-[11px] sm:text-sm font-semibold transition-colors flex items-center justify-center gap-1.5 sm:gap-2 cursor-pointer ${
             activeTab === 'chat'
-              ? 'bg-[#d4af37] text-[#080d1a] shadow-sm font-bold'
-              : 'text-[#cbd5e1] hover:text-[#fbf9f4] hover:bg-[#131b2e]'
+              ? 'text-[#080d1a] font-bold'
+              : 'text-[#cbd5e1] hover:text-[#fbf9f4]'
           }`}
         >
           <MessageCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
@@ -1485,10 +1538,10 @@ export const CommunitySection: React.FC<CommunitySectionProps> = React.memo(({
             setActiveTab('leaderboard');
             setSelectedPostId(null);
           }}
-          className={`py-2.5 px-2.5 sm:px-4 rounded-xl text-[11px] sm:text-sm font-semibold transition-all flex items-center justify-center gap-1.5 sm:gap-2 cursor-pointer ${
+          className={`relative z-10 py-2.5 px-2.5 sm:px-4 rounded-xl text-[11px] sm:text-sm font-semibold transition-colors flex items-center justify-center gap-1.5 sm:gap-2 cursor-pointer ${
             activeTab === 'leaderboard'
-              ? 'bg-[#d4af37] text-[#080d1a] shadow-sm font-bold'
-              : 'text-[#cbd5e1] hover:text-[#fbf9f4] hover:bg-[#131b2e]'
+              ? 'text-[#080d1a] font-bold'
+              : 'text-[#cbd5e1] hover:text-[#fbf9f4]'
           }`}
         >
           <Trophy className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
@@ -1614,6 +1667,8 @@ export const CommunitySection: React.FC<CommunitySectionProps> = React.memo(({
                       <img
                         src={selectedPost.imageUrl}
                         alt="Uploaded question"
+                        loading="lazy"
+                        decoding="async"
                         className="max-h-[420px] w-auto mx-auto object-contain"
                       />
                       <div className="absolute bottom-2 right-2 px-2.5 py-1 rounded-lg bg-[#060b18]/85 border border-[#d4af37]/30 text-[11px] text-[#fbf9f4] flex items-center gap-1 opacity-90 group-hover:opacity-100">

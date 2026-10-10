@@ -16,6 +16,7 @@ import { SAMPLE_BOOKS } from '../data/sampleData';
 import { NCERT_BOOKS_COLLECTION, getNCERTBooksByFilter } from '../data/ncertBooksData';
 import { NCERTBookModal } from './NCERTBookModal';
 import { GlassMetallicSkeleton, useBriefShimmerTransition } from './GlassMetallicSkeleton';
+import { useInertialFluidPill } from './InteractiveFluidRippleLayer';
 
 interface BooksSectionProps {
   activeGoal: string;
@@ -94,6 +95,12 @@ export const BooksSection: React.FC<BooksSectionProps> = React.memo(({
     220
   );
 
+  const { containerRef: curatedSubjectTabsRef, pillMetrics: curatedSubPill } =
+    useInertialFluidPill<HTMLDivElement>([selectedSubject, activeTab, curatedSubjectTabs.length]);
+
+  const { containerRef: ncertSubjectTabsRef, pillMetrics: ncertSubPill } =
+    useInertialFluidPill<HTMLDivElement>([ncertSubjectFilter, activeTab]);
+
   return (
     <div className="space-y-6 pb-12 max-w-full overflow-x-hidden">
       {/* Title & Introduction */}
@@ -121,14 +128,29 @@ export const BooksSection: React.FC<BooksSectionProps> = React.memo(({
         </div>
       )}
 
-      {/* Main Tab Switcher: Curated Textbooks vs Official NCERT */}
-      <div className="p-1.5 bg-[#090e1c] rounded-2xl border border-[#d4af37]/25 flex items-center gap-2">
+      {/* Main Tab Switcher: Curated Textbooks vs Official NCERT (Inertial Smooth Fluid Pill) */}
+      <div className="relative p-1.5 bg-[#090e1c] rounded-2xl border border-[#d4af37]/25 grid grid-cols-2 items-center gap-2 overflow-hidden">
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-y-1.5 left-1.5 right-1.5 z-0"
+        >
+          <div
+            style={{
+              width: '50%',
+              transform: `translate3d(${activeTab === 'curated' ? 0 : 100}%, 0, 0)`,
+            }}
+            className="svh-inertial-fluid-slider h-full"
+          >
+            <span className="svh-inertial-fluid-pill-solid block w-full h-full rounded-xl bg-[#d4af37] shadow-sm" />
+          </div>
+        </div>
+
         <button
           onClick={() => setActiveTab('curated')}
-          className={`flex-1 py-2.5 px-4 rounded-xl text-xs sm:text-sm font-semibold transition-all flex items-center justify-center gap-2 ${
+          className={`relative z-10 py-2.5 px-4 rounded-xl text-xs sm:text-sm font-semibold transition-colors flex items-center justify-center gap-2 cursor-pointer ${
             activeTab === 'curated'
-              ? 'bg-[#d4af37] text-[#080d1a] shadow-sm font-bold'
-              : 'text-[#cbd5e1] hover:text-[#fbf9f4] hover:bg-[#131b2e]'
+              ? 'text-[#080d1a] font-bold'
+              : 'text-[#cbd5e1] hover:text-[#fbf9f4]'
           }`}
         >
           <BookOpen className="w-4 h-4" />
@@ -138,10 +160,10 @@ export const BooksSection: React.FC<BooksSectionProps> = React.memo(({
 
         <button
           onClick={() => setActiveTab('ncert')}
-          className={`flex-1 py-2.5 px-4 rounded-xl text-xs sm:text-sm font-semibold transition-all flex items-center justify-center gap-2 relative ${
+          className={`relative z-10 py-2.5 px-4 rounded-xl text-xs sm:text-sm font-semibold transition-colors flex items-center justify-center gap-2 cursor-pointer ${
             activeTab === 'ncert'
-              ? 'bg-[#d4af37] text-[#080d1a] shadow-sm font-bold'
-              : 'text-[#cbd5e1] hover:text-[#fbf9f4] hover:bg-[#131b2e]'
+              ? 'text-[#080d1a] font-bold'
+              : 'text-[#cbd5e1] hover:text-[#fbf9f4]'
           }`}
         >
           <GraduationCap className="w-4 h-4" />
@@ -169,18 +191,33 @@ export const BooksSection: React.FC<BooksSectionProps> = React.memo(({
             />
           </div>
 
-          {/* Dynamic subject filter tabs */}
-          <div className="flex items-center gap-1.5 p-1 bg-[#090e1c] rounded-xl border border-[#d4af37]/20 overflow-x-auto no-scrollbar">
+          {/* Dynamic subject filter tabs with Inertial Smooth Fluid Pill */}
+          <div
+            ref={curatedSubjectTabsRef}
+            className="relative flex items-center gap-1.5 p-1 bg-[#090e1c] rounded-xl border border-[#d4af37]/20 overflow-x-auto no-scrollbar"
+          >
+            {curatedSubPill.visible && (
+              <span
+                aria-hidden="true"
+                style={{
+                  width: `${curatedSubPill.width}px`,
+                  height: `${curatedSubPill.height}px`,
+                  transform: `translate3d(${curatedSubPill.x}px, ${curatedSubPill.y}px, 0)`,
+                }}
+                className="svh-inertial-fluid-pill svh-inertial-fluid-pill-solid rounded-lg bg-[#d4af37] shadow-sm"
+              />
+            )}
             {curatedSubjectTabs.map((sub) => {
               const isActive = selectedSubject === sub;
               return (
                 <button
                   key={sub}
+                  data-svh-fluid-active={isActive ? 'true' : 'false'}
                   onClick={() => setSelectedSubject(sub)}
-                  className={`px-3.5 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-all ${
+                  className={`relative z-10 px-3.5 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors cursor-pointer ${
                     isActive
-                      ? 'bg-[#d4af37] text-[#080d1a] font-bold shadow-sm'
-                      : 'text-[#cbd5e1] hover:text-[#fbf9f4] hover:bg-[#131b2e]'
+                      ? 'text-[#080d1a] font-bold'
+                      : 'text-[#cbd5e1] hover:text-[#fbf9f4]'
                   }`}
                 >
                   {sub}
@@ -209,6 +246,8 @@ export const BooksSection: React.FC<BooksSectionProps> = React.memo(({
                         <img
                           src={book.coverImage}
                           alt={book.title}
+                          loading="lazy"
+                          decoding="async"
                           className="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-300"
                           onError={(e) => {
                             (e.target as HTMLElement).style.display = 'none';
@@ -394,12 +433,26 @@ export const BooksSection: React.FC<BooksSectionProps> = React.memo(({
               </div>
             </div>
 
-            {/* Subject Chips */}
+            {/* Subject Chips with Inertial Smooth Fluid Pill */}
             <div className="space-y-1 pt-1">
               <span className="text-[11px] font-semibold text-[#d4af37] uppercase tracking-wider">
                 Subject Filter
               </span>
-              <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1">
+              <div
+                ref={ncertSubjectTabsRef}
+                className="relative flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1"
+              >
+                {ncertSubPill.visible && (
+                  <span
+                    aria-hidden="true"
+                    style={{
+                      width: `${ncertSubPill.width}px`,
+                      height: `${ncertSubPill.height}px`,
+                      transform: `translate3d(${ncertSubPill.x}px, ${ncertSubPill.y}px, 0)`,
+                    }}
+                    className="svh-inertial-fluid-pill svh-inertial-fluid-pill-solid rounded-lg bg-[#d4af37] shadow-sm"
+                  />
+                )}
                 {[
                   'All',
                   'Biology',
@@ -415,19 +468,23 @@ export const BooksSection: React.FC<BooksSectionProps> = React.memo(({
                   'Political Science',
                   'Computer Science',
                   'English'
-                ].map((sub) => (
-                  <button
-                    key={sub}
-                    onClick={() => setNcertSubjectFilter(sub)}
-                    className={`px-3 py-1 rounded-lg text-xs font-medium whitespace-nowrap transition-all border ${
-                      ncertSubjectFilter === sub
-                        ? 'bg-[#d4af37] text-[#080d1a] border-[#d4af37] font-bold'
-                        : 'bg-[#090e1c] text-[#cbd5e1] border-[#1e293b] hover:border-[#d4af37]/40 hover:text-white'
-                    }`}
-                  >
-                    {sub}
-                  </button>
-                ))}
+                ].map((sub) => {
+                  const isActive = ncertSubjectFilter === sub;
+                  return (
+                    <button
+                      key={sub}
+                      data-svh-fluid-active={isActive ? 'true' : 'false'}
+                      onClick={() => setNcertSubjectFilter(sub)}
+                      className={`relative z-10 px-3 py-1 rounded-lg text-xs font-medium whitespace-nowrap transition-colors border cursor-pointer ${
+                        isActive
+                          ? 'text-[#080d1a] border-[#d4af37] font-bold'
+                          : 'bg-[#090e1c]/60 text-[#cbd5e1] border-[#1e293b] hover:border-[#d4af37]/40 hover:text-white'
+                      }`}
+                    >
+                      {sub}
+                    </button>
+                  );
+                })}
               </div>
             </div>
           </div>

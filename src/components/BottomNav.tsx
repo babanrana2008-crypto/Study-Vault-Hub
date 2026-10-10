@@ -1,6 +1,7 @@
 import React from 'react';
 import { Home, BookOpen, FileText, CheckCircle2, BarChart3, MessagesSquare, User } from 'lucide-react';
 import { ActiveSection } from '../types';
+import { scheduleRafAction } from './InteractiveFluidRippleLayer';
 
 interface BottomNavProps {
   activeSection: ActiveSection;
@@ -36,24 +37,40 @@ export const BottomNav: React.FC<BottomNavProps> = React.memo(
           className="fixed bottom-[calc(0.65rem+env(safe-area-inset-bottom))] left-0 right-0 z-40 px-2.5 pointer-events-none"
         >
           <div className="pointer-events-auto relative grid grid-cols-7 min-h-[4rem] py-1 w-full max-w-md mx-auto px-1 rounded-2xl bg-[#060b18]/95 backdrop-blur-xl border border-[#d4af37]/35 shadow-[0_10px_30px_rgba(0,0,0,0.65),0_0_20px_rgba(212,175,55,0.14)] overflow-hidden">
+            {/* Inertial Smooth Fluid Pill Indicator Behind Active Tab */}
+            <div
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-y-1.5 left-1 right-1 z-0"
+            >
+              <div
+                style={{
+                  width: `${100 / navItems.length}%`,
+                  transform: `translate3d(${resolvedIndex * 100}%, 0, 0)`,
+                }}
+                className="svh-bottom-nav-slider h-full px-0.5 flex items-center justify-center"
+              >
+                <span className="svh-bottom-nav-fluid-pill w-full h-full rounded-xl" />
+              </div>
+            </div>
+
             {navItems.map((item) => {
               const Icon = item.icon;
               const isActive = activeSection === item.id;
               return (
                 <button
                   key={item.id}
-                  onClick={() => onNavigate(item.id)}
+                  onClick={() => scheduleRafAction(() => onNavigate(item.id))}
                   className="min-h-[44px] min-w-0 w-full px-0.5 flex flex-col items-center justify-center relative z-10 transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-[#d4af37]"
                 >
                   <Icon
-                    className={`w-4 h-4 sm:w-5 sm:h-5 shrink-0 transition-transform duration-200 ${
+                    className={`w-4 h-4 sm:w-5 sm:h-5 shrink-0 transition-transform duration-300 ${
                       isActive
                         ? 'text-[#d4af37] scale-110 -translate-y-0.5'
                         : 'text-[#9ca3af] hover:text-[#fbf9f4]'
                     }`}
                   />
                   <span
-                    className={`text-[9px] sm:text-[10px] font-semibold tracking-tight mt-0.5 truncate max-w-full transition-colors duration-200 ${
+                    className={`text-[9px] sm:text-[10px] font-semibold tracking-tight mt-0.5 truncate max-w-full transition-colors duration-300 ${
                       isActive ? 'text-[#d4af37]' : 'text-[#9ca3af]'
                     }`}
                   >
@@ -103,24 +120,40 @@ export const BottomNav: React.FC<BottomNavProps> = React.memo(
         className="md:hidden fixed bottom-0 left-0 right-0 z-40 w-full max-w-full bg-[#060b18]/95 backdrop-blur-lg border-t border-[#d4af37]/25 pb-[env(safe-area-inset-bottom)]"
       >
         <div className="relative grid grid-cols-7 min-h-[4rem] py-1 w-full max-w-lg mx-auto px-0.5">
+          {/* Inertial Smooth Fluid Pill Indicator Behind Active Tab */}
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-y-1.5 left-0.5 right-0.5 z-0"
+          >
+            <div
+              style={{
+                width: `${100 / navItems.length}%`,
+                transform: `translate3d(${resolvedIndex * 100}%, 0, 0)`,
+              }}
+              className="svh-bottom-nav-slider h-full px-0.5 flex items-center justify-center"
+            >
+              <span className="svh-bottom-nav-fluid-pill w-full h-full rounded-xl" />
+            </div>
+          </div>
+
           {navItems.map((item) => {
             const Icon = item.icon;
             const isActive = activeSection === item.id;
             return (
               <button
                 key={item.id}
-                onClick={() => onNavigate(item.id)}
+                onClick={() => scheduleRafAction(() => onNavigate(item.id))}
                 className="min-h-[44px] min-w-0 w-full px-0.5 flex flex-col items-center justify-center relative z-10 transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-[#d4af37]"
               >
                 <Icon
-                  className={`w-4 h-4 sm:w-5 sm:h-5 shrink-0 transition-transform duration-200 ${
+                  className={`w-4 h-4 sm:w-5 sm:h-5 shrink-0 transition-transform duration-300 ${
                     isActive
                       ? 'text-[#d4af37] scale-110 -translate-y-0.5'
                       : 'text-[#9ca3af] hover:text-[#fbf9f4]'
                   }`}
                 />
                 <span
-                  className={`text-[9px] sm:text-[10px] font-semibold tracking-tight mt-0.5 truncate max-w-full transition-colors duration-200 ${
+                  className={`text-[9px] sm:text-[10px] font-semibold tracking-tight mt-0.5 truncate max-w-full transition-colors duration-300 ${
                     isActive ? 'text-[#d4af37]' : 'text-[#9ca3af]'
                   }`}
                 >
@@ -150,4 +183,3 @@ export const BottomNav: React.FC<BottomNavProps> = React.memo(
     );
   }
 );
-

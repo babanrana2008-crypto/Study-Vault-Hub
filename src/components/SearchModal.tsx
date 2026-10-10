@@ -12,7 +12,7 @@ interface SearchModalProps {
   onNavigate: (section: ActiveSection) => void;
 }
 
-export const SearchModal: React.FC<SearchModalProps> = ({
+export const SearchModal: React.FC<SearchModalProps> = React.memo(({
   onClose,
   onSelectBook,
   onSelectNote,
@@ -272,4 +272,5 @@ export const SearchModal: React.FC<SearchModalProps> = ({
       </div>
     </div>
   );
-};
+});
+

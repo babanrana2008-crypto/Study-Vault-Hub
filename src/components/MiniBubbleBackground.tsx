@@ -13,54 +13,36 @@ interface MiniBubbleItem {
   color: BubbleColorVariant;
 }
 
+/**
+ * Minimal count (11 floating soft micro-particles/dots) distributed across the viewport
+ */
 const MINI_BUBBLES: MiniBubbleItem[] = [
-  { id: 1, color: 'cyan' },
-  { id: 2, color: 'purple' },
-  { id: 3, color: 'gold' },
+  { id: 1, color: 'pink' },
   { id: 4, color: 'cyan' },
-  { id: 5, color: 'purple' },
-  { id: 6, color: 'gold' },
-  { id: 7, color: 'pink' },
-  { id: 8, color: 'cyan' },
-  { id: 9, color: 'purple' },
-  { id: 10, color: 'gold' },
-  { id: 11, color: 'lime' },
-  { id: 12, color: 'cyan' },
-  { id: 13, color: 'purple' },
-  { id: 14, color: 'gold' },
-  { id: 15, color: 'pink' },
-  { id: 16, color: 'cyan' },
-  { id: 17, color: 'purple' },
-  { id: 18, color: 'gold' },
-  { id: 19, color: 'cyan' },
-  { id: 20, color: 'purple' },
-  { id: 21, color: 'gold' },
-  { id: 22, color: 'lime' },
-  { id: 23, color: 'cyan' },
-  { id: 24, color: 'purple' },
-  { id: 25, color: 'gold' },
-  { id: 26, color: 'pink' },
-  { id: 27, color: 'cyan' },
-  { id: 28, color: 'purple' },
-  { id: 29, color: 'gold' },
-  { id: 30, color: 'cyan' },
-  { id: 31, color: 'purple' },
-  { id: 32, color: 'gold' },
-  { id: 33, color: 'pink' },
-  { id: 34, color: 'cyan' },
-  { id: 35, color: 'purple' },
-  { id: 36, color: 'gold' },
+  { id: 7, color: 'gold' },
+  { id: 10, color: 'pink' },
+  { id: 13, color: 'cyan' },
+  { id: 16, color: 'lime' },
+  { id: 19, color: 'purple' },
+  { id: 22, color: 'pink' },
+  { id: 25, color: 'cyan' },
+  { id: 28, color: 'lime' },
+  { id: 31, color: 'gold' },
 ];
 
 /**
- * Standalone Background Floating Bubble Animation Layer optimized for Web and Android APK builds.
+ * Ultra-Lightweight, High-Performance Combined Background Animation Layer
+ * for the entire Study Vault Hub application wrapper (supporting both Web & Android APK):
  *
- * Features:
- * - Distinct, visible yet gentle watermark bubbles (15px to 58px) with a soft, slightly defined outer edge
- * - Highly translucent pastel iridescent fills (muted cyan, soft purple, faint gold, soft rose) at 0.25–0.35 opacity
- * - No blur or heavy gloss — crisp, calm, non-distracting watermark spheres
- * - Enforces position: fixed; inset: 0; z-index: -10; pointer-events: none;
- * - Smooth GPU-accelerated ambient floating motion via will-change: transform;
+ * 1. Base Layer: Ultra-soft, slow-morphing Aurora gradient transitioning smoothly
+ *    between light sweet rose, pearl white, and subtle teal hues (30-second cycle).
+ * 2. Ambient Mesh Gradient Blob Motion (Feature 4): Soft, slow-moving ambient mesh/gradient
+ *    blobs shifting delicately every few seconds at 10%-15% opacity for zero eye strain.
+ * 3. Glow Layer: Gentle, breathing ambient glowing orbs placed subtly at the
+ *    top-right and bottom-left edges with very low opacity (10% - 15%).
+ * 4. Wave & Particle Overlay: Smooth CSS-based ambient wave effect at the lower
+ *    section combined with 11 floating soft micro-particles/dots rising slowly.
+ * 5. 90Hz-144Hz GPU hardware acceleration (`transform: translate3d(0,0,0)` & `will-change: transform, opacity`).
  */
 export const MiniBubbleBackground: React.FC = React.memo(() => {
   const layerRef = useRef<HTMLDivElement | null>(null);
@@ -78,7 +60,7 @@ export const MiniBubbleBackground: React.FC = React.memo(() => {
       const rawDpr = window.devicePixelRatio || 1;
       const clampedDpr = Math.min(Math.max(rawDpr, 1), 2);
       const borderWidthPx = clampedDpr >= 1.5 ? '1px' : '1.15px';
-      const travelDistancePx = Math.round((window.innerHeight || 800) * 1.16);
+      const travelDistancePx = Math.round((window.innerHeight || 800) * 1.12);
 
       layer.style.setProperty('--svh-bubble-border-w', borderWidthPx);
       layer.style.setProperty('--svh-bubble-travel-y', `-${travelDistancePx}px`);
@@ -94,7 +76,7 @@ export const MiniBubbleBackground: React.FC = React.memo(() => {
           window.cancelAnimationFrame(rafId);
         }
         rafId = window.requestAnimationFrame(syncViewportAndDprMetrics);
-      }, 120);
+      }, 150);
     };
 
     const handleVisibilityChange = () => {
@@ -128,6 +110,43 @@ export const MiniBubbleBackground: React.FC = React.memo(() => {
       data-paused="false"
       aria-hidden="true"
     >
+      {/* 1. BASE LAYER: Ultra-soft slow-morphing Aurora gradient (30-second cycle: light sweet rose, pearl white & subtle teal) */}
+      <div className="svh-app-aurora-base" />
+
+      {/* 1B. AMBIENT MESH GRADIENT BLOB MOTION: Soft slow-moving mesh blobs shifting delicately at 10%-15% opacity */}
+      <div className="svh-ambient-mesh-blob svh-ambient-mesh-blob-1" />
+      <div className="svh-ambient-mesh-blob svh-ambient-mesh-blob-2" />
+      <div className="svh-ambient-mesh-blob svh-ambient-mesh-blob-3" />
+
+      {/* 2. GLOW LAYER: Gentle breathing ambient glowing orbs at top-right and bottom-left edges */}
+      <div className="svh-app-glow-orb svh-app-glow-orb-top-right" />
+      <div className="svh-app-glow-orb svh-app-glow-orb-bottom-left" />
+
+      {/* 3A. LOWER AMBIENT WAVE OVERLAY: Smooth CSS-based ambient wave effect at the lower section */}
+      <div className="svh-app-lower-wave-wrap">
+        <svg
+          className="svh-app-lower-wave svh-app-lower-wave-back"
+          viewBox="0 0 1440 240"
+          preserveAspectRatio="none"
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <path
+            d="M0,112 C280,180 540,48 840,118 C1110,182 1290,74 1440,116 L1440,240 L0,240 Z"
+          />
+        </svg>
+        <svg
+          className="svh-app-lower-wave svh-app-lower-wave-front"
+          viewBox="0 0 1440 240"
+          preserveAspectRatio="none"
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <path
+            d="M0,156 C320,96 620,198 940,142 C1190,98 1340,164 1440,148 L1440,240 L0,240 Z"
+          />
+        </svg>
+      </div>
+
+      {/* 3B. FLOATING MICRO-PARTICLES OVERLAY: 11 soft micro-particles/dots rising slowly in the background */}
       {MINI_BUBBLES.map((bubble) => (
         <span
           key={bubble.id}

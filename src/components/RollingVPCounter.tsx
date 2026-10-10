@@ -6,13 +6,16 @@ interface RollingVPCounterProps {
   prefix?: string;
   formatLocale?: boolean;
   durationMs?: number;
+  rollFromZeroOnMount?: boolean;
+  allowNegative?: boolean;
   className?: string;
 }
 
 /**
- * Smooth rolling counter / odometer effect for Vault Points (VP) and numerical metrics.
- * Animates from 0 -> target on initial mount (when target > 0) and smoothly counts up
- * whenever VP Points increase or load, with a subtle vertical odometer roll transition.
+ * Smooth rolling counter / odometer effect for Vault Points (VP), study hours/minutes,
+ * progress percentages, and tracker scores.
+ * Uses requestAnimationFrame to count up smoothly from 0 to the target value upon section load
+ * and whenever the value updates, with strict GPU-friendly tabular-nums stability.
  */
 export const RollingVPCounter: React.FC<RollingVPCounterProps> = React.memo(
   ({
@@ -20,13 +23,21 @@ export const RollingVPCounter: React.FC<RollingVPCounterProps> = React.memo(
     suffix = '',
     prefix = '',
     formatLocale = false,
-    durationMs = 680,
+    durationMs = 720,
+    rollFromZeroOnMount = true,
+    allowNegative = false,
     className = '',
   }) => {
-    const safeTarget = Number.isFinite(value) ? Math.max(0, Math.round(value)) : 0;
-    const [displayValue, setDisplayValue] = useState<number>(safeTarget);
+    const rawRounded = Number.isFinite(value) ? Math.round(value) : 0;
+    const safeTarget = allowNegative ? rawRounded : Math.max(0, rawRounded);
+
+    const [displayValue, setDisplayValue] = useState<number>(() =>
+      rollFromZeroOnMount && safeTarget !== 0 ? 0 : safeTarget
+    );
     const [isRolling, setIsRolling] = useState<boolean>(false);
-    const currentValRef = useRef<number>(safeTarget);
+    const currentValRef = useRef<number>(
+      rollFromZeroOnMount && safeTarget !== 0 ? 0 : safeTarget
+    );
     const rafRef = useRef<number | null>(null);
 
     useEffect(() => {
@@ -66,14 +77,18 @@ export const RollingVPCounter: React.FC<RollingVPCounterProps> = React.memo(
         const eased = 1 - Math.pow(1 - progress, 3);
         const nextVal = Math.round(startValue + delta * eased);
 
-        currentValRef.current = nextVal;
-        setDisplayValue(nextVal);
+        if (nextVal !== currentValRef.current) {
+          currentValRef.current = nextVal;
+          setDisplayValue(nextVal);
+        }
 
         if (progress < 1) {
           rafRef.current = window.requestAnimationFrame(step);
         } else {
-          currentValRef.current = safeTarget;
-          setDisplayValue(safeTarget);
+          if (currentValRef.current !== safeTarget) {
+            currentValRef.current = safeTarget;
+            setDisplayValue(safeTarget);
+          }
           setIsRolling(false);
           rafRef.current = null;
         }

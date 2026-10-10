@@ -33,6 +33,8 @@ import {
   validateAndSanitizeQuestions,
 } from '../data/questionGenerator';
 import { apiFetch } from '../services/nativeApiBridge';
+import { RollingVPCounter } from './RollingVPCounter';
+import { triggerConfettiCelebration } from './ConfettiCelebration';
 
 interface MCQSectionProps {
   activeGoal: string;
@@ -223,6 +225,7 @@ export const MCQSection: React.FC<MCQSectionProps> = React.memo(({
         };
         onRecordTestCompleted(historyEntry);
       }
+      triggerConfettiCelebration({ reason: 'test' });
       return true;
     });
   }, [questions, testAnswers, onRecordTestCompleted, selectedSubject]);
@@ -461,29 +464,50 @@ export const MCQSection: React.FC<MCQSectionProps> = React.memo(({
         </div>
       )}
 
-      {/* Mode Switcher */}
-      <div className="flex items-center justify-between gap-3 p-1.5 bg-[#090e1c] rounded-2xl border border-[#d4af37]/25">
-        <div className="grid grid-cols-2 gap-1 w-full">
+      {/* Mode Switcher with Inertial Smooth Fluid Pill */}
+      <div className="flex items-center justify-between gap-3 p-1.5 bg-[#090e1c] rounded-2xl border border-[#d4af37]/25 overflow-hidden">
+        <div className="relative grid grid-cols-2 gap-1 w-full">
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-y-0 left-0 right-0 z-0"
+          >
+            <div
+              style={{
+                width: '50%',
+                transform: `translate3d(${mode === 'practice' ? 0 : 100}%, 0, 0)`,
+              }}
+              className="svh-inertial-fluid-slider h-full pr-0.5"
+            >
+              <span className="svh-inertial-fluid-pill-solid block w-full h-full rounded-xl bg-[#d4af37] shadow-sm" />
+            </div>
+          </div>
+
           <button
             onClick={() => {
-              setMode('practice');
-              setTestActive(false);
+              window.requestAnimationFrame(() => {
+                setMode('practice');
+                setTestActive(false);
+              });
             }}
-            className={`px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-all flex items-center justify-center gap-1.5 ${
+            className={`relative z-10 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-colors flex items-center justify-center gap-1.5 cursor-pointer ${
               mode === 'practice'
-                ? 'bg-[#d4af37] text-[#080d1a] shadow-sm font-bold'
-                : 'text-[#cbd5e1] hover:text-[#fbf9f4] hover:bg-[#131b2e]'
+                ? 'text-[#080d1a] font-bold'
+                : 'text-[#cbd5e1] hover:text-[#fbf9f4]'
             }`}
           >
             <CheckCircle2 className="w-4 h-4" />
             <span>Practice Mode (Instant Feedback)</span>
           </button>
           <button
-            onClick={() => setMode('test')}
-            className={`px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-all flex items-center justify-center gap-1.5 ${
+            onClick={() => {
+              window.requestAnimationFrame(() => {
+                setMode('test');
+              });
+            }}
+            className={`relative z-10 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-colors flex items-center justify-center gap-1.5 cursor-pointer ${
               mode === 'test'
-                ? 'bg-[#d4af37] text-[#080d1a] shadow-sm font-bold'
-                : 'text-[#cbd5e1] hover:text-[#fbf9f4] hover:bg-[#131b2e]'
+                ? 'text-[#080d1a] font-bold'
+                : 'text-[#cbd5e1] hover:text-[#fbf9f4]'
             }`}
           >
             <Clock className="w-4 h-4" />
@@ -956,7 +980,7 @@ export const MCQSection: React.FC<MCQSectionProps> = React.memo(({
 
           {/* Test Completed Score Card */}
           {testCompleted && (
-            <div className="p-6 sm:p-8 rounded-2xl sm:rounded-3xl bg-[#0f172a] border border-[#d4af37]/30 space-y-6 shadow-xl">
+            <div className="svh-shimmer-border-card p-6 sm:p-8 rounded-2xl sm:rounded-3xl bg-[#0f172a] border border-[#d4af37]/30 space-y-6 shadow-xl">
               {(() => {
                 const scoreData = calculateTestScore();
                 return (
@@ -972,29 +996,37 @@ export const MCQSection: React.FC<MCQSectionProps> = React.memo(({
                     </div>
 
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 max-w-lg mx-auto">
-                      <div className="p-3 rounded-xl bg-[#131b2e] border border-[#d4af37]/25">
+                      <div className="svh-shimmer-border-card p-3 rounded-xl bg-[#131b2e] border border-[#d4af37]/25">
                         <span className="text-xs text-[#9ca3af] block">Score</span>
-                        <span className="text-xl font-bold text-[#d4af37] font-mono">
-                          {scoreData.totalScore} / {scoreData.maxScore}
+                        <span className="text-xl font-bold text-[#d4af37] font-mono tabular-nums">
+                          <RollingVPCounter
+                            value={scoreData.totalScore}
+                            allowNegative
+                          />{' '}
+                          / {scoreData.maxScore}
                         </span>
                       </div>
-                      <div className="p-3 rounded-xl bg-[#131b2e] border border-[#d4af37]/25">
+                      <div className="svh-shimmer-border-card p-3 rounded-xl bg-[#131b2e] border border-[#d4af37]/25">
                         <span className="text-xs text-[#9ca3af] block">Accuracy</span>
-                        <span className="text-xl font-bold text-emerald-400 font-mono">
-                          {scoreData.accuracy}%
-                        </span>
+                        <RollingVPCounter
+                          value={scoreData.accuracy}
+                          suffix="%"
+                          className="text-xl font-bold text-emerald-400 font-mono justify-center"
+                        />
                       </div>
-                      <div className="p-3 rounded-xl bg-[#131b2e] border border-[#d4af37]/25">
+                      <div className="svh-shimmer-border-card p-3 rounded-xl bg-[#131b2e] border border-[#d4af37]/25">
                         <span className="text-xs text-[#9ca3af] block">Correct</span>
-                        <span className="text-xl font-bold text-emerald-300 font-mono">
-                          {scoreData.correctCount}
-                        </span>
+                        <RollingVPCounter
+                          value={scoreData.correctCount}
+                          className="text-xl font-bold text-emerald-300 font-mono justify-center"
+                        />
                       </div>
-                      <div className="p-3 rounded-xl bg-[#131b2e] border border-[#d4af37]/25">
+                      <div className="svh-shimmer-border-card p-3 rounded-xl bg-[#131b2e] border border-[#d4af37]/25">
                         <span className="text-xs text-[#9ca3af] block">Incorrect</span>
-                        <span className="text-xl font-bold text-rose-400 font-mono">
-                          {scoreData.wrongCount}
-                        </span>
+                        <RollingVPCounter
+                          value={scoreData.wrongCount}
+                          className="text-xl font-bold text-rose-400 font-mono justify-center"
+                        />
                       </div>
                     </div>
 

@@ -175,7 +175,7 @@ export default function App() {
       } catch {
         // ignore
       }
-    }, 180);
+    }, 450);
     return () => clearTimeout(timeoutId);
   }, [userStats]);
 
@@ -586,77 +586,6 @@ export default function App() {
     }
   });
 
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-
-    let rafId: number | null = null;
-    const evaluateFloatingBottomNav = () => {
-      if (rafId !== null) cancelAnimationFrame(rafId);
-      rafId = requestAnimationFrame(() => {
-        try {
-          const isNativeAndroid = Boolean(
-            (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor?.isNativePlatform?.() ||
-              window.navigator.userAgent.includes('Capacitor')
-          );
-          const isInstalledApp =
-            window.matchMedia('(display-mode: standalone)').matches ||
-            window.matchMedia('(display-mode: fullscreen)').matches ||
-            window.matchMedia('(display-mode: minimal-ui)').matches ||
-            (window.navigator as Navigator & { standalone?: boolean }).standalone === true ||
-            document.referrer.includes('android-app://');
-
-          const isPortrait =
-            window.matchMedia('(orientation: portrait)').matches ||
-            window.innerHeight > window.innerWidth;
-
-          const ua = window.navigator.userAgent || '';
-          const isTabletUA =
-            /iPad|Tablet|PlayBook|Silk/i.test(ua) ||
-            (/Android/i.test(ua) && !/Mobile/i.test(ua)) ||
-            (window.navigator.platform === 'MacIntel' && window.navigator.maxTouchPoints > 1);
-          const isPhoneUA =
-            /iPhone|iPod|Android.*Mobile|Windows Phone|BlackBerry|IEMobile|Opera Mini/i.test(ua);
-          const isCoarsePointer =
-            window.matchMedia('(pointer: coarse)').matches ||
-            window.matchMedia('(hover: none)').matches;
-
-          const minDim = Math.min(window.innerWidth, window.innerHeight);
-          const isMobilePhone = isPhoneUA || (!isTabletUA && minDim < 768);
-          const isPhoneOrTabletContext =
-            isMobilePhone || isTabletUA || isCoarsePointer || window.innerWidth <= 1024;
-
-          const shouldFloat = isNativeAndroid
-            ? Boolean(isPortrait && !isTabletUA && window.innerWidth < 768)
-            : Boolean(
-                (isInstalledApp && isMobilePhone) || (isPortrait && isPhoneOrTabletContext)
-              );
-
-          setIsFloatingBottomNav((prev) => (prev === shouldFloat ? prev : shouldFloat));
-        } catch {
-          setIsFloatingBottomNav(false);
-        }
-      });
-    };
-
-    evaluateFloatingBottomNav();
-
-    const standaloneQuery = window.matchMedia('(display-mode: standalone)');
-    const portraitQuery = window.matchMedia('(orientation: portrait)');
-
-    standaloneQuery.addEventListener?.('change', evaluateFloatingBottomNav);
-    portraitQuery.addEventListener?.('change', evaluateFloatingBottomNav);
-    window.addEventListener('resize', evaluateFloatingBottomNav, { passive: true });
-    window.addEventListener('orientationchange', evaluateFloatingBottomNav, { passive: true });
-
-    return () => {
-      if (rafId !== null) cancelAnimationFrame(rafId);
-      standaloneQuery.removeEventListener?.('change', evaluateFloatingBottomNav);
-      portraitQuery.removeEventListener?.('change', evaluateFloatingBottomNav);
-      window.removeEventListener('resize', evaluateFloatingBottomNav);
-      window.removeEventListener('orientationchange', evaluateFloatingBottomNav);
-    };
-  }, []);
-
   // Detect Phone/Tablet PORTRAIT mode for the Floating Top Navigation (orientation-based, excludes desktop/laptop)
   const [isMobileOrTabletPortrait, setIsMobileOrTabletPortrait] = useState<boolean>(() => {
     if (typeof window === 'undefined') return false;
@@ -694,31 +623,40 @@ export default function App() {
     }
   });
 
+  // Consolidated Viewport & Orientation evaluation (single rAF listener for both BottomNav & TopNav floating modes)
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
     let rafId: number | null = null;
-    const evaluateMobileOrTabletPortrait = () => {
+    let lastEvalTime = 0;
+    let trailingTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const runLayoutEvaluation = () => {
       if (rafId !== null) cancelAnimationFrame(rafId);
       rafId = requestAnimationFrame(() => {
         try {
-          const isPortrait =
-            window.matchMedia('(orientation: portrait)').matches ||
-            window.innerHeight > window.innerWidth;
-          if (!isPortrait) {
-            setIsMobileOrTabletPortrait((prev) => (prev === false ? prev : false));
-            return;
-          }
-
           const isNativeAndroid = Boolean(
             (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor?.isNativePlatform?.() ||
               window.navigator.userAgent.includes('Capacitor')
           );
+          const isInstalledApp =
+            window.matchMedia('(display-mode: standalone)').matches ||
+            window.matchMedia('(display-mode: fullscreen)').matches ||
+            window.matchMedia('(display-mode: minimal-ui)').matches ||
+            (window.navigator as Navigator & { standalone?: boolean }).standalone === true ||
+            document.referrer.includes('android-app://');
+
+          const isPortrait =
+            window.matchMedia('(orientation: portrait)').matches ||
+            window.innerHeight > window.innerWidth;
+
           const ua = window.navigator.userAgent || '';
           const isTabletUA =
             /iPad|Tablet|PlayBook|Silk/i.test(ua) ||
             (/Android/i.test(ua) && !/Mobile/i.test(ua)) ||
             (window.navigator.platform === 'MacIntel' && window.navigator.maxTouchPoints > 1);
+          const isPhoneUA =
+            /iPhone|iPod|Android.*Mobile|Windows Phone|BlackBerry|IEMobile|Opera Mini/i.test(ua);
           const isMobileOrTabletUA =
             isNativeAndroid ||
             /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Mobile|Tablet|PlayBook|Silk/i.test(ua) ||
@@ -726,32 +664,69 @@ export default function App() {
           const isCoarsePointer =
             window.matchMedia('(pointer: coarse)').matches ||
             window.matchMedia('(hover: none)').matches;
-          const isMobileOrTabletViewport = window.innerWidth <= 1024;
 
-          const nextVal = isNativeAndroid
+          const minDim = Math.min(window.innerWidth, window.innerHeight);
+          const isMobilePhone = isPhoneUA || (!isTabletUA && minDim < 768);
+          const isMobileOrTabletViewport = window.innerWidth <= 1024;
+          const isPhoneOrTabletContext =
+            isMobilePhone || isTabletUA || isCoarsePointer || isMobileOrTabletViewport;
+
+          const shouldFloatBottom = isNativeAndroid
+            ? Boolean(isPortrait && !isTabletUA && window.innerWidth < 768)
+            : Boolean(
+                (isInstalledApp && isMobilePhone) || (isPortrait && isPhoneOrTabletContext)
+              );
+
+          const nextPortraitTopDock = !isPortrait
+            ? false
+            : isNativeAndroid
             ? Boolean(isPortrait && !isTabletUA && window.innerWidth < 768)
             : Boolean(
                 isPortrait && (isMobileOrTabletUA || isCoarsePointer || isMobileOrTabletViewport)
               );
-          setIsMobileOrTabletPortrait((prev) => (prev === nextVal ? prev : nextVal));
+
+          setIsFloatingBottomNav((prev) => (prev === shouldFloatBottom ? prev : shouldFloatBottom));
+          setIsMobileOrTabletPortrait((prev) =>
+            prev === nextPortraitTopDock ? prev : nextPortraitTopDock
+          );
         } catch {
+          setIsFloatingBottomNav(false);
           setIsMobileOrTabletPortrait(false);
         }
       });
     };
 
-    evaluateMobileOrTabletPortrait();
+    const evaluateViewportNavigationLayout = () => {
+      const now = performance.now();
+      if (now - lastEvalTime >= 90) {
+        lastEvalTime = now;
+        runLayoutEvaluation();
+      } else {
+        if (trailingTimer !== null) clearTimeout(trailingTimer);
+        trailingTimer = setTimeout(() => {
+          lastEvalTime = performance.now();
+          runLayoutEvaluation();
+        }, 90);
+      }
+    };
 
+    runLayoutEvaluation();
+
+    const standaloneQuery = window.matchMedia('(display-mode: standalone)');
     const portraitQuery = window.matchMedia('(orientation: portrait)');
-    portraitQuery.addEventListener?.('change', evaluateMobileOrTabletPortrait);
-    window.addEventListener('resize', evaluateMobileOrTabletPortrait, { passive: true });
-    window.addEventListener('orientationchange', evaluateMobileOrTabletPortrait, { passive: true });
+
+    standaloneQuery.addEventListener?.('change', evaluateViewportNavigationLayout);
+    portraitQuery.addEventListener?.('change', evaluateViewportNavigationLayout);
+    window.addEventListener('resize', evaluateViewportNavigationLayout, { passive: true });
+    window.addEventListener('orientationchange', evaluateViewportNavigationLayout, { passive: true });
 
     return () => {
       if (rafId !== null) cancelAnimationFrame(rafId);
-      portraitQuery.removeEventListener?.('change', evaluateMobileOrTabletPortrait);
-      window.removeEventListener('resize', evaluateMobileOrTabletPortrait);
-      window.removeEventListener('orientationchange', evaluateMobileOrTabletPortrait);
+      if (trailingTimer !== null) clearTimeout(trailingTimer);
+      standaloneQuery.removeEventListener?.('change', evaluateViewportNavigationLayout);
+      portraitQuery.removeEventListener?.('change', evaluateViewportNavigationLayout);
+      window.removeEventListener('resize', evaluateViewportNavigationLayout);
+      window.removeEventListener('orientationchange', evaluateViewportNavigationLayout);
     };
   }, []);
 
@@ -1011,11 +986,16 @@ export default function App() {
     []
   );
 
+  const bookmarkedIdsSet = useMemo(
+    () => new Set(userStats.bookmarkedItemIds || []),
+    [userStats.bookmarkedItemIds]
+  );
+
   const isItemBookmarked = useCallback(
     (id: string) => {
-      return userStats.bookmarkedItemIds.includes(id);
+      return bookmarkedIdsSet.has(id);
     },
-    [userStats.bookmarkedItemIds]
+    [bookmarkedIdsSet]
   );
 
   const handleToggleBookmark = useCallback((id: string) => {
@@ -1030,11 +1010,16 @@ export default function App() {
     });
   }, []);
 
+  const completedNotesSet = useMemo(
+    () => new Set(userStats.completedNoteIds || []),
+    [userStats.completedNoteIds]
+  );
+
   const isNoteCompleted = useCallback(
     (id: string) => {
-      return userStats.completedNoteIds.includes(id);
+      return completedNotesSet.has(id);
     },
-    [userStats.completedNoteIds]
+    [completedNotesSet]
   );
 
   const handleToggleNoteComplete = useCallback((id: string) => {
@@ -1193,8 +1178,73 @@ export default function App() {
     setShowSplash(false);
   }, []);
 
+  const handleSelectBook = useCallback((book: Book) => {
+    setReadingBook(book);
+  }, []);
+
+  const handleCloseReadingBook = useCallback(() => {
+    setReadingBook(null);
+  }, []);
+
+  const handleSelectNote = useCallback((note: StudyNote) => {
+    setViewingNote(note);
+  }, []);
+
+  const handleCloseViewingNote = useCallback(() => {
+    setViewingNote(null);
+  }, []);
+
+  const handleCloseSearch = useCallback(() => {
+    setIsSearchOpen(false);
+  }, []);
+
+  const handleNavigateToProfile = useCallback(() => {
+    handleNavigate('profile');
+  }, [handleNavigate]);
+
+  const handleNavigateToPractice = useCallback(() => {
+    handleNavigate('practice');
+  }, [handleNavigate]);
+
+  const handleNavigateToNotes = useCallback(() => {
+    handleNavigate('notes');
+  }, [handleNavigate]);
+
+  const handleNavigateToTracker = useCallback(() => {
+    handleNavigate('tracker');
+  }, [handleNavigate]);
+
+  const handleOpenFocusMode = useCallback(() => {
+    setIsFocusModeOpen(true);
+  }, []);
+
+  const handleCloseFocusMode = useCallback(() => {
+    setIsFocusModeOpen(false);
+  }, []);
+
+  const handleOpenOwnerAnalytics = useCallback(() => {
+    setIsOwnerModalOpen(true);
+  }, []);
+
+  const handleCloseOwnerAnalytics = useCallback(() => {
+    setIsOwnerModalOpen(false);
+  }, []);
+
+  const handleOpenAuthModal = useCallback((mode: 'register' | 'login') => {
+    setAuthModalConfig({ isOpen: true, mode });
+  }, []);
+
+  const handleCloseAuthModal = useCallback(() => {
+    setAuthModalConfig((prev) => ({ ...prev, isOpen: false }));
+  }, []);
+
+  const pendingTasks = useMemo(
+    () => (userStats.tasks || []).filter((t) => !t.completed),
+    [userStats.tasks]
+  );
+
   return (
-    <div className="min-h-screen min-h-[100dvh] w-full max-w-[100vw] overflow-x-clip bg-[#060b18] text-[#f7f4ee] flex flex-col selection:bg-[#d4af37]/30 selection:text-white">
+    <div className="svh-app-root-scroll min-h-screen min-h-[100dvh] w-full max-w-[100vw] overflow-x-clip bg-[#060b18] text-[#f7f4ee] flex flex-col selection:bg-[#d4af37]/30 selection:text-white">
       {/* Standalone Mini Bubble Background Animation Layer */}
       <MiniBubbleBackground />
       <ConfettiCelebration />
@@ -1215,7 +1265,7 @@ export default function App() {
           onAuthSuccess={handleAuthSuccess}
           onClose={
             userStats.hasCompletedSetup
-              ? () => setAuthModalConfig((prev) => ({ ...prev, isOpen: false }))
+              ? handleCloseAuthModal
               : undefined
           }
         />
@@ -1241,7 +1291,7 @@ export default function App() {
 
       {/* Main Container */}
       <main
-        className={`svh-focus-dimmable flex-1 w-full max-w-5xl mx-auto px-3.5 sm:px-6 overflow-x-hidden ${
+        className={`svh-dashboard-scroll-wrapper svh-focus-dimmable flex-1 w-full max-w-5xl mx-auto px-3.5 sm:px-6 overflow-x-hidden ${
           isMobileOrTabletPortrait ? 'pt-6' : 'pt-5'
         } ${
           isFloatingBottomNav
@@ -1262,14 +1312,14 @@ export default function App() {
               userStats={userStats}
               onUpdateStats={handleUpdateStats}
               onNavigate={handleNavigate}
-              onSelectBook={(book) => setReadingBook(book)}
-              onSelectNote={(note) => setViewingNote(note)}
+              onSelectBook={handleSelectBook}
+              onSelectNote={handleSelectNote}
               isBookmarked={isItemBookmarked}
               onToggleBookmark={handleToggleBookmark}
               onRecordMCQAnswer={handleRecordSingleQuestion}
               onSelectActiveGoal={handleSelectActiveGoal}
-              onOpenGoalsManager={() => handleNavigate('profile')}
-              onOpenFocusMode={() => setIsFocusModeOpen(true)}
+              onOpenGoalsManager={handleNavigateToProfile}
+              onOpenFocusMode={handleOpenFocusMode}
               resolvedTheme={resolvedTheme}
               onChangeTheme={handleChangeTheme}
             />
@@ -1279,7 +1329,7 @@ export default function App() {
             <BooksSection
               activeGoal={activeGoal}
               activeSubjects={activeSubjects}
-              onSelectBook={(book) => setReadingBook(book)}
+              onSelectBook={handleSelectBook}
               isBookmarked={isItemBookmarked}
               onToggleBookmark={handleToggleBookmark}
               onPracticeNCERTChapter={handleOpenPracticeWithChapter}
@@ -1290,7 +1340,7 @@ export default function App() {
             <NotesSection
               activeGoal={activeGoal}
               activeSubjects={activeSubjects}
-              onSelectNote={(note) => setViewingNote(note)}
+              onSelectNote={handleSelectNote}
               isBookmarked={isItemBookmarked}
               onToggleBookmark={handleToggleBookmark}
               isCompleted={isNoteCompleted}
@@ -1319,8 +1369,8 @@ export default function App() {
               activeSubjects={activeSubjects}
               userStats={userStats}
               onUpdateStats={handleUpdateStats}
-              onNavigateToPractice={() => handleNavigate('practice')}
-              onOpenFocusMode={() => setIsFocusModeOpen(true)}
+              onNavigateToPractice={handleNavigateToPractice}
+              onOpenFocusMode={handleOpenFocusMode}
             />
           )}
 
@@ -1340,8 +1390,8 @@ export default function App() {
               activeGoal={activeGoal}
               activeSubjects={activeSubjects}
               onNavigateToPracticeWithSubject={handleOpenPracticeWithSubject}
-              onNavigateToNotes={() => handleNavigate('notes')}
-              onNavigateToTracker={() => handleNavigate('tracker')}
+              onNavigateToNotes={handleNavigateToNotes}
+              onNavigateToTracker={handleNavigateToTracker}
             />
           )}
 
@@ -1349,16 +1399,16 @@ export default function App() {
             <ProfileSection
               userStats={userStats}
               onUpdateStats={handleUpdateStats}
-              onSelectBook={(book) => setReadingBook(book)}
-              onSelectNote={(note) => setViewingNote(note)}
-              onNavigateToPractice={() => handleNavigate('practice')}
+              onSelectBook={handleSelectBook}
+              onSelectNote={handleSelectNote}
+              onNavigateToPractice={handleNavigateToPractice}
               onNavigate={handleNavigate}
               themePreference={themePreference}
               resolvedTheme={resolvedTheme}
               onChangeTheme={handleChangeTheme}
               isOwnerAuthenticated={isOwnerAuthenticated}
-              onOpenOwnerAnalytics={() => setIsOwnerModalOpen(true)}
-              onOpenAuthModal={(mode) => setAuthModalConfig({ isOpen: true, mode })}
+              onOpenOwnerAnalytics={handleOpenOwnerAnalytics}
+              onOpenAuthModal={handleOpenAuthModal}
               onLogoutAccount={handleLogoutAccount}
               onAccountDeleted={handleAccountDeleted}
             />
@@ -1373,7 +1423,7 @@ export default function App() {
       {/* Secure Owner Verification & Analytics Modal (Hidden from normal users) */}
       <OwnerAnalyticsModal
         isOpen={isOwnerModalOpen}
-        onClose={() => setIsOwnerModalOpen(false)}
+        onClose={handleCloseOwnerAnalytics}
         onOwnerAuthStatusChange={setIsOwnerAuthenticated}
       />
 
@@ -1389,10 +1439,10 @@ export default function App() {
       {/* Premium Study Focus Mode Modal */}
       <FocusModeModal
         isOpen={isFocusModeOpen}
-        onClose={() => setIsFocusModeOpen(false)}
+        onClose={handleCloseFocusMode}
         activeGoal={activeGoal}
         activeSubjects={activeSubjects}
-        pendingTasks={userStats.tasks.filter((t) => !t.completed)}
+        pendingTasks={pendingTasks}
         onSaveRealSession={handleSaveRealFocusSession}
       />
 
@@ -1412,7 +1462,7 @@ export default function App() {
       {readingBook && (
         <BookReaderModal
           book={readingBook}
-          onClose={() => setReadingBook(null)}
+          onClose={handleCloseReadingBook}
           isBookmarked={isItemBookmarked(readingBook.id)}
           onToggleBookmark={handleToggleBookmark}
         />
@@ -1422,7 +1472,7 @@ export default function App() {
       {viewingNote && (
         <NoteViewerModal
           note={viewingNote}
-          onClose={() => setViewingNote(null)}
+          onClose={handleCloseViewingNote}
           isBookmarked={isItemBookmarked(viewingNote.id)}
           isCompleted={isNoteCompleted(viewingNote.id)}
           onToggleBookmark={handleToggleBookmark}
@@ -1434,12 +1484,10 @@ export default function App() {
       {/* Global Search Modal */}
       {isSearchOpen && (
         <SearchModal
-          onClose={() => setIsSearchOpen(false)}
-          onSelectBook={(book) => setReadingBook(book)}
-          onSelectNote={(note) => setViewingNote(note)}
-          onNavigateToMCQ={() => {
-            setActiveSection('practice');
-          }}
+          onClose={handleCloseSearch}
+          onSelectBook={handleSelectBook}
+          onSelectNote={handleSelectNote}
+          onNavigateToMCQ={handleNavigateToPractice}
           onNavigate={handleNavigate}
         />
       )}

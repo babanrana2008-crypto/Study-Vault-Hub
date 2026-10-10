@@ -37,7 +37,7 @@ interface OnboardingModalProps {
   onClose?: () => void;
 }
 
-export const OnboardingModal: React.FC<OnboardingModalProps> = ({
+export const OnboardingModal: React.FC<OnboardingModalProps> = React.memo(({
   currentStats,
   initialMode = 'register',
   onAuthSuccess,
@@ -771,4 +771,5 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
       </div>
     </div>
   );
-};
+});
+

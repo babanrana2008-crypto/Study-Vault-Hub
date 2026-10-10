@@ -107,7 +107,7 @@ interface OwnerAnalyticsModalProps {
   onOwnerAuthStatusChange?: (isAuthenticated: boolean) => void;
 }
 
-export const OwnerAnalyticsModal: React.FC<OwnerAnalyticsModalProps> = ({
+export const OwnerAnalyticsModal: React.FC<OwnerAnalyticsModalProps> = React.memo(({
   isOpen,
   onClose,
   onOwnerAuthStatusChange,
@@ -1460,4 +1460,5 @@ export const OwnerAnalyticsModal: React.FC<OwnerAnalyticsModalProps> = ({
       </div>
     </div>
   );
-};
+});
+

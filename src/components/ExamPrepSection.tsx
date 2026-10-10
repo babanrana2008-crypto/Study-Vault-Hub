@@ -14,6 +14,8 @@ import {
 import { HIGH_YIELD_TOPICS, MNEMONICS_BANK, GOAL_SUBJECTS_MAP } from '../data/sampleData';
 import { HighYieldTopic, MnemonicItem } from '../types';
 import { GlassMetallicSkeleton, useBriefShimmerTransition } from './GlassMetallicSkeleton';
+import { RollingVPCounter } from './RollingVPCounter';
+import { triggerConfettiCelebration } from './ConfettiCelebration';
 
 interface ExamPrepSectionProps {
   activeGoal: string;
@@ -23,25 +25,23 @@ interface ExamPrepSectionProps {
   onNavigateToTracker?: () => void;
 }
 
-export const ExamPrepSection: React.FC<ExamPrepSectionProps> = React.memo(({
-  activeGoal,
-  activeSubjects,
-  onNavigateToPracticeWithSubject,
-  onNavigateToNotes,
-  onNavigateToTracker,
-}) => {
-  // Live Target Exam Clock (Days, Hours, Minutes, Seconds)
+interface TargetExamClockCardProps {
+  activeGoal: string;
+}
+
+const TargetExamClockCard: React.FC<TargetExamClockCardProps> = React.memo(({ activeGoal }) => {
   const [timeLeft, setTimeLeft] = useState({
     days: 180,
     hours: 12,
     minutes: 45,
-    seconds: 30
+    seconds: 30,
   });
 
   useEffect(() => {
     const targetDate = new Date(Date.now() + 180 * 24 * 60 * 60 * 1000);
     const interval = setInterval(() => {
-      const now = new Date().getTime();
+      if (typeof document !== 'undefined' && document.hidden) return;
+      const now = Date.now();
       const difference = targetDate.getTime() - now;
 
       if (difference > 0) {
@@ -56,6 +56,62 @@ export const ExamPrepSection: React.FC<ExamPrepSectionProps> = React.memo(({
     return () => clearInterval(interval);
   }, [activeGoal]);
 
+  return (
+    <section className="p-5 sm:p-7 rounded-2xl sm:rounded-3xl bg-gradient-to-br from-[#0c1428] via-[#090f20] to-[#070b16] border border-[#d4af37]/35 shadow-xl relative overflow-hidden">
+      <div className="absolute top-0 right-0 w-64 h-64 bg-[#d4af37]/10 rounded-full blur-3xl pointer-events-none" />
+
+      <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-5">
+        <div className="space-y-1.5">
+          <span className="text-xs text-[#d4af37] font-semibold tracking-wider uppercase font-mono">
+            Target Clock
+          </span>
+          <h2 className="font-display text-lg sm:text-xl font-bold text-[#fbf9f4]">
+            Countdown to {activeGoal}
+          </h2>
+          <p className="text-xs text-[#9ca3af]">
+            Maintain daily study discipline and consistent revision cycles.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-4 gap-2 sm:gap-3 text-center">
+          <div className="p-2.5 sm:p-3 rounded-xl bg-[#131b2e] border border-[#d4af37]/25 min-w-[58px]">
+            <span className="font-display text-xl sm:text-2xl font-bold text-[#fbf9f4] tabular-nums block">
+              {timeLeft.days}
+            </span>
+            <span className="text-[10px] text-[#9ca3af] uppercase font-medium">Days</span>
+          </div>
+          <div className="p-2.5 sm:p-3 rounded-xl bg-[#131b2e] border border-[#d4af37]/25 min-w-[58px]">
+            <span className="font-display text-xl sm:text-2xl font-bold text-[#d4af37] tabular-nums block">
+              {timeLeft.hours}
+            </span>
+            <span className="text-[10px] text-[#9ca3af] uppercase font-medium">Hours</span>
+          </div>
+          <div className="p-2.5 sm:p-3 rounded-xl bg-[#131b2e] border border-[#d4af37]/25 min-w-[58px]">
+            <span className="font-display text-xl sm:text-2xl font-bold text-[#fbf9f4] tabular-nums block">
+              {timeLeft.minutes}
+            </span>
+            <span className="text-[10px] text-[#9ca3af] uppercase font-medium">Mins</span>
+          </div>
+          <div className="p-2.5 sm:p-3 rounded-xl bg-[#131b2e] border border-[#d4af37]/25 min-w-[58px]">
+            <span className="font-display text-xl sm:text-2xl font-bold text-amber-400 tabular-nums block">
+              {timeLeft.seconds}
+            </span>
+            <span className="text-[10px] text-[#9ca3af] uppercase font-medium">Secs</span>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+});
+
+export const ExamPrepSection: React.FC<ExamPrepSectionProps> = React.memo(({
+  activeGoal,
+  activeSubjects,
+  onNavigateToPracticeWithSubject,
+  onNavigateToNotes,
+  onNavigateToTracker,
+}) => {
+
   // Topics checklist state
   const [topics, setTopics] = useState<HighYieldTopic[]>(HIGH_YIELD_TOPICS);
   const [selectedSubjectFilter, setSelectedSubjectFilter] = useState<string>('All');
@@ -66,6 +122,7 @@ export const ExamPrepSection: React.FC<ExamPrepSectionProps> = React.memo(({
   }, [activeSubjects]);
 
   const toggleTopicStatus = (topicId: string) => {
+    let becameMastered = false;
     setTopics((prev) =>
       prev.map((t) => {
         if (t.id === topicId) {
@@ -75,11 +132,17 @@ export const ExamPrepSection: React.FC<ExamPrepSectionProps> = React.memo(({
               : t.status === 'In Progress'
               ? 'To Revise'
               : 'Mastered';
+          if (nextStatus === 'Mastered') {
+            becameMastered = true;
+          }
           return { ...t, status: nextStatus };
         }
         return t;
       })
     );
+    if (becameMastered) {
+      triggerConfettiCelebration({ reason: 'milestone' });
+    }
   };
 
   const filteredTopics = useMemo(() => {
@@ -229,51 +292,8 @@ export const ExamPrepSection: React.FC<ExamPrepSectionProps> = React.memo(({
         </p>
       </div>
 
-      {/* 1. Target Exam Countdown */}
-      <section className="p-5 sm:p-7 rounded-2xl sm:rounded-3xl bg-gradient-to-br from-[#0c1428] via-[#090f20] to-[#070b16] border border-[#d4af37]/35 shadow-xl relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-64 h-64 bg-[#d4af37]/10 rounded-full blur-3xl pointer-events-none" />
-
-        <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-5">
-          <div className="space-y-1.5">
-            <span className="text-xs text-[#d4af37] font-semibold tracking-wider uppercase font-mono">
-              Target Clock
-            </span>
-            <h2 className="font-display text-lg sm:text-xl font-bold text-[#fbf9f4]">
-              Countdown to {activeGoal}
-            </h2>
-            <p className="text-xs text-[#9ca3af]">
-              Maintain daily study discipline and consistent revision cycles.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-4 gap-2 sm:gap-3 text-center">
-            <div className="p-2.5 sm:p-3 rounded-xl bg-[#131b2e] border border-[#d4af37]/25 min-w-[58px]">
-              <span className="font-display text-xl sm:text-2xl font-bold text-[#fbf9f4] tabular-nums block">
-                {timeLeft.days}
-              </span>
-              <span className="text-[10px] text-[#9ca3af] uppercase font-medium">Days</span>
-            </div>
-            <div className="p-2.5 sm:p-3 rounded-xl bg-[#131b2e] border border-[#d4af37]/25 min-w-[58px]">
-              <span className="font-display text-xl sm:text-2xl font-bold text-[#d4af37] tabular-nums block">
-                {timeLeft.hours}
-              </span>
-              <span className="text-[10px] text-[#9ca3af] uppercase font-medium">Hours</span>
-            </div>
-            <div className="p-2.5 sm:p-3 rounded-xl bg-[#131b2e] border border-[#d4af37]/25 min-w-[58px]">
-              <span className="font-display text-xl sm:text-2xl font-bold text-[#fbf9f4] tabular-nums block">
-                {timeLeft.minutes}
-              </span>
-              <span className="text-[10px] text-[#9ca3af] uppercase font-medium">Mins</span>
-            </div>
-            <div className="p-2.5 sm:p-3 rounded-xl bg-[#131b2e] border border-[#d4af37]/25 min-w-[58px]">
-              <span className="font-display text-xl sm:text-2xl font-bold text-amber-400 tabular-nums block">
-                {timeLeft.seconds}
-              </span>
-              <span className="text-[10px] text-[#9ca3af] uppercase font-medium">Secs</span>
-            </div>
-          </div>
-        </div>
-      </section>
+      {/* 1. Target Exam Countdown (Isolated Memoized Clock) */}
+      <TargetExamClockCard activeGoal={activeGoal} />
 
       {/* 2. Weightage & Structure Blueprint */}
       <section className="space-y-3">
@@ -325,7 +345,8 @@ export const ExamPrepSection: React.FC<ExamPrepSectionProps> = React.memo(({
             <div className="text-right">
               <span className="text-xs text-[#9ca3af] block">Readiness</span>
               <span className="text-xs font-bold text-[#d4af37] tabular-nums">
-                {masteredCount} of {displayTopics.length} Mastered ({progressPercent}%)
+                <RollingVPCounter value={masteredCount} /> of {displayTopics.length} Mastered (
+                <RollingVPCounter value={progressPercent} suffix="%" />)
               </span>
             </div>
             <div className="w-20 h-2 bg-[#131b2e] rounded-full overflow-hidden border border-[#d4af37]/20">

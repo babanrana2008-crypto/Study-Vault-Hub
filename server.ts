@@ -465,11 +465,11 @@ async function startServer() {
       res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
       return res.redirect(
         302,
-        'https://github.com/babanrana2008-crypto/Study-Vault-Hub/releases/download/v1.0.0/Final.app-debug.apk'
+        'https://github.com/babanrana2008-crypto/Study-Vault-Hub/releases/download/v3.0.0/SVH.apk'
       );
     }
     res.setHeader('Content-Type', 'application/vnd.android.package-archive');
-    res.setHeader('Content-Disposition', 'attachment; filename="StudyVaultHub.apk"');
+    res.setHeader('Content-Disposition', 'attachment; filename="SVH.apk"');
     res.setHeader('Cache-Control', 'no-cache');
     return res.sendFile(apkPath);
   });

@@ -42,9 +42,6 @@ import { SAMPLE_BOOKS, SAMPLE_NOTES, SAMPLE_MCQS, PRESET_GOALS } from '../data/s
 import { apiFetch } from '../services/nativeApiBridge';
 import { calculateUserVPBreakdown, VP_RANK_TIERS, getAcademicStanding } from '../utils/vpPoints';
 import { RollingVPCounter } from './RollingVPCounter';
-import { doc, onSnapshot } from 'firebase/firestore';
-import { db, auth } from '../firebase';
-import { handleUserTrackingFirestoreError } from '../services/firebaseDb';
 
 const IDENTITY_STORAGE_KEY = 'study_vault_community_identity_v1';
 
@@ -115,68 +112,11 @@ export const ProfileSection: React.FC<ProfileSectionProps> = React.memo(({
   const [customGoalText, setCustomGoalText] = useState('');
   const [milestoneFilter, setMilestoneFilter] = useState<'all' | 'unlocked' | 'in_progress'>('all');
 
-  // 1. REAL-TIME PROFILE VP READ: Attach live Firestore listener (onSnapshot) to users/{auth.currentUser.uid}
-  const [liveProfileVpPoints, setLiveProfileVpPoints] = useState<number | null>(null);
-
-  useEffect(() => {
-    let targetUid = auth?.currentUser?.uid || userStats.userId || null;
-    if (!targetUid) {
-      try {
-        const raw = localStorage.getItem(IDENTITY_STORAGE_KEY);
-        if (raw) {
-          const parsed = JSON.parse(raw);
-          if (parsed?.userId) targetUid = String(parsed.userId);
-        }
-      } catch {
-        // ignore
-      }
-    }
-    if (!targetUid) {
-      setLiveProfileVpPoints(null);
-      return;
-    }
-
-    const userDocRef = doc(db, 'users', targetUid);
-    const unsubscribe = onSnapshot(
-      userDocRef,
-      (snapshot) => {
-        if (!snapshot.exists()) return;
-        const data = snapshot.data() || {};
-        const remoteVp = Math.max(
-          0,
-          Math.floor(Number(data.vpPoints ?? data.vaultPoints ?? data.userStats?.vpPoints ?? 0))
-        );
-        setLiveProfileVpPoints(remoteVp);
-      },
-      (error) => {
-        const msg = error instanceof Error ? error.message : String(error);
-        if (msg.toLowerCase().includes('Missing or insufficient permissions'.toLowerCase())) {
-          try {
-            handleUserTrackingFirestoreError(error, 'get' as any, `users/${targetUid}`);
-          } catch {
-            // logged by handler
-          }
-        }
-      }
-    );
-
-    return () => {
-      unsubscribe();
-    };
-  }, [userStats.userId]);
-
   // Real VP Points, Dynamic Academic Standing, Rank Tier, and Milestones calculation
+  // (Synced in real time via App.tsx's single authoritative users/{uid} Firestore listener)
   const vpSummary = useMemo(() => {
-    const effectiveStats: UserStats =
-      liveProfileVpPoints !== null
-        ? {
-            ...userStats,
-            vpPoints: Math.max(Number(userStats.vpPoints) || 0, liveProfileVpPoints),
-            vaultPoints: Math.max(Number(userStats.vaultPoints) || 0, liveProfileVpPoints),
-          }
-        : userStats;
-    return calculateUserVPBreakdown(effectiveStats);
-  }, [userStats, liveProfileVpPoints]);
+    return calculateUserVPBreakdown(userStats);
+  }, [userStats]);
 
   const academicStanding = useMemo(() => {
     return getAcademicStanding(vpSummary.totalVP);
@@ -1140,7 +1080,7 @@ Active Streak: ${userStats.streak?.current || 0} Days
 
         {/* 5 Quantitative Real Metrics (including VP Points) */}
         <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 pt-2 border-t border-[#d4af37]/20">
-          <div className="svh-badge-shimmer p-3.5 rounded-xl bg-gradient-to-br from-[#1b243b] to-[#111829] border border-[#d4af37]/40 text-center">
+          <div className="svh-shimmer-border-card svh-badge-shimmer p-3.5 rounded-xl bg-gradient-to-br from-[#1b243b] to-[#111829] border border-[#d4af37]/40 text-center">
             <span className="text-[11px] text-[#d4af37] font-semibold block">Vault Points (VP)</span>
             <div className="flex items-center justify-center gap-1.5 mt-1">
               <Trophy className="w-4 h-4 text-[#d4af37]" />
@@ -1154,39 +1094,46 @@ Active Streak: ${userStats.streak?.current || 0} Days
             </span>
           </div>
 
-          <div className="p-3.5 rounded-xl bg-[#131b2e]/80 border border-[#d4af37]/20 text-center">
+          <div className="svh-shimmer-border-card p-3.5 rounded-xl bg-[#131b2e]/80 border border-[#d4af37]/20 text-center">
             <span className="text-[11px] text-[#9ca3af] block">Questions Solved</span>
-            <span className="font-display text-2xl font-bold text-[#d4af37] tabular-nums mt-1 block">
-              {userStats.questionsAttempted}
-            </span>
-            <span className="text-[10px] text-[#9ca3af]">
+            <RollingVPCounter
+              value={userStats.questionsAttempted}
+              className="font-display text-2xl font-bold text-[#d4af37] tabular-nums mt-1 justify-center"
+            />
+            <span className="text-[10px] text-[#9ca3af] block">
               +{userStats.correctAnswers} / -{userStats.incorrectAnswers}
             </span>
           </div>
 
-          <div className="p-3.5 rounded-xl bg-[#131b2e]/80 border border-[#d4af37]/20 text-center">
+          <div className="svh-shimmer-border-card p-3.5 rounded-xl bg-[#131b2e]/80 border border-[#d4af37]/20 text-center">
             <span className="text-[11px] text-[#9ca3af] block">Total Study Time</span>
-            <span className="font-display text-2xl font-bold text-[#fbf9f4] tabular-nums mt-1 block">
-              {formatTotalTime(userStats.totalStudyMinutes)}
-            </span>
-            <span className="text-[10px] text-[#9ca3af]">Real session timer</span>
+            <RollingVPCounter
+              value={userStats.totalStudyMinutes}
+              suffix=" min"
+              className="font-display text-2xl font-bold text-[#fbf9f4] tabular-nums mt-1 justify-center"
+            />
+            <span className="text-[10px] text-[#9ca3af] block">Real session timer</span>
           </div>
 
-          <div className="p-3.5 rounded-xl bg-[#131b2e]/80 border border-[#d4af37]/20 text-center">
+          <div className="svh-shimmer-border-card p-3.5 rounded-xl bg-[#131b2e]/80 border border-[#d4af37]/20 text-center">
             <span className="text-[11px] text-[#9ca3af] block">Overall Accuracy</span>
-            <span className="font-display text-2xl font-bold text-emerald-400 tabular-nums mt-1 block">
-              {overallAccuracy}%
-            </span>
-            <span className="text-[10px] text-[#9ca3af]">Accuracy ratio</span>
+            <RollingVPCounter
+              value={Number(overallAccuracy) || 0}
+              suffix="%"
+              className="font-display text-2xl font-bold text-emerald-400 tabular-nums mt-1 justify-center"
+            />
+            <span className="text-[10px] text-[#9ca3af] block">Accuracy ratio</span>
           </div>
 
-          <div className="p-3.5 rounded-xl bg-[#131b2e]/80 border border-[#d4af37]/20 text-center col-span-2 sm:col-span-1">
+          <div className="svh-shimmer-border-card p-3.5 rounded-xl bg-[#131b2e]/80 border border-[#d4af37]/20 text-center col-span-2 sm:col-span-1">
             <span className="text-[11px] text-[#9ca3af] block">Current Streak</span>
             <div className="flex items-center justify-center gap-1.5 mt-1">
               <Flame className="w-5 h-5 text-amber-400 fill-amber-400 svh-live-streak-flame" />
-              <span className="font-display text-2xl font-bold text-[#fbf9f4] tabular-nums">
-                {userStats.streak?.current || 0}d
-              </span>
+              <RollingVPCounter
+                value={userStats.streak?.current || 0}
+                suffix="d"
+                className="font-display text-2xl font-bold text-[#fbf9f4] tabular-nums"
+              />
             </div>
             <span className="text-[10px] text-[#9ca3af]">Active days</span>
           </div>
@@ -1194,7 +1141,7 @@ Active Streak: ${userStats.streak?.current || 0} Days
       </section>
 
       {/* 1B. Vault Points (VP) & Academic Rank Progression Card */}
-      <section className="p-5 sm:p-6 rounded-2xl sm:rounded-3xl bg-gradient-to-br from-[#0d162c] via-[#0a1122] to-[#060b18] border border-[#d4af37]/35 shadow-xl space-y-5">
+      <section className="svh-shimmer-border-card p-5 sm:p-6 rounded-2xl sm:rounded-3xl bg-gradient-to-br from-[#0d162c] via-[#0a1122] to-[#060b18] border border-[#d4af37]/35 shadow-xl space-y-5">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="space-y-1">
             <div className="flex items-center gap-2 text-xs font-semibold text-[#d4af37] uppercase tracking-wider">

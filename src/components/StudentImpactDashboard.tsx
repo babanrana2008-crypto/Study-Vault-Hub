@@ -199,7 +199,36 @@ export const StudentImpactDashboard: React.FC<StudentImpactDashboardProps> = Rea
     }, []);
 
     useEffect(() => {
-      loadVerifiedImpactData();
+      let cancelled = false;
+      let timeoutId: number | null = null;
+      let idleId: number | null = null;
+
+      const triggerLoad = () => {
+        if (!cancelled) {
+          loadVerifiedImpactData();
+        }
+      };
+
+      const win = window as Window & {
+        requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number;
+        cancelIdleCallback?: (id: number) => void;
+      };
+
+      if (typeof win.requestIdleCallback === 'function') {
+        idleId = win.requestIdleCallback(triggerLoad, { timeout: 1200 });
+      } else {
+        timeoutId = window.setTimeout(triggerLoad, 350);
+      }
+
+      return () => {
+        cancelled = true;
+        if (idleId !== null && typeof win.cancelIdleCallback === 'function') {
+          win.cancelIdleCallback(idleId);
+        }
+        if (timeoutId !== null) {
+          window.clearTimeout(timeoutId);
+        }
+      };
     }, [loadVerifiedImpactData]);
 
     // Combine with current user's verified local activity so real progress is never under-reported

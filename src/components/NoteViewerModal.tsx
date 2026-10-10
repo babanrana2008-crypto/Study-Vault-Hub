@@ -12,7 +12,7 @@ interface NoteViewerModalProps {
   onOpenMCQWithSubject?: (subject: string) => void;
 }
 
-export const NoteViewerModal: React.FC<NoteViewerModalProps> = ({
+export const NoteViewerModal: React.FC<NoteViewerModalProps> = React.memo(({
   note,
   onClose,
   isBookmarked,
@@ -107,7 +107,7 @@ export const NoteViewerModal: React.FC<NoteViewerModalProps> = ({
         </div>
 
         {/* Scrollable body */}
-        <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-6 space-y-6">
+        <div className="svh-scroll-container flex-1 overflow-y-auto px-4 sm:px-6 py-6 space-y-6">
           {/* Note overview */}
           <div className="space-y-2">
             <div className="flex flex-wrap items-center gap-2 text-xs text-[#9ca3af]">
@@ -211,4 +211,5 @@ export const NoteViewerModal: React.FC<NoteViewerModalProps> = ({
       </div>
     </div>
   );
-};
+});
+
