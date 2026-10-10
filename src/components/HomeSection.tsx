@@ -53,6 +53,7 @@ import { StudentImpactDashboard } from './StudentImpactDashboard';
 import { LearningPathsSection } from './LearningPathsSection';
 import { LearningResourcesShowcase } from './LearningResourcesShowcase';
 import { GenuineStudentReviewsSection } from './GenuineStudentReviewsSection';
+import { StudyVaultHubAnniversaryBanner } from './StudyVaultHubAnniversaryBanner';
 
 interface HomeSectionProps {
   userStats: UserStats;
@@ -413,6 +414,11 @@ export const HomeSection: React.FC<HomeSectionProps> = React.memo(({
 
       <div className="relative z-10 space-y-6">
       {/* ===================================================================== */}
+      {/* 0. OFFICIAL STUDY VAULT HUB ANNIVERSARY BANNER (15 OCT, 2026+ IST)    */}
+      {/* ===================================================================== */}
+      <StudyVaultHubAnniversaryBanner />
+
+      {/* ===================================================================== */}
       {/* 1. HERO BRANDING & WELCOME SECTION                                    */}
       {/* ===================================================================== */}
       <section className="svh-card-glow relative overflow-hidden rounded-2xl sm:rounded-3xl border border-[#d4af37]/35 bg-gradient-to-br from-[#0c1428] via-[#090f20] to-[#060b18] shadow-xl">
@@ -426,6 +432,9 @@ export const HomeSection: React.FC<HomeSectionProps> = React.memo(({
                 <img
                   src={APP_LOGO}
                   alt="Study Vault Hub Logo"
+                  width={56}
+                  height={56}
+                  decoding="async"
                   className="w-full h-full rounded-full object-contain aspect-square"
                   referrerPolicy="no-referrer"
                 />

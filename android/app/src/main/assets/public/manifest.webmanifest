@@ -1,7 +1,7 @@
 {
   "id": "/",
-  "name": "Study Vault Hub - Premium Academic & NEET Study Platform",
-  "short_name": "StudyVault",
+  "name": "Study Vault Hub",
+  "short_name": "SVH",
   "description": "Premium study platform for students featuring curated books, high-yield notes, interactive MCQ practice, and comprehensive exam preparation.",
   "start_url": "/",
   "scope": "/",

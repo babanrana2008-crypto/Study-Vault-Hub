@@ -188,6 +188,11 @@ export default function App() {
   });
   const [isInitialStateSetupDone, setIsInitialStateSetupDone] = useState<boolean>(false);
 
+  const userStatsRef = useRef<UserStats>(userStats);
+  useEffect(() => {
+    userStatsRef.current = userStats;
+  }, [userStats]);
+
   useEffect(() => {
     if (!auth || typeof onAuthStateChanged !== 'function') {
       setIsFirebaseAuthChecked(true);
@@ -197,28 +202,29 @@ export default function App() {
       setFirebaseAuthUid(firebaseUser ? firebaseUser.uid : null);
       setIsFirebaseAuthChecked(true);
       if (!firebaseUser) return;
+      const latestStats = userStatsRef.current;
       const nowIso = new Date().toISOString();
-      const computedVp = calculateUserVPBreakdown(userStats).totalVP;
+      const computedVp = calculateUserVPBreakdown(latestStats).totalVP;
       upsertUserProfileInFirestore({
         uid: firebaseUser.uid,
         displayName:
-          firebaseUser.displayName || userStats.name || firebaseUser.email?.split('@')[0] || 'Student',
+          firebaseUser.displayName || latestStats.name || firebaseUser.email?.split('@')[0] || 'Student',
         email: firebaseUser.email || `${firebaseUser.uid}@svh.student`,
-        username: userStats.username || firebaseUser.email?.split('@')[0] || null,
-        role: userStats.role === 'owner' ? 'owner' : 'student',
+        username: latestStats.username || firebaseUser.email?.split('@')[0] || null,
+        role: latestStats.role === 'owner' ? 'owner' : 'student',
         createdAt: firebaseUser.metadata?.creationTime
           ? new Date(firebaseUser.metadata.creationTime).toISOString()
           : nowIso,
         lastLogin: firebaseUser.metadata?.lastSignInTime
           ? new Date(firebaseUser.metadata.lastSignInTime).toISOString()
           : nowIso,
-        vpPoints: Math.max(computedVp, Number(userStats.vpPoints) || 0),
+        vpPoints: Math.max(computedVp, Number(latestStats.vpPoints) || 0),
         deviceId: getClientDeviceId(),
-        userStats,
+        userStats: latestStats,
       }).catch(() => {});
     });
     return () => unsubscribe();
-  }, [userStats]);
+  }, []);
 
   // REAL-TIME PROFILE VP READ: Attach live Firestore listener (onSnapshot) to users/{auth.currentUser.uid}
   const [liveFirestoreVpPoints, setLiveFirestoreVpPoints] = useState<number | null>(null);
@@ -1183,6 +1189,10 @@ export default function App() {
     setAuthModalConfig({ isOpen: true, mode: 'register' });
   }, []);
 
+  const handleFinishSplash = useCallback(() => {
+    setShowSplash(false);
+  }, []);
+
   return (
     <div className="min-h-screen min-h-[100dvh] w-full max-w-[100vw] overflow-x-clip bg-[#060b18] text-[#f7f4ee] flex flex-col selection:bg-[#d4af37]/30 selection:text-white">
       {/* Standalone Mini Bubble Background Animation Layer */}
@@ -1193,7 +1203,7 @@ export default function App() {
       {showSplash && (
         <SplashScreen
           isAppReady={isFirebaseAuthChecked && isInitialStateSetupDone}
-          onFinish={() => setShowSplash(false)}
+          onFinish={handleFinishSplash}
         />
       )}
 

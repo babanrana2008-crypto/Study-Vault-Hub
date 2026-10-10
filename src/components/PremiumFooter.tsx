@@ -42,6 +42,9 @@ export const PremiumFooter: React.FC<PremiumFooterProps> = React.memo(({ onNavig
             <img
               src={APP_LOGO}
               alt="Study Vault Hub"
+              width={44}
+              height={44}
+              decoding="async"
               className="w-full h-full rounded-full object-contain aspect-square"
               referrerPolicy="no-referrer"
             />

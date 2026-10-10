@@ -53,8 +53,8 @@ export const BottomNav: React.FC<BottomNavProps> = React.memo(
                     }`}
                   />
                   <span
-                    className={`text-[9px] sm:text-[10px] font-medium tracking-tight mt-0.5 truncate max-w-full transition-colors duration-200 ${
-                      isActive ? 'text-[#d4af37] font-bold' : 'text-[#9ca3af]'
+                    className={`text-[9px] sm:text-[10px] font-semibold tracking-tight mt-0.5 truncate max-w-full transition-colors duration-200 ${
+                      isActive ? 'text-[#d4af37]' : 'text-[#9ca3af]'
                     }`}
                   >
                     {item.label}
@@ -120,8 +120,8 @@ export const BottomNav: React.FC<BottomNavProps> = React.memo(
                   }`}
                 />
                 <span
-                  className={`text-[9px] sm:text-[10px] font-medium tracking-tight mt-0.5 truncate max-w-full transition-colors duration-200 ${
-                    isActive ? 'text-[#d4af37] font-bold' : 'text-[#9ca3af]'
+                  className={`text-[9px] sm:text-[10px] font-semibold tracking-tight mt-0.5 truncate max-w-full transition-colors duration-200 ${
+                    isActive ? 'text-[#d4af37]' : 'text-[#9ca3af]'
                   }`}
                 >
                   {item.label}

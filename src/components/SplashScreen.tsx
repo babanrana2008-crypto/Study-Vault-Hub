@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { APP_LOGO } from '../data/sampleData';
 import { HomeAmbientAnimation } from './HomeAmbientAnimation';
 
@@ -7,52 +7,44 @@ interface SplashScreenProps {
   isAppReady?: boolean;
 }
 
-export const SplashScreen: React.FC<SplashScreenProps> = ({
-  onFinish,
-  isAppReady = true,
-}) => {
+export const SPLASH_TOTAL_DURATION_MS = 5000;
+export const SPLASH_EXIT_TRANSITION_MS = 420;
+export const SPLASH_VISIBLE_BEFORE_EXIT_MS =
+  SPLASH_TOTAL_DURATION_MS - SPLASH_EXIT_TRANSITION_MS;
+
+export const SplashScreen: React.FC<SplashScreenProps> = ({ onFinish }) => {
   const [isExiting, setIsExiting] = useState<boolean>(false);
-  const [minDisplayElapsed, setMinDisplayElapsed] = useState<boolean>(false);
   const [currentLogoSrc, setCurrentLogoSrc] = useState<string>(APP_LOGO);
   const hasTriggeredExitRef = useRef<boolean>(false);
+  const onFinishRef = useRef<() => void>(onFinish);
 
-  const triggerSmoothExit = useCallback(() => {
-    if (hasTriggeredExitRef.current) return;
-    hasTriggeredExitRef.current = true;
-    setIsExiting(true);
-    setTimeout(() => {
-      onFinish();
-    }, 420);
+  useEffect(() => {
+    onFinishRef.current = onFinish;
   }, [onFinish]);
 
   useEffect(() => {
-    // Allow the 600ms logo scale + staggered subtext reveal to be clearly visible
-    const minDisplayTimer = setTimeout(() => {
-      setMinDisplayElapsed(true);
-    }, 950);
+    // Begin the smooth 420ms curtain fade-out at 4,580ms so the splash screen
+    // remains visible for exactly 5,000ms (5.00 seconds) from its first appearance
+    const exitStartTimer = setTimeout(() => {
+      if (hasTriggeredExitRef.current) return;
+      hasTriggeredExitRef.current = true;
+      setIsExiting(true);
+    }, SPLASH_VISIBLE_BEFORE_EXIT_MS);
 
-    // Max 1.5-second fallback timer so splash never blocks longer than 1.5s
-    const maxFallbackTimer = setTimeout(() => {
-      triggerSmoothExit();
-    }, 1500);
+    const finishTimer = setTimeout(() => {
+      hasTriggeredExitRef.current = true;
+      onFinishRef.current();
+    }, SPLASH_TOTAL_DURATION_MS);
 
     return () => {
-      clearTimeout(minDisplayTimer);
-      clearTimeout(maxFallbackTimer);
+      clearTimeout(exitStartTimer);
+      clearTimeout(finishTimer);
     };
-  }, [triggerSmoothExit]);
-
-  // Trigger smooth curtain exit as soon as Firebase Auth + state setup finish AND minimum reveal completes
-  useEffect(() => {
-    if (isAppReady && minDisplayElapsed) {
-      triggerSmoothExit();
-    }
-  }, [isAppReady, minDisplayElapsed, triggerSmoothExit]);
+  }, []);
 
   return (
     <div
-      onClick={triggerSmoothExit}
-      className={`fixed inset-0 z-50 flex flex-col items-center justify-center py-8 sm:py-12 px-4 svh-splash-multicomp-bg svh-splash-overlay select-none cursor-pointer overflow-hidden ${
+      className={`fixed inset-0 z-[1100] flex flex-col items-center justify-center py-8 sm:py-12 px-4 svh-splash-multicomp-bg svh-splash-overlay select-none overflow-hidden ${
         isExiting ? 'svh-splash-overlay-exit' : 'opacity-100'
       }`}
       aria-label="Study Vault Hub Splash Screen"

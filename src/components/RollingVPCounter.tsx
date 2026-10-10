@@ -24,11 +24,9 @@ export const RollingVPCounter: React.FC<RollingVPCounterProps> = React.memo(
     className = '',
   }) => {
     const safeTarget = Number.isFinite(value) ? Math.max(0, Math.round(value)) : 0;
-    const [displayValue, setDisplayValue] = useState<number>(() =>
-      safeTarget > 0 ? 0 : safeTarget
-    );
+    const [displayValue, setDisplayValue] = useState<number>(safeTarget);
     const [isRolling, setIsRolling] = useState<boolean>(false);
-    const currentValRef = useRef<number>(safeTarget > 0 ? 0 : safeTarget);
+    const currentValRef = useRef<number>(safeTarget);
     const rafRef = useRef<number | null>(null);
 
     useEffect(() => {

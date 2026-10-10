@@ -58,10 +58,6 @@
     backface-visibility: hidden;
   }
 
-  main {
-    transform: translateZ(0);
-  }
-
   body {
     font-family: var(--font-body);
     background-color: var(--svh-bg-page);
@@ -162,20 +158,14 @@ html[data-theme="light"] .gold-glow {
 @keyframes svhSectionEnter {
   from {
     opacity: 0;
-    transform: translate3d(0, 8px, 0);
   }
   to {
     opacity: 1;
-    transform: translate3d(0, 0, 0);
   }
 }
 
 .svh-section-transition {
-  animation: svhSectionEnter 250ms cubic-bezier(0.4, 0, 0.2, 1) both;
-  will-change: opacity, transform;
-  transform: translate3d(0, 0, 0);
-  backface-visibility: hidden;
-  -webkit-backface-visibility: hidden;
+  animation: svhSectionEnter 200ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .svh-bottom-nav-slider {
@@ -1638,7 +1628,9 @@ html[data-theme="dark"] .svh-chatbot-panel-glow {
 .svh-header-navbar .nav-links {
   min-width: 0;
   overflow-x: auto;
+  overflow-y: hidden;
   -webkit-overflow-scrolling: touch;
+  scroll-padding-inline: 0.375rem;
 }
 
 .svh-header-navbar .nav-links button,
@@ -2730,3 +2722,51 @@ body.svh-inline-timer-active .svh-tracker-sibling-dimmable {
   opacity: 1;
   transition: 0s;
 }
+
+/* ============================================================================
+   14. STUDY VAULT HUB ANNIVERSARY BANNER (15 OCTOBER, 2026+ IST)
+   - Scoped exclusively to .svh-anniversary-banner on the Home Screen
+   - Enforces Deep Navy Blue background + Elegant Gold border & high-contrast text
+     across both Light Mode and Dark Mode without altering global theme styles
+   ============================================================================ */
+
+.svh-anniversary-banner,
+html[data-theme="light"] .svh-anniversary-banner,
+html[data-theme="dark"] .svh-anniversary-banner {
+  background: linear-gradient(135deg, #0b162c 0%, #0e1d3a 52%, #081124 100%) !important;
+  background-color: #0b162c !important;
+  border-color: rgba(212, 175, 55, 0.72) !important;
+  box-shadow:
+    0 10px 26px -6px rgba(6, 11, 24, 0.45),
+    0 0 18px -4px rgba(212, 175, 55, 0.22) !important;
+}
+
+.svh-anniversary-banner .svh-anniversary-date-pill,
+html[data-theme="light"] .svh-anniversary-banner .svh-anniversary-date-pill,
+html[data-theme="dark"] .svh-anniversary-banner .svh-anniversary-date-pill {
+  background: linear-gradient(135deg, #fde08d 0%, #d4af37 100%) !important;
+  background-color: #d4af37 !important;
+  color: #081124 !important;
+  border: 1px solid rgba(253, 224, 141, 0.75) !important;
+}
+
+.svh-anniversary-banner .svh-anniversary-heading,
+html[data-theme="light"] .svh-anniversary-banner .svh-anniversary-heading,
+html[data-theme="dark"] .svh-anniversary-banner .svh-anniversary-heading {
+  color: #fde08d !important;
+}
+
+.svh-anniversary-banner .svh-anniversary-description,
+html[data-theme="light"] .svh-anniversary-banner .svh-anniversary-description,
+html[data-theme="dark"] .svh-anniversary-banner .svh-anniversary-description {
+  color: #f8fafc !important;
+}
+
+.svh-anniversary-banner .svh-anniversary-illustration-box,
+html[data-theme="light"] .svh-anniversary-banner .svh-anniversary-illustration-box,
+html[data-theme="dark"] .svh-anniversary-banner .svh-anniversary-illustration-box {
+  background: radial-gradient(circle at 50% 40%, rgba(212, 175, 55, 0.18) 0%, rgba(15, 29, 58, 0.88) 100%) !important;
+  background-color: #102040 !important;
+  border-color: rgba(212, 175, 55, 0.48) !important;
+}
+

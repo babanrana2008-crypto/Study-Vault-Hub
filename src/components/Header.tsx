@@ -40,6 +40,25 @@ export const Header: React.FC<HeaderProps> = React.memo(({
     );
   const showApkDesktopNav = isNativeAndroid && !isFloatingTopDock;
 
+  const navLinksRef = React.useRef<HTMLDivElement | null>(null);
+
+  React.useEffect(() => {
+    const el = navLinksRef.current;
+    if (!el) return;
+    const ensureStartVisible = () => {
+      if (activeSection === 'home' && el.scrollLeft !== 0) {
+        el.scrollLeft = 0;
+      }
+    };
+    ensureStartVisible();
+    window.addEventListener('resize', ensureStartVisible, { passive: true });
+    window.addEventListener('orientationchange', ensureStartVisible, { passive: true });
+    return () => {
+      window.removeEventListener('resize', ensureStartVisible);
+      window.removeEventListener('orientationchange', ensureStartVisible);
+    };
+  }, [activeSection]);
+
   return (
     <header
       aria-label="Top Navigation"
@@ -53,21 +72,30 @@ export const Header: React.FC<HeaderProps> = React.memo(({
         aria-label="Main Header Navigation"
         className={
           isFloatingTopDock
-            ? 'svh-header-navbar pointer-events-auto w-full max-w-5xl mx-auto px-3 sm:px-4 min-h-[3.5rem] py-1.5 rounded-2xl bg-[#060b18]/95 backdrop-blur-xl border border-[#d4af37]/35 shadow-[0_10px_30px_rgba(0,0,0,0.65),0_0_20px_rgba(212,175,55,0.14)] flex items-center justify-between gap-2 sm:gap-4 min-w-0 overflow-visible'
-            : 'svh-header-navbar w-full max-w-5xl mx-auto px-1 sm:px-2 min-h-[3.5rem] py-1.5 flex items-center justify-between gap-2 sm:gap-4 min-w-0 overflow-visible'
+            ? 'svh-header-navbar pointer-events-auto w-full max-w-5xl mx-auto px-3 sm:px-4 min-h-[3.5rem] py-1.5 rounded-2xl bg-[#060b18]/95 backdrop-blur-xl border border-[#d4af37]/35 shadow-[0_10px_30px_rgba(0,0,0,0.65),0_0_20px_rgba(212,175,55,0.14)] flex items-center justify-between gap-2 sm:gap-3 lg:gap-4 min-w-0 overflow-visible'
+            : 'svh-header-navbar w-full max-w-5xl mx-auto px-1 sm:px-2 min-h-[3.5rem] py-1.5 flex items-center justify-between gap-2 sm:gap-3 lg:gap-4 min-w-0 overflow-visible'
         }
       >
         {/* 1. LEFT CONTAINER (brand-section): Logo + "Study Vault Hub" + "Developed by Soumyadip Rana" */}
-        <div className="brand-section flex flex-1 md:flex-initial items-center gap-2 min-w-0 mr-1 sm:mr-2">
+        <div
+          className={`brand-section flex items-center gap-2 min-w-0 mr-1 sm:mr-1.5 ${
+            showApkDesktopNav ? 'flex-1 sm:flex-initial sm:shrink-0' : 'flex-1 md:flex-initial md:shrink-0'
+          }`}
+        >
           <button
             type="button"
             onClick={() => onNavigate('home')}
-            className="flex flex-1 md:flex-initial items-center gap-2 sm:gap-2.5 text-left group focus:outline-none min-w-0"
+            className={`flex items-center gap-2 sm:gap-2.5 text-left group focus:outline-none min-w-0 ${
+              showApkDesktopNav ? 'flex-1 sm:flex-initial' : 'flex-1 md:flex-initial'
+            }`}
           >
             <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full overflow-hidden flex items-center justify-center shrink-0 aspect-square">
               <img
                 src={APP_LOGO}
                 alt="Study Vault Hub"
+                width={40}
+                height={40}
+                decoding="async"
                 className="w-full h-full rounded-full object-contain aspect-square"
                 referrerPolicy="no-referrer"
                 onError={(e) => {
@@ -76,7 +104,7 @@ export const Header: React.FC<HeaderProps> = React.memo(({
               />
             </div>
             <div className="flex flex-col justify-center flex-1 min-w-0">
-              <span className="font-display text-xs sm:text-base font-bold tracking-tight text-[#fbf9f4] group-hover:text-[#d4af37] transition-colors leading-[1.2] truncate block">
+              <span className="font-display text-xs sm:text-sm lg:text-base font-bold tracking-tight text-[#fbf9f4] group-hover:text-[#d4af37] transition-colors leading-[1.2] truncate block">
                 Study Vault Hub
               </span>
               <span className="hidden min-[380px]:block sm:block text-[9px] sm:text-[10px] text-[#cbd5e1]/90 font-mono tracking-tight leading-[1.2] mt-0.5 truncate">
@@ -88,58 +116,59 @@ export const Header: React.FC<HeaderProps> = React.memo(({
 
         {/* 2. CENTER CONTAINER (nav-links): "Home", "Books", "Notes", "Practice", "Tracker", "Community", "Profile" */}
         <div
+          ref={navLinksRef}
           className={`nav-links ${
             showApkDesktopNav
-              ? 'hidden sm:flex flex-1 items-center justify-start lg:justify-center gap-3 sm:gap-4 lg:gap-5 text-[11px] sm:text-xs lg:text-sm font-medium overflow-x-auto no-scrollbar min-w-0 px-1 py-0.5'
-              : 'hidden md:flex flex-1 items-center justify-start lg:justify-center gap-3.5 lg:gap-5 text-xs lg:text-sm font-medium overflow-x-auto no-scrollbar min-w-0 px-1 py-0.5'
+              ? 'hidden sm:flex flex-1 items-center justify-start gap-1.5 md:gap-2.5 lg:gap-4 text-[11px] sm:text-xs lg:text-sm font-semibold overflow-x-auto no-scrollbar min-w-0 px-1.5 py-0.5'
+              : 'hidden md:flex flex-1 items-center justify-start gap-2 md:gap-2.5 lg:gap-4 text-xs lg:text-sm font-semibold overflow-x-auto no-scrollbar min-w-0 px-1.5 py-0.5'
           }`}
         >
           <button
             type="button"
             onClick={() => onNavigate('home')}
-            className={`min-h-[44px] px-2 flex items-center justify-center transition-colors hover:text-[#d4af37] whitespace-nowrap shrink-0 cursor-pointer ${activeSection === 'home' ? 'text-[#d4af37] font-semibold' : 'text-[#cbd5e1]'}`}
+            className={`min-h-[44px] px-2 lg:px-2.5 flex items-center justify-center transition-colors hover:text-[#d4af37] whitespace-nowrap shrink-0 cursor-pointer first:ml-auto ${activeSection === 'home' ? 'text-[#d4af37]' : 'text-[#cbd5e1]'}`}
           >
             Home
           </button>
           <button
             type="button"
             onClick={() => onNavigate('books')}
-            className={`min-h-[44px] px-2 flex items-center justify-center transition-colors hover:text-[#d4af37] whitespace-nowrap shrink-0 cursor-pointer ${activeSection === 'books' ? 'text-[#d4af37] font-semibold' : 'text-[#cbd5e1]'}`}
+            className={`min-h-[44px] px-2 lg:px-2.5 flex items-center justify-center transition-colors hover:text-[#d4af37] whitespace-nowrap shrink-0 cursor-pointer ${activeSection === 'books' ? 'text-[#d4af37]' : 'text-[#cbd5e1]'}`}
           >
             Books
           </button>
           <button
             type="button"
             onClick={() => onNavigate('notes')}
-            className={`min-h-[44px] px-2 flex items-center justify-center transition-colors hover:text-[#d4af37] whitespace-nowrap shrink-0 cursor-pointer ${activeSection === 'notes' ? 'text-[#d4af37] font-semibold' : 'text-[#cbd5e1]'}`}
+            className={`min-h-[44px] px-2 lg:px-2.5 flex items-center justify-center transition-colors hover:text-[#d4af37] whitespace-nowrap shrink-0 cursor-pointer ${activeSection === 'notes' ? 'text-[#d4af37]' : 'text-[#cbd5e1]'}`}
           >
             Notes
           </button>
           <button
             type="button"
             onClick={() => onNavigate('practice')}
-            className={`min-h-[44px] px-2 flex items-center justify-center transition-colors hover:text-[#d4af37] whitespace-nowrap shrink-0 cursor-pointer ${activeSection === 'practice' ? 'text-[#d4af37] font-semibold' : 'text-[#cbd5e1]'}`}
+            className={`min-h-[44px] px-2 lg:px-2.5 flex items-center justify-center transition-colors hover:text-[#d4af37] whitespace-nowrap shrink-0 cursor-pointer ${activeSection === 'practice' ? 'text-[#d4af37]' : 'text-[#cbd5e1]'}`}
           >
             Practice
           </button>
           <button
             type="button"
             onClick={() => onNavigate('tracker')}
-            className={`min-h-[44px] px-2 flex items-center justify-center transition-colors hover:text-[#d4af37] whitespace-nowrap shrink-0 cursor-pointer ${activeSection === 'tracker' ? 'text-[#d4af37] font-semibold' : 'text-[#cbd5e1]'}`}
+            className={`min-h-[44px] px-2 lg:px-2.5 flex items-center justify-center transition-colors hover:text-[#d4af37] whitespace-nowrap shrink-0 cursor-pointer ${activeSection === 'tracker' ? 'text-[#d4af37]' : 'text-[#cbd5e1]'}`}
           >
             Tracker
           </button>
           <button
             type="button"
             onClick={() => onNavigate('community')}
-            className={`min-h-[44px] px-2 flex items-center justify-center transition-colors hover:text-[#d4af37] whitespace-nowrap shrink-0 cursor-pointer ${activeSection === 'community' ? 'text-[#d4af37] font-semibold' : 'text-[#cbd5e1]'}`}
+            className={`min-h-[44px] px-2 lg:px-2.5 flex items-center justify-center transition-colors hover:text-[#d4af37] whitespace-nowrap shrink-0 cursor-pointer ${activeSection === 'community' ? 'text-[#d4af37]' : 'text-[#cbd5e1]'}`}
           >
             Community
           </button>
           <button
             type="button"
             onClick={() => onNavigate('profile')}
-            className={`min-h-[44px] px-2 flex items-center justify-center transition-colors hover:text-[#d4af37] whitespace-nowrap shrink-0 cursor-pointer ${activeSection === 'profile' ? 'text-[#d4af37] font-semibold' : 'text-[#cbd5e1]'}`}
+            className={`min-h-[44px] px-2 lg:px-2.5 flex items-center justify-center transition-colors hover:text-[#d4af37] whitespace-nowrap shrink-0 cursor-pointer last:mr-auto ${activeSection === 'profile' ? 'text-[#d4af37]' : 'text-[#cbd5e1]'}`}
           >
             Profile
           </button>
