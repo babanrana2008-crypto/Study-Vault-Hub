@@ -12,7 +12,7 @@ export const SPLASH_EXIT_TRANSITION_MS =
   SPLASH_TOTAL_DURATION_MS - SPLASH_EXIT_START_MS;
 export const SPLASH_VISIBLE_BEFORE_EXIT_MS = SPLASH_EXIT_START_MS;
 
-export const SplashScreen: React.FC<SplashScreenProps> = ({ onFinish }) => {
+export const SplashScreen: React.FC<SplashScreenProps> = React.memo(({ onFinish }) => {
   const [isExiting, setIsExiting] = useState<boolean>(false);
   const [currentLogoSrc, setCurrentLogoSrc] = useState<string>(APP_LOGO);
   const hasTriggeredExitRef = useRef<boolean>(false);
@@ -44,7 +44,7 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({ onFinish }) => {
 
   return (
     <div
-      className={`fixed inset-0 z-[1100] flex flex-col items-center justify-center py-8 sm:py-12 px-4 svh-splash-multicomp-bg svh-splash-overlay select-none overflow-hidden ${
+      className={`fixed inset-0 z-[1100] w-full max-w-[100vw] h-full min-h-[100dvh] flex flex-col items-center justify-center pt-[max(2rem,env(safe-area-inset-top))] pb-[max(2rem,env(safe-area-inset-bottom))] pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] sm:py-12 sm:px-6 svh-splash-multicomp-bg svh-splash-overlay select-none overflow-hidden box-border ${
         isExiting ? 'svh-splash-overlay-exit' : 'opacity-100'
       }`}
       aria-label="Study Vault Hub Splash Screen"
@@ -141,11 +141,11 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({ onFinish }) => {
       </div>
 
       {/* CENTRAL STAGE: Phase 2 (Frosted Glassmorphic Logo Card) & Phase 3 (Staggered Typography) */}
-      <div className="relative z-10 flex flex-col items-center justify-center text-center max-w-lg mx-auto px-4">
+      <div className="svh-splash-central-stage relative z-10 w-full max-w-[min(100%,32rem)] mx-auto px-3 sm:px-4 flex flex-col items-center justify-center text-center box-border">
         {/* PHASE 2: Frosted Glassmorphic SVH Logo Card with Beveled Edges, Deep Reflections & Rose-Green Gradient Pop (Zero expanding rings/ripples) */}
-        <div className="svh-splash-logo-stage relative flex items-center justify-center">
+        <div className="svh-splash-logo-stage relative flex items-center justify-center mx-auto shrink-0">
           {/* Material-Designed Frosted Glassmorphic Card with Polished Beveled Edges */}
-          <div className="svh-splash-glass-card svh-splash-logo-entry relative w-32 h-32 sm:w-40 sm:h-40 md:w-44 md:h-44 rounded-[2rem] sm:rounded-[2.35rem] p-3 sm:p-3.5 flex items-center justify-center shrink-0">
+          <div className="svh-splash-glass-card svh-splash-logo-entry relative w-28 h-28 min-[375px]:w-32 min-[375px]:h-32 sm:w-40 sm:h-40 md:w-44 md:h-44 rounded-[1.85rem] sm:rounded-[2.35rem] p-2.5 sm:p-3.5 flex items-center justify-center shrink-0 mx-auto">
             {/* Dynamic Specular Lighting Reflection */}
             <div
               aria-hidden="true"
@@ -175,32 +175,32 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({ onFinish }) => {
         </div>
 
         {/* PHASE 3: Staggered Text Reveal — Title, Tagline, and Preserved Developer Credit */}
-        <div className="mt-6 sm:mt-8 flex flex-col items-center">
+        <div className="mt-5 sm:mt-8 w-full max-w-full flex flex-col items-center justify-center text-center mx-auto">
           {/* Primary Title: "Study Vault Hub" in crisp serif font with high-contrast dark rose-to-gold gradient */}
-          <h1 className="svh-splash-title-gradient svh-splash-fade-stagger-1 font-display text-2xl sm:text-4xl md:text-5xl font-bold tracking-tight inline-block whitespace-nowrap">
+          <h1 className="svh-splash-title-gradient svh-splash-fade-stagger-1 font-display text-[1.6rem] min-[375px]:text-2xl sm:text-4xl md:text-5xl font-bold tracking-tight text-center max-w-full px-1 leading-tight sm:whitespace-nowrap">
             Study Vault Hub
           </h1>
 
           {/* Main Academic Tagline */}
-          <p className="svh-splash-tagline svh-splash-fade-stagger-2 text-xs sm:text-sm tracking-[0.14em] uppercase font-semibold mt-2.5 sm:mt-3 whitespace-nowrap">
+          <p className="svh-splash-tagline svh-splash-fade-stagger-2 text-[10px] min-[375px]:text-[11px] sm:text-sm tracking-[0.07em] min-[390px]:tracking-[0.11em] sm:tracking-[0.14em] uppercase font-semibold mt-2.5 sm:mt-3 text-center max-w-[92vw] sm:max-w-none px-1 leading-relaxed sm:whitespace-nowrap">
             Curated Academic Excellence &amp; Smart Preparation
           </p>
 
           {/* Prominent Developer Credit: "Developed by Soumyadip Rana" positioned below the main tagline */}
-          <div className="svh-splash-credit-badge svh-splash-fade-stagger-3 relative inline-flex flex-col items-center justify-center px-5 sm:px-6 py-2.5 sm:py-3 rounded-2xl mt-5 sm:mt-6 pointer-events-none">
-            <span className="svh-splash-credit-text text-base sm:text-lg font-bold tracking-[0.04em] whitespace-nowrap leading-snug">
+          <div className="svh-splash-credit-badge svh-splash-fade-stagger-3 relative inline-flex flex-col items-center justify-center max-w-[92vw] sm:max-w-full px-4 min-[375px]:px-5 sm:px-6 py-2.5 sm:py-3 rounded-2xl mt-4 sm:mt-6 mx-auto pointer-events-none box-border">
+            <span className="svh-splash-credit-text text-sm min-[375px]:text-base sm:text-lg font-bold tracking-[0.02em] sm:tracking-[0.04em] text-center leading-snug sm:whitespace-nowrap">
               Developed by{' '}
-              <strong className="svh-splash-credit-name font-display font-extrabold tracking-[0.05em]">
+              <strong className="svh-splash-credit-name font-display font-extrabold tracking-[0.03em] sm:tracking-[0.05em]">
                 Soumyadip Rana
               </strong>
             </span>
             <span
               aria-hidden="true"
-              className="svh-splash-credit-underline mt-1.5 h-[2.5px] w-4/5 rounded-full"
+              className="svh-splash-credit-underline mt-1.5 h-[2.5px] w-4/5 rounded-full mx-auto"
             />
           </div>
         </div>
       </div>
     </div>
   );
-};
+});

@@ -168,7 +168,22 @@ interface NativeDatabaseSchema {
  */
 const INITIAL_SEEDED_USERS: Record<string, NativeStoredUser> = {};
 
+let cachedNativeDb: NativeDatabaseSchema | null = null;
+let saveDbDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+
+function flushNativeDbToStorage(db: NativeDatabaseSchema): void {
+  try {
+    localStorage.setItem(NATIVE_DB_STORAGE_KEY, JSON.stringify(db));
+  } catch {
+    // ignore storage quota errors
+  }
+}
+
 function loadNativeDb(): NativeDatabaseSchema {
+  if (cachedNativeDb) {
+    return cachedNativeDb;
+  }
+
   const baseUsers: Record<string, NativeStoredUser> = {};
   for (const [id, u] of Object.entries(INITIAL_SEEDED_USERS)) {
     baseUsers[id] = JSON.parse(JSON.stringify(u));
@@ -184,7 +199,7 @@ function loadNativeDb(): NativeDatabaseSchema {
         ...baseUsers,
         ...(parsed.users || {}),
       };
-      return {
+      cachedNativeDb = {
         users: mergedUsers,
         posts: Array.isArray(parsed.posts) ? parsed.posts : [],
         replies: Array.isArray(parsed.replies) ? parsed.replies : [],
@@ -199,11 +214,12 @@ function loadNativeDb(): NativeDatabaseSchema {
           ? parsed.ownerSessionTokenHashes
           : [],
       };
+      return cachedNativeDb;
     }
   } catch {
     // ignore storage read errors
   }
-  return {
+  cachedNativeDb = {
     users: baseUsers,
     posts: [],
     replies: [],
@@ -214,14 +230,18 @@ function loadNativeDb(): NativeDatabaseSchema {
     registeredDeviceHashes: {},
     ownerSessionTokenHashes: [],
   };
+  return cachedNativeDb;
 }
 
 function saveNativeDb(db: NativeDatabaseSchema): void {
-  try {
-    localStorage.setItem(NATIVE_DB_STORAGE_KEY, JSON.stringify(db));
-  } catch {
-    // ignore storage quota errors
+  cachedNativeDb = db;
+  if (saveDbDebounceTimer !== null) {
+    clearTimeout(saveDbDebounceTimer);
   }
+  saveDbDebounceTimer = setTimeout(() => {
+    saveDbDebounceTimer = null;
+    flushNativeDbToStorage(db);
+  }, 120);
 }
 
 async function sha256Hex(input: string): Promise<string> {
@@ -2094,19 +2114,31 @@ export async function apiFetch(
     }
   }
 
-  // 2. Inside the Android APK, try live backend candidates if online and not in cooldown
+  // 2. Inside the Android APK, only probe a custom configured VITE_BACKEND_URL (with a fast 1200ms timeout)
+  //    because AI Studio preview/shared gateway URLs require browser gateway cookies and block cross-origin APK WebViews.
+  const customBackendUrl = (
+    (import.meta as { env?: Record<string, string> })?.env?.VITE_BACKEND_URL || ''
+  ).trim();
   const isOnline = typeof navigator === 'undefined' || navigator.onLine !== false;
-  if (isOnline && Date.now() >= remoteCandidatesBlockedUntil) {
-    const candidatesToTry = workingRemoteOrigin
-      ? [
-          workingRemoteOrigin,
-          ...REMOTE_BACKEND_CANDIDATES.filter((c) => c !== workingRemoteOrigin),
-        ]
-      : REMOTE_BACKEND_CANDIDATES;
+  const candidatesToTry = isNativeApk
+    ? customBackendUrl && /^https?:\/\/.+/i.test(customBackendUrl)
+      ? [customBackendUrl]
+      : []
+    : workingRemoteOrigin
+    ? [
+        workingRemoteOrigin,
+        ...REMOTE_BACKEND_CANDIDATES.filter((c) => c !== workingRemoteOrigin),
+      ]
+    : REMOTE_BACKEND_CANDIDATES;
 
+  if (
+    candidatesToTry.length > 0 &&
+    isOnline &&
+    Date.now() >= remoteCandidatesBlockedUntil
+  ) {
     for (const baseOrigin of candidatesToTry) {
       const isAiRoute = rawUrl.startsWith('/api/svh-ai/');
-      const timeoutMs = isAiRoute ? 25000 : 3500;
+      const timeoutMs = isAiRoute ? 12000 : 1200;
       const controller = new AbortController();
       const timeoutId =
         typeof window !== 'undefined'
@@ -2132,13 +2164,13 @@ export async function apiFetch(
       }
     }
 
-    // All remote candidates were blocked by gateway cookie check or unreachable; cache cooldown
+    // Remote candidates were blocked or unreachable; cache cooldown so subsequent calls are 0ms
     workingRemoteOrigin = null;
-    remoteCandidatesBlockedUntil = Date.now() + REMOTE_BLOCK_COOLDOWN_MS;
+    remoteCandidatesBlockedUntil = Date.now() + REMOTE_BLOCK_COOLDOWN_MS * 5;
   }
 
   // 3. Fallback to the on-device Native Android API Bridge so login, registration,
-  //    Owner mode, Student mode, Community, and SVH AI NEVER fail with "Failed to fetch"
+  //    Owner mode, Student mode, Community, and SVH AI execute with 0ms latency
   return handleNativeAndroidApiRequest(rawUrl, init);
 }
 
