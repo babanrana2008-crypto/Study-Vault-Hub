@@ -1244,140 +1244,49 @@ export default function App() {
   );
 
   // Prevent default rubber-band overscroll on non-scrollable elements in the main app layout
-  // so the mobile APK feels as responsive and locked-in as a native application.
+  // while keeping scrolling 100% hardware-accelerated on the compositor thread at 90Hz-120Hz.
   const appLayoutRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     const layoutEl = appLayoutRef.current;
     if (!layoutEl || typeof window === 'undefined') return;
 
-    let startX = 0;
-    let startY = 0;
     let isFixedNonScrollableTarget = false;
-    let scrollableAncestor: HTMLElement | null = null;
-
-    const findScrollableAncestor = (el: HTMLElement | null): HTMLElement | null => {
-      let current: HTMLElement | null = el;
-      while (current && current !== layoutEl && current !== document.body && current !== document.documentElement) {
-        const style = window.getComputedStyle(current);
-        const overflowY = style.overflowY;
-        const overflowX = style.overflowX;
-        const canScrollY =
-          (overflowY === 'auto' || overflowY === 'scroll' || overflowY === 'overlay') &&
-          current.scrollHeight > current.clientHeight + 1;
-        const canScrollX =
-          (overflowX === 'auto' || overflowX === 'scroll' || overflowX === 'overlay') &&
-          current.scrollWidth > current.clientWidth + 1;
-
-        if (canScrollY || canScrollX) {
-          return current;
-        }
-        current = current.parentElement;
-      }
-      return null;
-    };
 
     const handleTouchStart = (e: TouchEvent) => {
       if (e.touches.length !== 1) {
         isFixedNonScrollableTarget = false;
-        scrollableAncestor = null;
         return;
       }
-
-      const touch = e.touches[0];
-      startX = touch.clientX;
-      startY = touch.clientY;
 
       const target = e.target as HTMLElement | null;
       if (!target || typeof target.closest !== 'function') {
         isFixedNonScrollableTarget = false;
-        scrollableAncestor = null;
         return;
       }
 
-      // Allow native touch handling on form controls and explicitly interactive sliders
-      if (target.closest('input, textarea, select, [contenteditable="true"], [data-allow-touch-scroll="true"]')) {
-        isFixedNonScrollableTarget = false;
-        scrollableAncestor = null;
-        return;
-      }
-
-      scrollableAncestor = findScrollableAncestor(target);
-
-      // Fixed navigation bars, splash screen, and non-scrollable modal backdrops
-      const isWithinFixedChrome = Boolean(
+      // Allow native touch handling on form controls and explicitly scrollable/interactive strips
+      if (
         target.closest(
-          'header[aria-label="Top Navigation"], nav[aria-label="Bottom Navigation"], [data-non-scrollable="true"]'
+          'input, textarea, select, [contenteditable="true"], [data-allow-touch-scroll="true"], .nav-links, [class*="overflow-x-auto"], [class*="overflow-y-auto"]'
+        )
+      ) {
+        isFixedNonScrollableTarget = false;
+        return;
+      }
+
+      // Lock rubber-band drag only when touch originates on fixed non-scrollable chrome (top/bottom nav bars or splash overlay)
+      isFixedNonScrollableTarget = Boolean(
+        target.closest(
+          'header[aria-label="Top Navigation"], nav[aria-label="Bottom Navigation"], .svh-splash-overlay, [data-non-scrollable="true"]'
         )
       );
-
-      isFixedNonScrollableTarget = isWithinFixedChrome && !scrollableAncestor;
     };
 
     const handleTouchMove = (e: TouchEvent) => {
-      if (!e.cancelable || e.touches.length !== 1) return;
-
-      const touch = e.touches[0];
-      const deltaX = touch.clientX - startX;
-      const deltaY = touch.clientY - startY;
-
-      // 1. If touch started on a fixed non-scrollable chrome element (e.g., Top/Bottom nav dock), prevent rubber-banding
-      if (isFixedNonScrollableTarget) {
+      if (!isFixedNonScrollableTarget) return;
+      if (e.cancelable && e.touches.length === 1) {
         e.preventDefault();
-        return;
-      }
-
-      // 2. If touch is inside an inner scrollable container, prevent rubber-band chaining when pulling past its boundaries
-      if (scrollableAncestor) {
-        const isVerticalSwipe = Math.abs(deltaY) >= Math.abs(deltaX);
-        if (isVerticalSwipe) {
-          const { scrollTop, scrollHeight, clientHeight } = scrollableAncestor;
-          const canScrollVertically = scrollHeight > clientHeight + 1;
-          if (canScrollVertically) {
-            const isAtTopAndPullingDown = scrollTop <= 0 && deltaY > 0;
-            const isAtBottomAndPullingUp = scrollTop + clientHeight >= scrollHeight - 1 && deltaY < 0;
-            if (isAtTopAndPullingDown || isAtBottomAndPullingUp) {
-              e.preventDefault();
-            }
-            return;
-          }
-        } else {
-          const { scrollLeft, scrollWidth, clientWidth } = scrollableAncestor;
-          const canScrollHorizontally = scrollWidth > clientWidth + 1;
-          if (canScrollHorizontally) {
-            const isAtLeftAndPullingRight = scrollLeft <= 0 && deltaX > 0;
-            const isAtRightAndPullingLeft = scrollLeft + clientWidth >= scrollWidth - 1 && deltaX < 0;
-            if (isAtLeftAndPullingRight || isAtRightAndPullingLeft) {
-              e.preventDefault();
-            }
-            return;
-          }
-        }
-      }
-
-      // 3. Root document / main layout boundary check: prevent rubber-band overscroll when document cannot scroll or is at top/bottom edge
-      const scrollingEl = document.scrollingElement || document.documentElement;
-      if (scrollingEl) {
-        const isHorizontalDragOnPage = Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > 6;
-        if (isHorizontalDragOnPage && !scrollableAncestor) {
-          e.preventDefault();
-          return;
-        }
-
-        const totalScrollableHeight = scrollingEl.scrollHeight - scrollingEl.clientHeight;
-        if (totalScrollableHeight <= 1) {
-          // Entire viewport is non-scrollable right now
-          e.preventDefault();
-          return;
-        }
-
-        const currentScrollTop = scrollingEl.scrollTop;
-        const pullingDownAtTop = currentScrollTop <= 0 && deltaY > 0;
-        const pullingUpAtBottom = currentScrollTop >= totalScrollableHeight - 1 && deltaY < 0;
-
-        if (pullingDownAtTop || pullingUpAtBottom) {
-          e.preventDefault();
-        }
       }
     };
 

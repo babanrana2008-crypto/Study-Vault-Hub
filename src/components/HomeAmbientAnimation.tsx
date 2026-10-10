@@ -17,12 +17,18 @@ export const HomeAmbientAnimation: React.FC<HomeAmbientAnimationProps> = React.m
   ({ variant = 'home' }) => {
     const isSplash = variant === 'splash';
 
+    // On the main Home screen, MiniBubbleBackground already renders the unified
+    // ambient aurora, orbs, waves, and floating particles at the root level.
+    // Avoiding a duplicate fixed full-viewport animation layer prevents GPU overdraw
+    // and keeps Web & Android APK scrolling locked at 90Hz-120Hz.
+    if (!isSplash) {
+      return null;
+    }
+
     return (
       <div
         aria-hidden="true"
-        className={`svh-ambient-layer pointer-events-none select-none overflow-hidden ${
-          isSplash ? 'fixed inset-0 z-0' : 'fixed inset-0 z-0'
-        }`}
+        className="svh-ambient-layer pointer-events-none select-none overflow-hidden fixed inset-0 z-0"
       >
         {/* Soft flowing gradient mesh aura (zero runtime filter:blur — pure soft radial gradients) */}
         <div

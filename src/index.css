@@ -3742,12 +3742,12 @@ html[data-theme="light"] .svh-inertial-fluid-pill-solid {
        (WEB & ANDROID APK — 90Hz / 120Hz / 144Hz NATIVE SMOOTH SCROLLING)
    - Enforces `touch-action: pan-y` and `-webkit-overflow-scrolling: touch`
      across root body, dashboard wrappers, and all scrollable containers.
-   - Enforces strict GPU hardware acceleration (`transform: translate3d(0,0,0);`
-     and `will-change: transform, opacity;`) on transitioning views, sliding
-     panels, modals, and cards.
-   - Eliminates continuous border-sweep repaint thrashing on every card during
-     vertical scroll flicks while preserving the crisp Sweet Rose to Soft Gold
-     gradient border.
+   - Reserves `will-change: transform, opacity` strictly for actively
+     transitioning views, modals, and fluid pills (preventing VRAM exhaustion
+     from promoting 100+ static cards at once).
+   - Eliminates continuous offscreen pseudo-element & background overdraw
+     repaint thrashing during vertical scroll flicks while preserving the
+     visual design, colors, and Sweet Rose to Soft Gold borders.
    ============================================================================ */
 
 html,
@@ -3770,40 +3770,67 @@ main,
   -webkit-overflow-scrolling: touch;
 }
 
-/* GPU Hardware Acceleration on all transitioning views, sliding panels, modals, and cards */
+/* GPU Hardware Acceleration strictly on active transition containers, modals, and fluid pills */
 .svh-section-transition,
 .svh-spring-modal-card,
 .svh-popup-card,
-.svh-vp-streak-modal-card,
-.svh-shimmer-border-card,
-.svh-3d-tilt-card,
-main section[class*="rounded-2xl"],
-main section[class*="rounded-3xl"] {
+.svh-vp-streak-modal-card {
   transform: translate3d(0, 0, 0);
   will-change: transform, opacity;
   backface-visibility: hidden;
   -webkit-backface-visibility: hidden;
 }
 
-/* Prevent continuous offscreen pseudo-element repaint thrashing on every card while scrolling */
-main section[class*="rounded-2xl"]::after,
-main section[class*="rounded-3xl"]::after {
-  animation: none !important;
-  opacity: 0 !important;
+/* Cards & sections stay crisp on the main layer without exhausting GPU texture memory */
+.svh-3d-tilt-card,
+.svh-shimmer-border-card,
+main section[class*="rounded-2xl"],
+main section[class*="rounded-3xl"] {
+  will-change: auto !important;
+  transform: none !important;
+  contain: layout style;
 }
 
-/* Keep the subtle shimmer sweep only on explicitly opted-in hero/stopwatch cards */
-.svh-shimmer-border-card::after {
-  animation: svhBorderShimmerSweep 11s cubic-bezier(0.22, 1, 0.36, 1) infinite !important;
+/* Prevent continuous offscreen pseudo-element repaint thrashing on cards & badges while scrolling */
+main section[class*="rounded-2xl"]::after,
+main section[class*="rounded-3xl"]::after,
+.svh-shimmer-border-card::after,
+.svh-badge-shimmer::after {
+  animation: none !important;
+  opacity: 0 !important;
+  display: none !important;
 }
 
 /* Strict paint & layout isolation for fixed ambient background layers so they never trigger main-thread repaints during scroll */
 .svh-mini-bubble-layer,
 .svh-ambient-layer {
-  contain: layout style paint;
+  contain: strict;
   transform: translate3d(0, 0, 0);
   backface-visibility: hidden;
   -webkit-backface-visibility: hidden;
+}
+
+/* Keep the ambient aurora base & glow orbs as static zero-cost GPU textures while preserving the gentle mesh blob drift */
+.svh-app-aurora-base,
+.svh-app-glow-orb,
+.svh-app-lower-wave {
+  animation: none !important;
+  will-change: auto !important;
+}
+
+/* Limit active rising micro-particles to 4 lightweight compositor nodes to eliminate 15x full-viewport overdraw */
+.svh-mini-bubble-particle:nth-of-type(n+5) {
+  display: none !important;
+  animation: none !important;
+}
+
+/* Eliminate expensive blur-3xl decorative corner repaints inside cards */
+main section .blur-3xl,
+main section .blur-2xl,
+button .blur-sm.animate-pulse {
+  filter: none !important;
+  -webkit-filter: none !important;
+  animation: none !important;
 }
 
 /* Pause background animations cleanly when app tab/webview is backgrounded */
@@ -3816,25 +3843,18 @@ main section[class*="rounded-3xl"]::after {
   animation-play-state: paused !important;
 }
 
-/* Mobile & Android APK WebView GPU Optimization:
+/* Web & Android APK GPU Optimization:
    Eliminate expensive per-frame backdrop-filter readbacks on sticky navbars, modals, and floating docks
-   on touch/mobile viewports while preserving high-contrast semi-transparent backgrounds */
-@media (max-width: 1024px), (pointer: coarse) {
-  [class*="backdrop-blur"],
-  .svh-vp-streak-modal-overlay,
-  .svh-skeleton-card {
-    backdrop-filter: none !important;
-    -webkit-backdrop-filter: none !important;
-  }
-
-  .svh-ai-avatar-breathing::before {
-    filter: none !important;
-    -webkit-filter: none !important;
-    opacity: 0.55;
-  }
+   while preserving high-contrast semi-transparent backgrounds */
+[class*="backdrop-blur"],
+.svh-vp-streak-modal-overlay,
+.svh-skeleton-card {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
 }
 
-
-
-
-
+.svh-ai-avatar-breathing::before {
+  filter: none !important;
+  -webkit-filter: none !important;
+  opacity: 0.55;
+}

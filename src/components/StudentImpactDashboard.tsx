@@ -28,14 +28,30 @@ interface VerifiedImpactMetrics {
   lastVerifiedAt: string;
 }
 
+let cachedVerifiedMetrics: VerifiedImpactMetrics | null = null;
+let lastVerifiedMetricsTimestamp = 0;
+const IMPACT_CACHE_TTL_MS = 120_000; // 2 minutes in-memory cache across tab switches
+
 export const StudentImpactDashboard: React.FC<StudentImpactDashboardProps> = React.memo(
   ({ userStats }) => {
-    const [remoteMetrics, setRemoteMetrics] = useState<VerifiedImpactMetrics | null>(null);
-    const [isLoading, setIsLoading] = useState<boolean>(true);
+    const [remoteMetrics, setRemoteMetrics] = useState<VerifiedImpactMetrics | null>(() => cachedVerifiedMetrics);
+    const [isLoading, setIsLoading] = useState<boolean>(() => !cachedVerifiedMetrics);
     const [fetchError, setFetchError] = useState<string | null>(null);
 
-    const loadVerifiedImpactData = useCallback(async () => {
-      setIsLoading(true);
+    const loadVerifiedImpactData = useCallback(async (forceRefresh = false) => {
+      if (
+        !forceRefresh &&
+        cachedVerifiedMetrics &&
+        Date.now() - lastVerifiedMetricsTimestamp < IMPACT_CACHE_TTL_MS
+      ) {
+        setRemoteMetrics(cachedVerifiedMetrics);
+        setIsLoading(false);
+        return;
+      }
+
+      if (!cachedVerifiedMetrics) {
+        setIsLoading(true);
+      }
       setFetchError(null);
 
       try {
@@ -54,74 +70,7 @@ export const StudentImpactDashboard: React.FC<StudentImpactDashboardProps> = Rea
         let chatCount = 0;
         let anySourceSucceeded = false;
 
-        // 1. Query existing public-readable Firestore collections (if reachable)
-        try {
-          const [accountsSnap, usersSnap, postsSnap, repliesSnap, chatSnap] =
-            await Promise.all([
-              getDocs(collection(db, 'svh_accounts')).catch(() => null),
-              getDocs(collection(db, 'svh_users')).catch(() => null),
-              getDocs(collection(db, 'svh_posts')).catch(() => null),
-              getDocs(collection(db, 'svh_replies')).catch(() => null),
-              getDocs(collection(db, 'svh_chat')).catch(() => null),
-            ]);
-
-          if (accountsSnap || usersSnap || postsSnap || repliesSnap || chatSnap) {
-            anySourceSucceeded = true;
-          }
-
-          if (usersSnap) {
-            usersSnap.forEach((docSnap) => {
-              const d = docSnap.data();
-              const uid = String(d?.userId || docSnap.id || '');
-              if (!uid) return;
-              const stats = (d?.userStats || {}) as Partial<UserStats>;
-              const q = Math.max(0, Number(stats.questionsAttempted) || 0);
-              const m = Math.max(0, Number(stats.totalStudyMinutes) || 0);
-              const isReg = Boolean(d?.username || d?.usernameLower || stats.username);
-              userMap.set(uid, {
-                isRegistered: isReg,
-                questionsAttempted: q,
-                studyMinutes: m,
-                hasActivity: isReg || q > 0 || m > 0,
-              });
-            });
-          }
-
-          if (accountsSnap) {
-            accountsSnap.forEach((docSnap) => {
-              const d = docSnap.data();
-              const uid = String(d?.userId || docSnap.id || '');
-              if (!uid) return;
-              const prev = userMap.get(uid);
-              const stats = (d?.userStats || {}) as Partial<UserStats>;
-              const q = Math.max(
-                prev?.questionsAttempted || 0,
-                Number(stats.questionsAttempted) || 0
-              );
-              const m = Math.max(
-                prev?.studyMinutes || 0,
-                Number(stats.totalStudyMinutes) || 0
-              );
-              const isReg = Boolean(
-                prev?.isRegistered || d?.username || d?.usernameLower || stats.username
-              );
-              userMap.set(uid, {
-                isRegistered: isReg,
-                questionsAttempted: q,
-                studyMinutes: m,
-                hasActivity: isReg || q > 0 || m > 0,
-              });
-            });
-          }
-
-          if (postsSnap) postsCount = postsSnap.size;
-          if (repliesSnap) repliesCount = repliesSnap.size;
-          if (chatSnap) chatCount = chatSnap.size;
-        } catch {
-          // Firestore query failed or offline; continue to API state check
-        }
-
-        // 2. Also query existing /api/community/state endpoint for any server/native records
+        // 1. Query fast aggregated /api/community/state endpoint first (single lightweight payload)
         try {
           const res = await apiFetch('/api/community/state');
           if (res.ok) {
@@ -150,7 +99,7 @@ export const StudentImpactDashboard: React.FC<StudentImpactDashboardProps> = Rea
                 );
                 const vp = Math.max(0, Number(entry?.vpPoints || entry?.vaultPoints) || 0);
                 userMap.set(uid, {
-                  isRegistered: Boolean(prev?.isRegistered || entry?.username),
+                  isRegistered: Boolean(prev?.isRegistered || entry?.username || entry?.displayName),
                   questionsAttempted: q,
                   studyMinutes: m,
                   hasActivity: Boolean(prev?.hasActivity || q > 0 || m > 0 || vp > 0),
@@ -160,6 +109,51 @@ export const StudentImpactDashboard: React.FC<StudentImpactDashboardProps> = Rea
           }
         } catch {
           // API unreachable
+        }
+
+        // 2. Supplement with public-readable Firestore collections only if needed or forced
+        if (!anySourceSucceeded || forceRefresh) {
+          try {
+            const [usersSnap, postsSnap] = await Promise.all([
+              getDocs(collection(db, 'svh_users')).catch(() => null),
+              getDocs(collection(db, 'svh_posts')).catch(() => null),
+            ]);
+
+            if (usersSnap || postsSnap) {
+              anySourceSucceeded = true;
+            }
+
+            if (usersSnap) {
+              usersSnap.forEach((docSnap) => {
+                const d = docSnap.data();
+                const uid = String(d?.userId || docSnap.id || '');
+                if (!uid) return;
+                const prev = userMap.get(uid);
+                const stats = (d?.userStats || {}) as Partial<UserStats>;
+                const q = Math.max(
+                  prev?.questionsAttempted || 0,
+                  Number(stats.questionsAttempted) || 0
+                );
+                const m = Math.max(
+                  prev?.studyMinutes || 0,
+                  Number(stats.totalStudyMinutes) || 0
+                );
+                const isReg = Boolean(
+                  prev?.isRegistered || d?.username || d?.usernameLower || stats.username
+                );
+                userMap.set(uid, {
+                  isRegistered: isReg,
+                  questionsAttempted: q,
+                  studyMinutes: m,
+                  hasActivity: isReg || q > 0 || m > 0,
+                });
+              });
+            }
+
+            if (postsSnap) postsCount = Math.max(postsCount, postsSnap.size);
+          } catch {
+            // Firestore query failed or offline
+          }
         }
 
         if (!anySourceSucceeded) {
@@ -180,7 +174,7 @@ export const StudentImpactDashboard: React.FC<StudentImpactDashboardProps> = Rea
           totalMin += item.studyMinutes;
         }
 
-        setRemoteMetrics({
+        const nextMetrics: VerifiedImpactMetrics = {
           registeredStudents: regCount,
           activeLearners: activeCount,
           totalQuestionsPractised: totalQ,
@@ -190,7 +184,11 @@ export const StudentImpactDashboard: React.FC<StudentImpactDashboardProps> = Rea
             hour: '2-digit',
             minute: '2-digit',
           }),
-        });
+        };
+
+        cachedVerifiedMetrics = nextMetrics;
+        lastVerifiedMetricsTimestamp = Date.now();
+        setRemoteMetrics(nextMetrics);
       } catch {
         setFetchError('Unable to verify live platform impact metrics right now.');
       } finally {
@@ -304,7 +302,7 @@ export const StudentImpactDashboard: React.FC<StudentImpactDashboardProps> = Rea
             )}
             <button
               type="button"
-              onClick={loadVerifiedImpactData}
+              onClick={() => loadVerifiedImpactData(true)}
               disabled={isLoading}
               aria-label="Refresh Impact Metrics"
               className="px-3 py-1.5 rounded-xl bg-[#131b2e] hover:bg-[#19243d] border border-[#d4af37]/30 hover:border-[#d4af37] text-xs font-semibold text-[#fbf9f4] inline-flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-50"

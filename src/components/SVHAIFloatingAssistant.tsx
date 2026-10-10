@@ -1179,7 +1179,47 @@ export const SVHAIFloatingAssistant: React.FC<SVHAIFloatingAssistantProps> = Rea
   }, [currentMessages.length, isOpen, showHistoryView, scrollChatToBottom]);
 
   // Build real, honest student context from actual app data (NEVER inventing fake stats)
+  // Computed only when the SVH AI panel is open so background dashboard updates remain 0ms
   const realStudentContext = useMemo(() => {
+    if (!isOpen) {
+      return {
+        studentName: displayUserName || null,
+        hasCompletedOnboarding: userStats.hasCompletedSetup,
+        selectedGoals: userStats.selectedGoals,
+        activeGoal: activeGoal || null,
+        activeSubjects,
+        targetScore: userStats.targetScore || null,
+        targetInstitution: userStats.targetCollegeOrInstitution || null,
+        practiceStats: {
+          questionsAttempted: userStats.questionsAttempted,
+          correctAnswers: userStats.correctAnswers,
+          incorrectAnswers: userStats.incorrectAnswers,
+          overallAccuracyPercent: null,
+          topicsStudied: [],
+          recentTestSessions: [],
+        },
+        weakTopicAnalysis: {
+          hasEnoughRealData: false,
+          weakTopics: [] as Array<{ topicOrSubject: string; accuracy: number; solved: number }>,
+        },
+        trackerActivity: {
+          totalStudyMinutes: userStats.totalStudyMinutes,
+          activeStreakDays: userStats.streak?.current || 1,
+          dailyGoals: userStats.dailyGoals,
+          subjectsStudiedMinutes: userStats.subjectsStudied,
+          pendingStudyTasks: [],
+          completedStudyTasksCount: 0,
+          recentStudySessions: [],
+        },
+        savedAndCompletedContent: {
+          bookmarkedBooks: [],
+          bookmarkedNotes: [],
+          completedNotes: [],
+          relevantNCERTTextbooksInApp: [],
+        },
+      };
+    }
+
     const hasEnoughPracticeData = userStats.questionsAttempted >= 3;
     const overallAccuracy =
       userStats.questionsAttempted > 0
@@ -1263,7 +1303,7 @@ export const SVHAIFloatingAssistant: React.FC<SVHAIFloatingAssistantProps> = Rea
         relevantNCERTTextbooksInApp: availableNCERTBooks.slice(0, 12),
       },
     };
-  }, [userStats, activeGoal, activeSubjects, displayUserName]);
+  }, [isOpen, userStats, activeGoal, activeSubjects, displayUserName]);
 
   const handleSelectImage = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
